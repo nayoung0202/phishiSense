@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,22 @@ import { format } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
+function calculateRate(count: number | null, total: number | null): number {
+  if (!total || !count) return 0;
+  return Math.round((count / total) * 100);
+}
 
 const statusConfig: Record<string, { className: string }> = {
   "예약": { className: "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" },
@@ -58,6 +74,14 @@ export default function Projects() {
   const copyMutation = useMutation<Project[], Error, string[]>({
     mutationFn: async (ids) => {
       const res = await apiRequest("POST", "/api/projects/copy", { ids });
+      const contentType = res.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.includes("application/json")) {
+        const fallback = await res.text();
+        const message = fallback.trim().startsWith("<")
+          ? "서버가 올바른 JSON 응답을 반환하지 않았습니다."
+          : fallback;
+        throw new Error(message || "프로젝트 복제 응답을 파싱할 수 없습니다.");
+      }
       return (await res.json()) as Project[];
     },
     onSuccess: (copiedProjects) => {
@@ -98,9 +122,35 @@ export default function Projects() {
     return matchesSearch && matchesStatus;
   });
 
-  const selectedProjectDetails = projects.filter((project) =>
-    selectedProjects.includes(project.id),
+  const selectedProjectDetails = useMemo(
+    () =>
+      projects.filter((project) => selectedProjects.includes(project.id)),
+    [projects, selectedProjects],
   );
+
+  const compareChartData = useMemo(() => {
+    return selectedProjectDetails.map((project) => {
+      const period = `${format(new Date(project.startDate), "yyyy-MM-dd")} ~ ${format(
+        new Date(project.endDate),
+        "yyyy-MM-dd",
+      )}`;
+
+      return {
+        id: project.id,
+        name: project.name,
+        department: project.department ?? "-",
+        status: project.status,
+        period,
+        발송수: project.targetCount ?? 0,
+        오픈률: calculateRate(project.openCount, project.targetCount),
+        클릭률: calculateRate(project.clickCount, project.targetCount),
+        제출률: calculateRate(project.submitCount, project.targetCount),
+        오픈수: project.openCount ?? 0,
+        클릭수: project.clickCount ?? 0,
+        제출수: project.submitCount ?? 0,
+      };
+    });
+  }, [selectedProjectDetails]);
 
   const isAllSelected =
     filteredProjects.length > 0 &&
@@ -144,11 +194,6 @@ export default function Projects() {
     }
   };
 
-  const calculateRate = (count: number | null, total: number | null) => {
-    if (!total || !count) return 0;
-    return Math.round((count / total) * 100);
-  };
-
   return (
     <div className="p-6 space-y-6">
       <Dialog open={isCompareOpen} onOpenChange={setIsCompareOpen}>
@@ -168,48 +213,102 @@ export default function Projects() {
               <div className="text-sm text-muted-foreground">
                 {selectedProjectDetails.length}개 프로젝트 비교 중
               </div>
-              <div className="mt-4 overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>프로젝트명</TableHead>
-                      <TableHead>부서</TableHead>
-                      <TableHead>기간</TableHead>
-                      <TableHead>대상자 수</TableHead>
-                      <TableHead>오픈률</TableHead>
-                      <TableHead>클릭률</TableHead>
-                      <TableHead>제출률</TableHead>
-                      <TableHead>상태</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedProjectDetails.map((project) => (
-                      <TableRow key={`compare-${project.id}`}>
-                        <TableCell className="font-medium">{project.name}</TableCell>
-                        <TableCell>{project.department || "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(project.startDate), "yyyy-MM-dd")} ~{" "}
-                          {format(new Date(project.endDate), "yyyy-MM-dd")}
-                        </TableCell>
-                        <TableCell>{project.targetCount?.toLocaleString() || 0}명</TableCell>
-                        <TableCell className="text-primary font-semibold">
-                          {calculateRate(project.openCount, project.targetCount)}%
-                        </TableCell>
-                        <TableCell className="text-primary font-semibold">
-                          {calculateRate(project.clickCount, project.targetCount)}%
-                        </TableCell>
-                        <TableCell className="text-primary font-semibold">
-                          {calculateRate(project.submitCount, project.targetCount)}%
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={statusConfig[project.status]?.className || ""}>
-                            {project.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {compareChartData.map((project) => (
+                  <div
+                    key={`compare-summary-${project.id}`}
+                    className="rounded-md border p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium leading-tight">{project.name}</p>
+                        <p className="text-xs text-muted-foreground">{project.period}</p>
+                      </div>
+                      <Badge className={statusConfig[project.status]?.className || ""}>
+                        {project.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="bg-transparent">
+                        {project.department}
+                      </Badge>
+                      <span>발송 {project.발송수.toLocaleString()}명</span>
+                      <span>오픈 {project.오픈수.toLocaleString()}명</span>
+                      <span>클릭 {project.클릭수.toLocaleString()}명</span>
+                      <span>제출 {project.제출수.toLocaleString()}명</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 h-[340px] rounded-md border bg-muted/30 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={compareChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis
+                      yAxisId="count"
+                      stroke="hsl(var(--muted-foreground))"
+                      width={60}
+                    />
+                    <YAxis
+                      yAxisId="rate"
+                      orientation="right"
+                      domain={[0, 100]}
+                      stroke="hsl(var(--muted-foreground))"
+                      width={60}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--popover))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "0.5rem",
+                      }}
+                      formatter={(value, name, payload) => {
+                        const label = String(name);
+                        if (label.endsWith("률")) {
+                          return [`${value as number}%`, label];
+                        }
+                        return [`${(value as number).toLocaleString()}명`, label];
+                      }}
+                      labelFormatter={(_, payload) => {
+                        const meta = payload?.[0]?.payload;
+                        return `${meta?.name ?? ""} · ${meta?.period ?? ""}`;
+                      }}
+                    />
+                    <Legend />
+                    <Bar
+                      yAxisId="count"
+                      dataKey="발송수"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Line
+                      yAxisId="rate"
+                      type="monotone"
+                      dataKey="오픈률"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      yAxisId="rate"
+                      type="monotone"
+                      dataKey="클릭률"
+                      stroke="hsl(var(--chart-3))"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      yAxisId="rate"
+                      type="monotone"
+                      dataKey="제출률"
+                      stroke="hsl(var(--chart-4))"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             </>
           )}
