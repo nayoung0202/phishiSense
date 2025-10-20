@@ -25,6 +25,7 @@ export interface IStorage {
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
+  copyProjects(ids: string[]): Promise<Project[]>;
   
   // Templates
   getTemplates(): Promise<Template[]>;
@@ -98,6 +99,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       name: "2024 Q1 전직원 피싱 훈련",
       description: "2024년 1분기 전 직원 대상 피싱 보안 훈련",
+      department: "전사",
       templateId: template1.id,
       trainingPageId: null,
       startDate: new Date('2024-01-15'),
@@ -113,6 +115,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       name: "신입사원 대상 보안 교육",
       description: "2024년 신입사원 보안 인식 향상 훈련",
+      department: "인사부",
       templateId: template2.id,
       trainingPageId: null,
       startDate: new Date('2024-02-01'),
@@ -129,11 +132,16 @@ export class MemStorage implements IStorage {
     
     // Seed targets
     for (let i = 1; i <= 10; i++) {
+      const baseDepartment = i <= 5 ? "영업부" : "개발부";
+      const department =
+        i % 3 === 0
+          ? `${baseDepartment} 1팀, ${baseDepartment} 2팀`
+          : baseDepartment;
       const target: Target = {
         id: randomUUID(),
         name: `직원${i}`,
         email: `employee${i}@company.com`,
-        department: i <= 5 ? "영업부" : "개발부",
+        department,
         tags: i % 2 === 0 ? ["신입", "교육필요"] : ["경력"],
         status: "active",
         createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
@@ -176,6 +184,7 @@ export class MemStorage implements IStorage {
       id,
       name: project.name,
       description: project.description ?? null,
+      department: project.department ?? null,
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
       startDate: project.startDate,
@@ -197,6 +206,47 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...project };
     this.projects.set(id, updated);
     return updated;
+  }
+
+  async copyProjects(ids: string[]): Promise<Project[]> {
+    const copies: Project[] = [];
+    const existingNames = new Set(Array.from(this.projects.values()).map((p) => p.name));
+
+    const generateCopyName = (original: string) => {
+      const baseName = `${original} 복제`;
+      if (!existingNames.has(baseName)) {
+        existingNames.add(baseName);
+        return baseName;
+      }
+      let index = 2;
+      let candidate = `${baseName} ${index}`;
+      while (existingNames.has(candidate)) {
+        index += 1;
+        candidate = `${baseName} ${index}`;
+      }
+      existingNames.add(candidate);
+      return candidate;
+    };
+
+    for (const id of ids) {
+      const project = this.projects.get(id);
+      if (!project) continue;
+
+      const newId = randomUUID();
+      const now = new Date();
+      const copy: Project = {
+        ...project,
+        id: newId,
+        name: generateCopyName(project.name),
+        createdAt: now,
+        startDate: new Date(project.startDate),
+        endDate: new Date(project.endDate),
+      };
+      this.projects.set(newId, copy);
+      copies.push(copy);
+    }
+
+    return copies;
   }
 
   async deleteProject(id: string): Promise<boolean> {

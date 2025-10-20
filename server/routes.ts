@@ -7,6 +7,7 @@ import {
   insertTargetSchema, 
   insertTrainingPageSchema 
 } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Projects
@@ -38,6 +39,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(project);
     } catch (error) {
       res.status(400).json({ error: "Invalid project data" });
+    }
+  });
+
+  app.post("/api/projects/copy", async (req, res) => {
+    try {
+      const { ids } = z.object({
+        ids: z.array(z.string().min(1)).min(1),
+      }).parse(req.body);
+      const projects = await storage.copyProjects(ids);
+      res.status(201).json(projects);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to copy projects" });
     }
   });
 

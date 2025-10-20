@@ -25,10 +25,22 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
+const parseDepartments = (department: Target["department"]): string[] => {
+  if (!department) return [];
+  if (Array.isArray(department)) {
+    return department.map((dept) => dept.trim()).filter((dept) => dept.length > 0);
+  }
+  return department
+    .split(",")
+    .map((dept) => dept.trim())
+    .filter((dept) => dept.length > 0);
+};
+
 export default function Targets() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
   const { toast } = useToast();
+  const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const { data: targets = [], isLoading } = useQuery<Target[]>({
     queryKey: ["/api/targets"],
@@ -47,11 +59,25 @@ export default function Targets() {
     },
   });
 
-  const filteredTargets = targets.filter((target) =>
-    target.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    target.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    target.department?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTargets = targets.filter((target) => {
+    const departments = parseDepartments(target.department);
+    return (
+      target.name.toLowerCase().includes(normalizedSearch) ||
+      target.email.toLowerCase().includes(normalizedSearch) ||
+      departments.some((dept) => dept.toLowerCase().includes(normalizedSearch))
+    );
+  });
+
+  const isAllSelected =
+    filteredTargets.length > 0 &&
+    filteredTargets.every((target) => selectedTargets.includes(target.id));
+
+  const selectAllState: boolean | "indeterminate" =
+    selectedTargets.length === 0
+      ? false
+      : isAllSelected
+      ? true
+      : "indeterminate";
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -62,11 +88,15 @@ export default function Targets() {
   };
 
   const handleSelectTarget = (targetId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedTargets([...selectedTargets, targetId]);
-    } else {
-      setSelectedTargets(selectedTargets.filter(id => id !== targetId));
-    }
+    setSelectedTargets((prev) => {
+      if (checked) {
+        if (prev.includes(targetId)) {
+          return prev;
+        }
+        return [...prev, targetId];
+      }
+      return prev.filter((id) => id !== targetId);
+    });
   };
 
   const handleDelete = (id: string) => {
@@ -167,8 +197,8 @@ export default function Targets() {
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedTargets.length === filteredTargets.length && filteredTargets.length > 0}
-                    onCheckedChange={handleSelectAll}
+                    checked={selectAllState}
+                    onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
                     data-testid="checkbox-select-all"
                   />
                 </TableHead>
@@ -194,49 +224,64 @@ export default function Targets() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTargets.map((target) => (
-                  <TableRow key={target.id} data-testid={`row-target-${target.id}`}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedTargets.includes(target.id)}
-                        onCheckedChange={(checked) => handleSelectTarget(target.id, checked as boolean)}
-                        data-testid={`checkbox-target-${target.id}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{target.name}</TableCell>
-                    <TableCell>{target.email}</TableCell>
-                    <TableCell>{target.department || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {target.tags?.map((tag, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-500/20 text-green-400">
-                        {target.status || 'active'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" data-testid={`button-edit-${target.id}`}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(target.id)}
-                          data-testid={`button-delete-${target.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredTargets.map((target) => {
+                  const departments = parseDepartments(target.department);
+                  return (
+                    <TableRow key={target.id} data-testid={`row-target-${target.id}`}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedTargets.includes(target.id)}
+                          onCheckedChange={(checked) => handleSelectTarget(target.id, Boolean(checked))}
+                          data-testid={`checkbox-target-${target.id}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{target.name}</TableCell>
+                      <TableCell>{target.email}</TableCell>
+                      <TableCell>
+                        {departments.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {departments.map((dept) => (
+                              <Badge key={`${target.id}-${dept}`} variant="outline" className="text-xs">
+                                {dept}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {target.tags?.map((tag, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-500/20 text-green-400">
+                          {target.status || 'active'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="sm" data-testid={`button-edit-${target.id}`}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(target.id)}
+                            data-testid={`button-delete-${target.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

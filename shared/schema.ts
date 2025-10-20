@@ -13,6 +13,7 @@ export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
+  department: text("department"),
   templateId: varchar("template_id"),
   trainingPageId: varchar("training_page_id"),
   startDate: timestamp("start_date").notNull(),
