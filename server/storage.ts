@@ -129,6 +129,57 @@ export class MemStorage implements IStorage {
     };
     this.projects.set(project1.id, project1);
     this.projects.set(project2.id, project2);
+    const project3: Project = {
+      id: randomUUID(),
+      name: "2024 상반기 영업부 집중 훈련",
+      description: "영업부 전원을 대상으로 한 피싱 인지 강화 캠페인",
+      department: "영업부",
+      templateId: template1.id,
+      trainingPageId: null,
+      startDate: new Date("2024-03-05"),
+      endDate: new Date("2024-03-29"),
+      status: "완료",
+      targetCount: 220,
+      openCount: 180,
+      clickCount: 45,
+      submitCount: 10,
+      createdAt: new Date("2024-02-20"),
+    };
+    const project4: Project = {
+      id: randomUUID(),
+      name: "임원 대상 스피어피싱 대응 훈련",
+      description: "경영진 특화 시나리오 기반 대응력 향상 훈련",
+      department: "경영지원실",
+      templateId: template2.id,
+      trainingPageId: null,
+      startDate: new Date("2024-04-02"),
+      endDate: new Date("2024-04-12"),
+      status: "진행중",
+      targetCount: 18,
+      openCount: 12,
+      clickCount: 4,
+      submitCount: 1,
+      createdAt: new Date("2024-03-25"),
+    };
+    const project5: Project = {
+      id: randomUUID(),
+      name: "2024 하계 인턴 대상 보안 교육",
+      description: "하계 인턴십 참여자를 위한 필수 보안 교육",
+      department: "교육팀",
+      templateId: template1.id,
+      trainingPageId: null,
+      startDate: new Date("2024-07-01"),
+      endDate: new Date("2024-07-19"),
+      status: "예약",
+      targetCount: 60,
+      openCount: null,
+      clickCount: null,
+      submitCount: null,
+      createdAt: new Date("2024-06-10"),
+    };
+    this.projects.set(project3.id, project3);
+    this.projects.set(project4.id, project4);
+    this.projects.set(project5.id, project5);
     
     // Seed targets
     for (let i = 1; i <= 10; i++) {
