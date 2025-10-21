@@ -59,7 +59,7 @@ export default function TrainingPages() {
         <Link href="/training-pages/new">
           <Button data-testid="button-new-page">
             <Plus className="w-4 h-4 mr-2" />
-            새 안내 페이지
+            새 안내 페이지 생성
           </Button>
         </Link>
       </div>

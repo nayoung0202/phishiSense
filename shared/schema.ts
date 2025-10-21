@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  timestamp,
+  integer,
+  decimal,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -23,6 +30,9 @@ export const projects = pgTable("projects", {
   openCount: integer("open_count").default(0),
   clickCount: integer("click_count").default(0),
   submitCount: integer("submit_count").default(0),
+  fiscalYear: integer("fiscal_year"),
+  fiscalQuarter: integer("fiscal_quarter"),
+  weekOfYear: integer("week_of_year").array(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -73,6 +83,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
   createdAt: true,
+  fiscalYear: true,
+  fiscalQuarter: true,
+  weekOfYear: true,
 });
 
 export const insertTemplateSchema = createInsertSchema(templates).omit({

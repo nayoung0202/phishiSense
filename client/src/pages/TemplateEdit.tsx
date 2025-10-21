@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import {
   Form,
@@ -18,15 +17,17 @@ import { ArrowLeft, Save } from "lucide-react";
 import { type Template, insertTemplateSchema } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 export default function TemplateEdit() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const isNew = id === "new";
+  const templateId = id ?? "";
+  const isNew = templateId.length === 0;
 
   const { data: template } = useQuery<Template>({
-    queryKey: ["/api/templates", id],
+    queryKey: ["/api/templates", templateId],
     enabled: !isNew,
   });
 
@@ -48,9 +49,8 @@ export default function TemplateEdit() {
     mutationFn: async (data: any) => {
       if (isNew) {
         return await apiRequest("POST", "/api/templates", data);
-      } else {
-        return await apiRequest("PATCH", `/api/templates/${id}`, data);
       }
+      return await apiRequest("PATCH", `/api/templates/${templateId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
@@ -76,7 +76,7 @@ export default function TemplateEdit() {
         </Link>
         <div className="flex-1">
           <h1 className="text-4xl font-bold">
-            {isNew ? "새 템플릿 생성" : "템플릿 수정"}
+            {isNew ? "템플릿 생성" : "템플릿 수정"}
           </h1>
         </div>
       </div>
@@ -119,12 +119,14 @@ export default function TemplateEdit() {
                 <FormItem>
                   <FormLabel>메일 본문</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="메일 본문을 입력하세요..."
-                      className="min-h-[300px] font-mono"
-                      {...field}
-                      data-testid="textarea-body"
-                    />
+                    <div data-testid="editor-body">
+                      <RichTextEditor
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder="메일 본문을 자유롭게 작성하세요."
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

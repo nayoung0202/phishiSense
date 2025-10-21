@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import {
   Form,
@@ -25,15 +24,17 @@ import { ArrowLeft, Save } from "lucide-react";
 import { type TrainingPage, insertTrainingPageSchema } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 export default function TrainingPageEdit() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const isNew = id === "new";
+  const pageId = id ?? "";
+  const isNew = pageId.length === 0;
 
   const { data: page } = useQuery<TrainingPage>({
-    queryKey: ["/api/training-pages", id],
+    queryKey: ["/api/training-pages", pageId],
     enabled: !isNew,
   });
 
@@ -57,9 +58,8 @@ export default function TrainingPageEdit() {
     mutationFn: async (data: any) => {
       if (isNew) {
         return await apiRequest("POST", "/api/training-pages", data);
-      } else {
-        return await apiRequest("PATCH", `/api/training-pages/${id}`, data);
       }
+      return await apiRequest("PATCH", `/api/training-pages/${pageId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/training-pages"] });
@@ -85,7 +85,7 @@ export default function TrainingPageEdit() {
         </Link>
         <div className="flex-1">
           <h1 className="text-4xl font-bold">
-            {isNew ? "새 안내 페이지 생성" : "안내 페이지 수정"}
+            {isNew ? "안내 페이지 생성" : "안내 페이지 수정"}
           </h1>
         </div>
       </div>
@@ -148,14 +148,16 @@ export default function TrainingPageEdit() {
               name="content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>페이지 내용 (HTML)</FormLabel>
+                  <FormLabel>페이지 내용</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="<div><h2>보안 훈련 결과 안내</h2><p>이 메일은 실제 공격이 아닌 보안 모의훈련입니다...</p></div>"
-                      className="min-h-[400px] font-mono text-sm"
-                      {...field}
-                      data-testid="textarea-content"
-                    />
+                    <div data-testid="editor-content">
+                      <RichTextEditor
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder="안내 페이지에 표시할 내용을 입력하세요."
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
