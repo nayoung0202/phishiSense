@@ -24,6 +24,7 @@ import { type Target } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 const parseDepartments = (department: Target["department"]): string[] => {
   if (!department) return [];
@@ -148,10 +149,12 @@ export default function Targets() {
               </div>
             </DialogContent>
           </Dialog>
-          <Button data-testid="button-add-target">
-            <Plus className="w-4 h-4 mr-2" />
-            대상자 추가
-          </Button>
+          <Link href="/targets/new">
+            <Button data-testid="button-add-target">
+              <Plus className="w-4 h-4 mr-2" />
+              대상자 추가
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -260,15 +263,23 @@ export default function Targets() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-green-500/20 text-green-400">
-                          {target.status || 'active'}
+                <Badge
+                  className={
+                    target.status === "inactive"
+                      ? "bg-orange-500/20 text-orange-400"
+                      : "bg-green-500/20 text-green-400"
+                  }
+                >
+                  {target.status || "active"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                        <Link href={`/targets/${target.id}/edit`}>
                           <Button variant="ghost" size="sm" data-testid={`button-edit-${target.id}`}>
                             <Edit className="w-4 h-4" />
                           </Button>
+                        </Link>
                           <Button
                             variant="ghost"
                             size="sm"

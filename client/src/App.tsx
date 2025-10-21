@@ -12,6 +12,7 @@ import ProjectDetail from "@/pages/ProjectDetail";
 import Templates from "@/pages/Templates";
 import TemplateEdit from "@/pages/TemplateEdit";
 import Targets from "@/pages/Targets";
+import TargetEdit from "@/pages/TargetEdit";
 import TrainingPages from "@/pages/TrainingPages";
 import TrainingPageEdit from "@/pages/TrainingPageEdit";
 import NotFound from "@/pages/not-found";
@@ -26,6 +27,8 @@ function Router() {
       <Route path="/templates/new" component={TemplateEdit} />
       <Route path="/templates/:id/edit" component={TemplateEdit} />
       <Route path="/targets" component={Targets} />
+      <Route path="/targets/new" component={TargetEdit} />
+      <Route path="/targets/:id/edit" component={TargetEdit} />
       <Route path="/training-pages" component={TrainingPages} />
       <Route path="/training-pages/new" component={TrainingPageEdit} />
       <Route path="/training-pages/:id/edit" component={TrainingPageEdit} />

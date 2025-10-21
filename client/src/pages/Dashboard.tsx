@@ -280,7 +280,7 @@ export default function Dashboard() {
                 />
                 <Line
                   yAxisId="rate"
-                  type="monotone"
+                  type="linear"
                   dataKey="오픈률"
                   stroke="hsl(var(--chart-2))"
                   strokeWidth={2}
@@ -288,7 +288,7 @@ export default function Dashboard() {
                 />
                 <Line
                   yAxisId="rate"
-                  type="monotone"
+                  type="linear"
                   dataKey="클릭률"
                   stroke="hsl(var(--chart-3))"
                   strokeWidth={2}
@@ -296,7 +296,7 @@ export default function Dashboard() {
                 />
                 <Line
                   yAxisId="rate"
-                  type="monotone"
+                  type="linear"
                   dataKey="제출률"
                   stroke="hsl(var(--chart-4))"
                   strokeWidth={2}
