@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -56,7 +56,6 @@ import {
   FileText,
   Kanban,
   LayoutList,
-  MoreHorizontal,
   Plus,
   Search,
 } from "lucide-react";
@@ -65,6 +64,10 @@ import {
   addDays,
   differenceInHours,
   startOfISOWeek,
+  eachDayOfInterval,
+  startOfMonth,
+  endOfMonth,
+  differenceInCalendarDays,
 } from "date-fns";
 import type { Project } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -208,6 +211,9 @@ const numberToQuarter: Record<number, Quarter> = {
   4: "Q4",
 };
 
+const MONTH_CARD_HEIGHT = 420;
+const WEEK_CARD_HEIGHT = 280;
+
 /* -------------------------------------------------------------------------- */
 /*                               Util Functions                               */
 /* -------------------------------------------------------------------------- */
@@ -279,12 +285,59 @@ function formatPercent(value: number) {
   return `${Math.max(0, value)}%`;
 }
 
-const statusFilterFromProject = (project: Project): StatusFilter => {
-  if (project.status === "예약") return "예약";
-  if (project.status === "진행중") return "진행중";
-  if (project.status === "완료") return "완료";
-  return "all";
-};
+function useVirtualList(length: number, itemHeight: number, overscan = 2) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [viewportHeight, setViewportHeight] = useState(itemHeight * 3);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    const handleScroll = () => setScrollTop(node.scrollTop);
+    handleScroll();
+    node.addEventListener("scroll", handleScroll);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setViewportHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(node);
+
+    return () => {
+      node.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
+    };
+  }, [itemHeight]);
+
+  const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+  const endIndex = Math.min(
+    length,
+    Math.ceil((scrollTop + viewportHeight) / itemHeight) + overscan,
+  );
+
+  const virtualItems = [] as {
+    index: number;
+    start: number;
+    size: number;
+  }[];
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    virtualItems.push({
+      index,
+      start: index * itemHeight,
+      size: itemHeight,
+    });
+  }
+
+  return {
+    containerRef,
+    virtualItems,
+    totalSize: length * itemHeight,
+  };
+}
 
 /* -------------------------------------------------------------------------- */
 /*                               Main Component                               */
@@ -301,6 +354,7 @@ export default function Projects() {
   const [selectedQuarter, setSelectedQuarter] = useState<Quarter>(
     quarterOrder[Math.floor(today.getMonth() / 3)],
   );
+  const [monthIndex, setMonthIndex] = useState(0);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [reportProject, setReportProject] = useState<Project | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -332,6 +386,7 @@ export default function Projects() {
       setSelectedQuarter(searchMeta.quarter);
     }
   }, [searchMeta.quarter]);
+
 
   const statusParam = statusQueryMap[statusFilter];
   const quarterNumber = quarterNumberMap[selectedQuarter];
@@ -418,6 +473,31 @@ export default function Projects() {
   const projects = projectsQuery.data ?? [];
   const quarterStats = quarterStatsQuery.data ?? [];
   const calendarData = calendarQuery.data ?? { months: [], weeks: [] };
+
+  const weekVirtual = useVirtualList(calendarData.weeks.length, WEEK_CARD_HEIGHT);
+
+  useEffect(() => {
+    setMonthIndex(0);
+  }, [selectedQuarter, selectedYear]);
+
+  useEffect(() => {
+    if (calendarData.months.length === 0) {
+      setMonthIndex(0);
+      return;
+    }
+    if (monthIndex >= calendarData.months.length) {
+      setMonthIndex(calendarData.months.length - 1);
+    }
+  }, [calendarData.months.length, monthIndex]);
+
+  const handlePrevMonth = () => {
+    setMonthIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNextMonth = () => {
+    if (calendarData.months.length === 0) return;
+    setMonthIndex((prev) => Math.min(calendarData.months.length - 1, prev + 1));
+  };
 
   useEffect(() => {
     if (viewMode !== "list" && selectedProjects.length > 0) {
@@ -773,7 +853,7 @@ export default function Projects() {
                   <TableCell>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge className={`${statusColor[project.status] ?? ""} ${isStartingSoon ? "ring-2 ring-orange-400 ring-offset-2" : ""}`}>
+                        <Badge className={statusColor[project.status] ?? ""}>
                           {project.status}
                         </Badge>
                       </TooltipTrigger>
@@ -875,184 +955,287 @@ export default function Projects() {
     );
   };
 
-  const renderCalendarMonth = () => (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {calendarData.months.map((month) => {
-        const monthDate = toDate(month.month);
-        return (
-          <Card key={month.month} className="p-4 space-y-3">
-            <h3 className="text-sm font-semibold">
-              {format(monthDate, "yyyy년 MM월")}
-            </h3>
-            <div className="grid grid-cols-7 gap-1 text-xs">
-              {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
-                <div key={day} className="text-center text-muted-foreground">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-xs">
-              {month.weeks.flatMap((week) =>
-                week.days.map((day) => {
-                  const date = toDate(day.date);
-                  const isToday = format(date, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
-                  return (
-                    <div
-                      key={day.date}
-                      className={`min-h-[90px] rounded-md border p-1 ${
-                        day.inQuarter ? "bg-background" : "bg-muted/20"
-                      } ${isToday ? "ring-2 ring-primary" : ""}`}
-                    >
-                      <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{date.getDate()}</span>
-                        {day.overflowCount > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto px-1 py-0 text-[10px]"
-                            onClick={() => openDayModal({ date: day.date, projects: day.allProjects })}
-                          >
-                            +{day.overflowCount}
-                          </Button>
-                        ) : null}
-                      </div>
-                      <div className="space-y-1">
-                        {day.projects.slice(0, 2).map((project) => (
-                          <Tooltip key={project.id}>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className={`block w-full truncate rounded px-1 py-0.5 text-left text-[11px] ${statusAccent[project.status] ?? "bg-primary/80 text-white"}`}
-                                onClick={() => openDetailPanel(project.id)}
-                              >
-                                {project.name}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="space-y-1 text-xs">
-                                <p className="font-semibold">{project.name}</p>
-                                <p>{project.department || "부서 미지정"}</p>
-                                <p>{project.status}</p>
-                                <p>
-                                  {format(toDate(project.startDate), "MM/dd")} ~ {format(toDate(project.endDate), "MM/dd")}
-                                </p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }),
-              )}
-            </div>
-          </Card>
-        );
-      })}
-    </div>
-  );
+  const renderCalendarMonth = () => {
+    const months = calendarData.months;
+    if (months.length === 0) {
+      return (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          월간 캘린더에 표시할 프로젝트가 없습니다.
+        </Card>
+      );
+    }
 
-  const renderTimeline = () => (
-    <div className="space-y-4">
-      {calendarData.weeks.map((week) => (
-        <Card
-          key={`${week.isoYear}-${week.isoWeek}`}
-          className="space-y-3 p-4"
-          onDragOver={handleWeekDragOver()}
-          onDrop={handleWeekDrop(week)}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">
-              {selectedWeekLabel(week)} · {format(toDate(week.start), "MM/dd")} ~ {format(toDate(week.end), "MM/dd")}
-            </h3>
-            {format(today, "yyyy-MM-dd") >= format(toDate(week.start), "yyyy-MM-dd") &&
-            format(today, "yyyy-MM-dd") <= format(toDate(week.end), "yyyy-MM-dd") ? (
-              <Badge variant="outline">이번 주</Badge>
-            ) : null}
+    const clampedIndex = Math.min(monthIndex, months.length - 1);
+    const selectedMonth = months[clampedIndex];
+    const monthDate = toDate(selectedMonth.month);
+    const monthStart = startOfMonth(monthDate);
+    const monthEnd = endOfMonth(monthDate);
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+    const projectMap = new Map<
+      string,
+      {
+        summary: CalendarProjectSummary;
+        start: Date;
+        end: Date;
+      }
+    >();
+
+    selectedMonth.weeks.forEach((week) =>
+      week.days.forEach((day) => {
+        day.allProjects.forEach((project) => {
+          if (projectMap.has(project.id)) return;
+          projectMap.set(project.id, {
+            summary: project,
+            start: toDate(project.startDate),
+            end: toDate(project.endDate),
+          });
+        });
+      }),
+    );
+
+    const projectRows = Array.from(projectMap.values()).sort(
+      (a, b) => a.start.getTime() - b.start.getTime(),
+    );
+
+    const gridTemplate = `160px repeat(${days.length}, minmax(32px, 1fr))`;
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePrevMonth}
+              disabled={clampedIndex === 0}
+              aria-label="이전 달 보기"
+            >
+              &lt;
+            </Button>
+            <h3 className="text-lg font-semibold">{format(monthDate, "yyyy년 MM월")}</h3>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleNextMonth}
+              disabled={clampedIndex === months.length - 1}
+              aria-label="다음 달 보기"
+            >
+              &gt;
+            </Button>
           </div>
-          <div className="space-y-2">
-            {week.departments.length === 0 ? (
-              <div className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-                해당 주차에 프로젝트가 없습니다.
+          <p className="text-xs text-muted-foreground">
+            상태별 색상(예약/진행중/완료)으로 기간을 표시합니다.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <div
+            className="grid text-xs"
+            style={{ gridTemplateColumns: gridTemplate }}
+            role="grid"
+            aria-label={`${format(monthDate, "yyyy년 MM월")} 프로젝트 달력`}
+          >
+            <div className="sticky left-0 z-10 bg-background px-3 py-2 font-semibold" role="columnheader">
+              프로젝트
+            </div>
+            {days.map((day) => (
+              <div
+                key={`header-${day.toISOString()}`}
+                className="border-l px-2 py-2 text-center font-semibold text-muted-foreground"
+                role="columnheader"
+              >
+                {day.getDate()}
+              </div>
+            ))}
+            {projectRows.length === 0 ? (
+              <div className="col-span-full px-3 py-6 text-center text-sm text-muted-foreground">
+                이 달에는 프로젝트가 없습니다.
               </div>
             ) : (
-              week.departments.map((dept) => (
-                <Card key={dept.department} className="border border-dashed p-3">
-                  <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="font-semibold">{dept.department}</span>
-                    <span>{dept.projects.length}개</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {dept.projects.map((project) => (
-                      <div key={project.id} className="flex items-center gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className={`rounded px-2 py-1 text-xs ${statusAccent[project.status] ?? "bg-primary/80 text-white"}`}
-                              draggable
-                              onDragStart={handleTimelineDragStart(project)}
-                              onDragEnd={handleTimelineDragEnd}
-                              onClick={() => openDetailPanel(project.id)}
-                            >
-                              {project.name}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-xs">
-                              <p className="font-semibold">{project.name}</p>
-                              <p>{project.status}</p>
-                              <p>
-                                {format(toDate(project.startDate), "MM/dd")} ~ {format(toDate(project.endDate), "MM/dd")}
-                              </p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-1"
-                            onClick={() => adjustProjectByDays(project.id, -1, "start")}
-                          >
-                            시작-1
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-1"
-                            onClick={() => adjustProjectByDays(project.id, 1, "start")}
-                          >
-                            시작+1
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-1"
-                            onClick={() => adjustProjectByDays(project.id, -1, "end")}
-                          >
-                            종료-1
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-1"
-                            onClick={() => adjustProjectByDays(project.id, 1, "end")}
-                          >
-                            종료+1
-                          </Button>
-                        </div>
+              projectRows.map(({ summary, start, end }) => {
+                const clampedStart = start < monthStart ? monthStart : start;
+                const clampedEnd = end > monthEnd ? monthEnd : end;
+                if (clampedEnd < monthStart || clampedStart > monthEnd) {
+                  return null;
+                }
+                const startIndex = differenceInCalendarDays(clampedStart, monthStart);
+                const endIndex = differenceInCalendarDays(clampedEnd, monthStart);
+                const span = Math.max(1, endIndex - startIndex + 1);
+                const leftPercent = (startIndex / days.length) * 100;
+                const widthPercent = (span / days.length) * 100;
+                const statusClass = statusAccent[summary.status] ?? "bg-primary/80 text-white";
+
+                return (
+                  <Fragment key={summary.id}>
+                    <div
+                      className="sticky left-0 z-10 border-t bg-background px-3 py-2 text-xs font-medium"
+                      role="rowheader"
+                    >
+                      <div>{summary.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{summary.department || "부서 미지정"}</div>
+                    </div>
+                    <div
+                      className="relative border-t"
+                      style={{ gridColumn: `span ${days.length}` }}
+                      role="gridcell"
+                      aria-label={`${summary.name} · ${format(clampedStart, "MM/dd")} ~ ${format(clampedEnd, "MM/dd")}`}
+                    >
+                      <div
+                        className={`absolute top-1 h-6 rounded ${statusClass}`}
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                          minWidth: `calc(100% / ${days.length})`,
+                        }}
+                      >
+                        <span className="sr-only">{summary.status}</span>
                       </div>
-                    ))}
-                  </div>
-                </Card>
-              ))
+                    </div>
+                  </Fragment>
+                );
+              })
             )}
           </div>
-        </Card>
-      ))}
-    </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTimelineWeekCard = (week: CalendarWeekSummary) => (
+    <Card
+      key={`${week.isoYear}-${week.isoWeek}`}
+      className="space-y-3 rounded-lg border bg-background p-4 shadow-sm"
+      onDragOver={handleWeekDragOver()}
+      onDrop={handleWeekDrop(week)}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">
+          {selectedWeekLabel(week)} · {format(toDate(week.start), "MM/dd")} ~ {format(toDate(week.end), "MM/dd")}
+        </h3>
+        {format(today, "yyyy-MM-dd") >= format(toDate(week.start), "yyyy-MM-dd") &&
+        format(today, "yyyy-MM-dd") <= format(toDate(week.end), "yyyy-MM-dd") ? (
+          <Badge variant="outline">이번 주</Badge>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        {week.departments.length === 0 ? (
+          <div className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            해당 주차에 프로젝트가 없습니다.
+          </div>
+        ) : (
+          week.departments.map((dept) => (
+            <Card key={dept.department} className="border border-dashed p-3" role="group" aria-label={`${dept.department} 프로젝트`}>
+              <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-semibold">{dept.department}</span>
+                <span>{dept.projects.length}개</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {dept.projects.map((project) => (
+                  <div key={project.id} className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className={`rounded px-2 py-1 text-xs ${statusAccent[project.status] ?? "bg-primary/80 text-white"}`}
+                          draggable
+                          onDragStart={handleTimelineDragStart(project)}
+                          onDragEnd={handleTimelineDragEnd}
+                          onClick={() => openDetailPanel(project.id)}
+                          aria-label={`${project.name} · ${project.status}`}
+                        >
+                          {project.name}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="space-y-1 text-xs">
+                          <p className="font-semibold">{project.name}</p>
+                          <p>{project.status}</p>
+                          <p>
+                            {format(toDate(project.startDate), "MM/dd")} ~ {format(toDate(project.endDate), "MM/dd")}
+                          </p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground" aria-label={`${project.name} 일정 조정`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-1"
+                        onClick={() => adjustProjectByDays(project.id, -1, "start")}
+                      >
+                        시작-1
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-1"
+                        onClick={() => adjustProjectByDays(project.id, 1, "start")}
+                      >
+                        시작+1
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-1"
+                        onClick={() => adjustProjectByDays(project.id, -1, "end")}
+                      >
+                        종료-1
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-1"
+                        onClick={() => adjustProjectByDays(project.id, 1, "end")}
+                      >
+                        종료+1
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+    </Card>
   );
+
+  const renderTimeline = () => {
+    const weeks = calendarData.weeks;
+    if (weeks.length === 0) {
+      return (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          타임라인에 표시할 프로젝트가 없습니다.
+        </Card>
+      );
+    }
+
+    return (
+      <div
+        ref={weekVirtual.containerRef}
+        className="max-h-[720px] overflow-y-auto rounded-md border"
+        role="list"
+        aria-label="주간 타임라인"
+      >
+        <div style={{ position: "relative", height: weekVirtual.totalSize }}>
+          {weekVirtual.virtualItems.map(({ index, start, size }) => {
+            const week = weeks[index];
+            if (!week) return null;
+            return (
+              <div
+                key={`${week.isoYear}-${week.isoWeek}`}
+                role="listitem"
+                style={{ position: "absolute", top: start, height: size, left: 0, right: 0 }}
+                className="px-1 pb-4"
+              >
+                {renderTimelineWeekCard(week)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   const renderCalendarView = () => (
     <div className="space-y-4">

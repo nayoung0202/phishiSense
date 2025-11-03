@@ -53,6 +53,23 @@ export default function Dashboard() {
     queryKey: ["/api/projects"],
   });
 
+  const projectsByMonth = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    projects.forEach((project) => {
+      if (!project.startDate) return;
+      const date = new Date(project.startDate);
+      if (Number.isNaN(date.getTime())) return;
+      const key = toMonthKey(date);
+      const list = map.get(key);
+      if (list) {
+        list.push(project);
+      } else {
+        map.set(key, [project]);
+      }
+    });
+    return map;
+  }, [projects]);
+
   const monthlySummaries = useMemo<MonthlySummary[]>(() => {
     if (!projects.length) return [];
 
@@ -133,17 +150,41 @@ export default function Dashboard() {
     monthlySummaries.find((summary) => summary.key === selectedMonth) ??
     monthlySummaries[0];
 
+  const selectedMonthProjects = useMemo(() => {
+    if (!selectedMonth) return [];
+    const list = projectsByMonth.get(selectedMonth);
+    if (!list) return [];
+    return [...list].sort((a, b) => {
+      const nameA = a.name ?? "";
+      const nameB = b.name ?? "";
+      return nameA.localeCompare(nameB, "ko");
+    });
+  }, [projectsByMonth, selectedMonth]);
+
   const chartData = useMemo(() => {
-    return [...monthlySummaries]
-      .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
-      .map((summary) => ({
-        month: summary.monthLabel,
-        발송수: summary.targetCount,
-        오픈률: summary.openRate ?? 0,
-        클릭률: summary.clickRate ?? 0,
-        제출률: summary.submitRate ?? 0,
-      }));
-  }, [monthlySummaries]);
+    if (!selectedMonthProjects.length) return [];
+    return selectedMonthProjects.map((project) => {
+      const targetCount = project.targetCount ?? 0;
+      const openCount = project.openCount ?? 0;
+      const clickCount = project.clickCount ?? 0;
+      const submitCount = project.submitCount ?? 0;
+      const rate = (count: number) =>
+        targetCount > 0 ? (count / targetCount) * 100 : 0;
+
+      return {
+        프로젝트: project.name,
+        발송수: targetCount,
+        오픈률: rate(openCount),
+        클릭률: rate(clickCount),
+        제출률: rate(submitCount),
+      };
+    });
+  }, [selectedMonthProjects]);
+
+  const maxTargetCount = useMemo(() => {
+    if (!chartData.length) return 0;
+    return chartData.reduce((max, item) => Math.max(max, item.발송수 ?? 0), 0);
+  }, [chartData]);
 
   return (
     <div className="p-6 space-y-8">
@@ -231,7 +272,7 @@ export default function Dashboard() {
               모의훈련 현황 비교
             </h2>
             <p className="text-sm text-muted-foreground">
-              월별 발송량과 반응률을 동시에 확인하세요.
+              선택한 월의 프로젝트별 실적을 비교하세요.
             </p>
           </div>
         </div>
@@ -242,12 +283,18 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                <XAxis
+                  dataKey="프로젝트"
+                  stroke="hsl(var(--muted-foreground))"
+                  interval={0}
+                  tickMargin={12}
+                />
                 <YAxis
                   yAxisId="count"
                   stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(value) => `${value}`}
                   width={60}
+                  domain={[0, Math.max(maxTargetCount, 10)]}
                 />
                 <YAxis
                   yAxisId="rate"
@@ -306,7 +353,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              표시할 월별 데이터가 없습니다. 프로젝트를 생성해 데이터를 쌓아보세요.
+              선택한 월에 표시할 프로젝트가 없습니다.
             </div>
           )}
         </div>
