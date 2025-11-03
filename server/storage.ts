@@ -139,8 +139,14 @@ export class MemStorage implements IStorage {
       description:
         "신규 입사자의 보안 인식 강화를 위한 집중 과정입니다. 영업 35%, 개발 25%, 인사 20%, 기타 20% 분포로 구성된 참가자를 대상으로 기본 피싱 대응 절차를 실습합니다.",
       department: "인사부",
+      departmentTags: ["인사부", "신입교육"],
       templateId: template2.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["security@company.com"],
       startDate: new Date("2024-09-02"),
       endDate: new Date("2024-09-27"),
       status: "진행중",
@@ -160,8 +166,14 @@ export class MemStorage implements IStorage {
       description:
         "전사 보안 인식 점검을 위한 정기 모의훈련입니다. 영업 30%, 기술 25%, 관리 20%, 인사 15%, 기타 10% 구성으로 광범위한 부서를 포괄하며 반응률이 높은 편입니다.",
       department: "전사",
+      departmentTags: ["전사", "정기훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["security@company.com", "ciso@company.com"],
       startDate: new Date("2024-01-15"),
       endDate: new Date("2024-02-02"),
       status: "완료",
@@ -181,8 +193,14 @@ export class MemStorage implements IStorage {
       description:
         "영업본부 대응력을 점검하기 위한 실전형 테스트입니다. 영업 70%, 개발 15%, 관리 15% 비중으로 구성되어 있으며 클릭률이 높아 인식 보완이 필요합니다.",
       department: "영업본부",
+      departmentTags: ["영업본부", "집중훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["sales@company.com"],
       startDate: new Date("2024-06-03"),
       endDate: new Date("2024-06-21"),
       status: "진행중",
@@ -202,8 +220,14 @@ export class MemStorage implements IStorage {
       description:
         "결재권자 피싱 대응 능력을 점검하는 시나리오입니다. 관리 80%, 인사 20% 구성으로 2025년 10월 25일 09:00에 시작 예정이며 결재 문서 위장 유형을 테스트합니다.",
       department: "관리부",
+      departmentTags: ["관리부", "4분기", "예약훈련"],
       templateId: template2.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["compliance@company.com"],
       startDate: new Date("2025-10-25T09:00:00"),
       endDate: new Date("2025-11-08T18:00:00"),
       status: "예약",
@@ -223,8 +247,14 @@ export class MemStorage implements IStorage {
       description:
         "보안 담당자 그룹을 대상으로 한 판별 역테스트입니다. 참가자 전원이 보안 부서로 구성되어 있으며 인식과 제출률이 매우 높은 것이 특징입니다.",
       department: "보안팀",
+      departmentTags: ["보안팀", "역훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["soc@company.com"],
       startDate: new Date("2024-03-11"),
       endDate: new Date("2024-03-22"),
       status: "완료",
@@ -244,8 +274,14 @@ export class MemStorage implements IStorage {
       description:
         "2025년 1분기 전사 대상 모의훈련입니다. 훈련 종료 후 결과 보고서가 배포되었습니다.",
       department: "전사",
+      departmentTags: ["전사", "정기훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["security@company.com"],
       startDate: new Date("2025-01-13T09:00:00"),
       endDate: new Date("2025-01-31T18:00:00"),
       status: "완료",
@@ -265,8 +301,14 @@ export class MemStorage implements IStorage {
       description:
         "개발본부의 보안 인식을 강화하기 위한 심화 과정으로, 실시간 모니터링을 수행 중입니다.",
       department: "개발본부",
+      departmentTags: ["개발본부", "심화과정"],
       templateId: template2.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["devlead@company.com"],
       startDate: new Date("2025-05-06T10:00:00"),
       endDate: new Date("2025-05-24T18:30:00"),
       status: "진행중",
@@ -286,8 +328,14 @@ export class MemStorage implements IStorage {
       description:
         "경영지원부 임직원을 대상으로 한 예약형 훈련으로, 개인정보 유출 시나리오를 활용합니다.",
       department: "경영지원부",
+      departmentTags: ["경영지원부", "예약훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      sendingDomain: "security.phishsense.dev",
+      fromName: "정보보안팀",
+      fromEmail: "security@company.com",
+      timezone: "Asia/Seoul",
+      notificationEmails: ["gss@company.com"],
       startDate: new Date("2025-08-19T09:30:00"),
       endDate: new Date("2025-09-02T18:00:00"),
       status: "예약",
@@ -466,8 +514,18 @@ export class MemStorage implements IStorage {
       name: project.name,
       description: project.description ?? null,
       department: project.department ?? null,
+      departmentTags: Array.isArray(project.departmentTags)
+        ? [...project.departmentTags]
+        : [],
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
+      sendingDomain: project.sendingDomain ?? null,
+      fromName: project.fromName ?? null,
+      fromEmail: project.fromEmail ?? null,
+      timezone: project.timezone ?? "Asia/Seoul",
+      notificationEmails: Array.isArray(project.notificationEmails)
+        ? [...project.notificationEmails]
+        : [],
       startDate,
       endDate,
       status: project.status,
@@ -495,16 +553,26 @@ export class MemStorage implements IStorage {
       : new Date(existing.endDate);
     const temporal = this.calculateTemporalFields(updatedStart, updatedEnd);
 
-    const updated: Project = {
-      ...existing,
-      ...project,
-      startDate: updatedStart,
-      endDate: updatedEnd,
-      fiscalYear: temporal.fiscalYear,
-      fiscalQuarter: temporal.fiscalQuarter,
-      weekOfYear: temporal.weekOfYear,
-      createdAt: existing.createdAt,
-    };
+      const updated: Project = {
+        ...existing,
+        ...project,
+        startDate: updatedStart,
+        endDate: updatedEnd,
+        departmentTags: Array.isArray(project.departmentTags)
+          ? [...project.departmentTags]
+          : existing.departmentTags ?? [],
+        sendingDomain: project.sendingDomain ?? existing.sendingDomain ?? null,
+        fromName: project.fromName ?? existing.fromName ?? null,
+        fromEmail: project.fromEmail ?? existing.fromEmail ?? null,
+        timezone: project.timezone ?? existing.timezone ?? "Asia/Seoul",
+        notificationEmails: Array.isArray(project.notificationEmails)
+          ? [...project.notificationEmails]
+          : existing.notificationEmails ?? [],
+        fiscalYear: temporal.fiscalYear,
+        fiscalQuarter: temporal.fiscalQuarter,
+        weekOfYear: temporal.weekOfYear,
+        createdAt: existing.createdAt,
+      };
 
     this.projects.set(id, updated);
     return updated;
