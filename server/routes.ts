@@ -7,6 +7,7 @@ import {
   insertTargetSchema,
   insertTrainingPageSchema,
   type Project,
+  type InsertProject,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -24,6 +25,7 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
+import { sendTestEmail, MailerConfigError } from "./mailer";
 
 const statusParamMap: Record<string, string> = {
   running: "진행중",
@@ -75,6 +77,256 @@ const summarizeProject = (project: Project) => ({
   submitCount: project.submitCount ?? 0,
   weekOfYear: project.weekOfYear ?? [],
 });
+
+const projectCreateSchema = insertProjectSchema.extend({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+});
+
+type PreviewDepartmentSlice = {
+  department: string;
+  count: number;
+};
+
+type PreviewTrendPoint = {
+  label: string;
+  metric: "count" | "rate";
+  value: number;
+};
+
+type PreviewForecast = {
+  openRate: number;
+  clickRate: number;
+  submitRate: number;
+};
+
+type PreviewTargetSample = {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  status: "예정";
+};
+
+type PreviewConflict = {
+  projectId: string;
+  projectName: string;
+  status: string;
+};
+
+type PreviewResponse = {
+  targetCount: number;
+  departmentBreakdown: PreviewDepartmentSlice[];
+  forecast: PreviewForecast;
+  trend: PreviewTrendPoint[];
+  sampleTargets: PreviewTargetSample[];
+  conflicts: PreviewConflict[];
+  generatedAt: string;
+  cacheKey: string;
+};
+
+type ProjectValidationIssue = {
+  field: string;
+  code: string;
+  message: string;
+};
+
+const PREVIEW_CACHE_WINDOW_MS = 2 * 60 * 1000;
+const previewCache = new Map<string, { data: PreviewResponse; expiresAt: number }>();
+
+const normalizeOptionalString = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  return value.trim();
+};
+
+const normalizeStringArray = (value: unknown) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => normalizeOptionalString(entry)).filter(Boolean);
+};
+
+const toSafeDate = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const parseTargetsQuery = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => parseTargetsQuery(entry));
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+  return [];
+};
+
+const buildPreviewCacheKey = (options: {
+  targetIds: string[];
+  templateId?: string | null;
+  sendingDomain?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}) => {
+  const key = {
+    targetIds: [...options.targetIds].sort(),
+    templateId: options.templateId ?? null,
+    sendingDomain: options.sendingDomain ?? null,
+    startDate: options.startDate ?? null,
+    endDate: options.endDate ?? null,
+  };
+  return JSON.stringify(key);
+};
+
+const calculateProjectAverages = (projects: Project[]): PreviewForecast => {
+  let totalTargets = 0;
+  let openTotal = 0;
+  let clickTotal = 0;
+  let submitTotal = 0;
+
+  projects.forEach((project) => {
+    const targetCount = project.targetCount ?? 0;
+    if (targetCount <= 0) {
+      return;
+    }
+    totalTargets += targetCount;
+    openTotal += project.openCount ?? 0;
+    clickTotal += project.clickCount ?? 0;
+    submitTotal += project.submitCount ?? 0;
+  });
+
+  if (totalTargets <= 0) {
+    return {
+      openRate: 0,
+      clickRate: 0,
+      submitRate: 0,
+    };
+  }
+
+  const normalizeRate = (value: number) =>
+    Math.min(100, Number(((value / totalTargets) * 100).toFixed(1)));
+
+  return {
+    openRate: normalizeRate(openTotal),
+    clickRate: normalizeRate(clickTotal),
+    submitRate: normalizeRate(submitTotal),
+  };
+};
+
+const buildPreviewTrend = (targetCount: number, forecast: PreviewForecast): PreviewTrendPoint[] => [
+  { label: "발송", metric: "count", value: targetCount },
+  { label: "오픈률", metric: "rate", value: forecast.openRate },
+  { label: "클릭률", metric: "rate", value: forecast.clickRate },
+  { label: "제출률", metric: "rate", value: forecast.submitRate },
+];
+
+const validateProjectPayload = (payload: InsertProject): ProjectValidationIssue[] => {
+  const issues: ProjectValidationIssue[] = [];
+
+  if (!normalizeOptionalString(payload.name)) {
+    issues.push({ field: "name", code: "required", message: "프로젝트명을 입력하세요." });
+  }
+
+  const departmentTags = Array.isArray(payload.departmentTags)
+    ? payload.departmentTags.map((tag) => normalizeOptionalString(tag)).filter(Boolean)
+    : [];
+  if (departmentTags.length === 0) {
+    issues.push({
+      field: "departmentTags",
+      code: "required",
+      message: "부서 태그를 하나 이상 선택하세요.",
+    });
+  }
+
+  if (!normalizeOptionalString(payload.templateId)) {
+    issues.push({
+      field: "templateId",
+      code: "required",
+      message: "템플릿을 선택하세요.",
+    });
+  }
+
+  if (!normalizeOptionalString(payload.trainingPageId)) {
+    issues.push({
+      field: "trainingPageId",
+      code: "required",
+      message: "랜딩/미리보기 페이지를 선택하세요.",
+    });
+  }
+
+  const sendingDomain = normalizeOptionalString(payload.sendingDomain);
+  if (!sendingDomain) {
+    issues.push({
+      field: "sendingDomain",
+      code: "required",
+      message: "발신 도메인을 선택하세요.",
+    });
+  }
+
+  const fromName = normalizeOptionalString(payload.fromName);
+  if (!fromName) {
+    issues.push({
+      field: "fromName",
+      code: "required",
+      message: "발신자 이름을 입력하세요.",
+    });
+  }
+
+  const fromEmail = normalizeOptionalString(payload.fromEmail);
+  if (!fromEmail) {
+    issues.push({
+      field: "fromEmail",
+      code: "required",
+      message: "발신 이메일을 입력하세요.",
+    });
+  } else if (!fromEmail.includes("@")) {
+    issues.push({
+      field: "fromEmail",
+      code: "invalid",
+      message: "올바른 이메일 주소 형식이 아닙니다.",
+    });
+  }
+
+  const startDate = toSafeDate(payload.startDate);
+  if (!startDate) {
+    issues.push({
+      field: "startDate",
+      code: "required",
+      message: "시작일을 입력하세요.",
+    });
+  }
+
+  const endDate = toSafeDate(payload.endDate);
+  if (startDate && endDate && startDate >= endDate) {
+    issues.push({
+      field: "endDate",
+      code: "invalid_range",
+      message: "종료일은 시작일 이후여야 합니다.",
+    });
+  }
+
+  if (payload.targetCount != null && payload.targetCount < 0) {
+    issues.push({
+      field: "targetCount",
+      code: "invalid",
+      message: "대상자 수가 잘못되었습니다.",
+    });
+  }
+
+  return issues;
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Projects
@@ -318,11 +570,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const validated = insertProjectSchema.parse(req.body);
-      const project = await storage.createProject(validated);
+      const validated = projectCreateSchema.parse(req.body);
+      const issues = validateProjectPayload(validated);
+      if (issues.length > 0) {
+        return res.status(422).json({
+          error: "validation_failed",
+          issues,
+        });
+      }
+
+      const sanitized: InsertProject = {
+        ...validated,
+        departmentTags: normalizeStringArray(validated.departmentTags),
+        notificationEmails: normalizeStringArray(validated.notificationEmails),
+      };
+
+      const project = await storage.createProject(sanitized);
       res.status(201).json(project);
     } catch (error) {
-      res.status(400).json({ error: "Invalid project data" });
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({
+          error: "validation_error",
+          issues: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            code: issue.code,
+            message: issue.message,
+          })),
+        });
+      }
+      res.status(500).json({ error: "Failed to create project" });
+    }
+  });
+
+  app.get("/api/projects/preview", async (req, res) => {
+    try {
+      const targetIds = parseTargetsQuery(req.query.targets ?? req.query.targetIds);
+      const templateId =
+        typeof req.query.templateId === "string" ? req.query.templateId.trim() : undefined;
+      const sendingDomain =
+        typeof req.query.sendingDomain === "string" ? req.query.sendingDomain.trim() : undefined;
+      const startDateParam =
+        typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
+      const endDateParam =
+        typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
+
+      const cacheKey = buildPreviewCacheKey({
+        targetIds,
+        templateId,
+        sendingDomain,
+        startDate: startDateParam ?? null,
+        endDate: endDateParam ?? null,
+      });
+
+      const now = Date.now();
+      const cached = previewCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return res.json(cached.data);
+      }
+
+      const [allTargets, allProjects] = await Promise.all([
+        storage.getTargets(),
+        storage.getProjects(),
+      ]);
+
+      const selectedTargetSet = new Set(targetIds);
+      const selectedTargets =
+        targetIds.length > 0
+          ? allTargets.filter((target) => selectedTargetSet.has(target.id))
+          : [];
+      const departmentCounts = new Map<string, number>();
+      selectedTargets.forEach((target) => {
+        const department = target.department ?? "미지정";
+        departmentCounts.set(department, (departmentCounts.get(department) ?? 0) + 1);
+      });
+
+      const departmentBreakdown: PreviewDepartmentSlice[] = Array.from(departmentCounts.entries())
+        .map(([department, count]) => ({ department, count }))
+        .sort((a, b) => b.count - a.count);
+
+      const forecast = calculateProjectAverages(allProjects);
+      const trend = buildPreviewTrend(selectedTargets.length, forecast);
+      const sampleTargets: PreviewTargetSample[] = selectedTargets.slice(0, 3).map((target) => ({
+        id: target.id,
+        name: target.name,
+        email: target.email,
+        department: target.department ?? "미지정",
+        status: "예정",
+      }));
+
+      const startDate = toSafeDate(startDateParam);
+      const endDate = toSafeDate(endDateParam);
+      const conflictDepartmentSet = new Set(
+        departmentBreakdown.map((entry) => entry.department),
+      );
+      const conflicts: PreviewConflict[] =
+        startDate && (targetIds.length > 0 || conflictDepartmentSet.size > 0)
+          ? allProjects
+              .filter((project) => {
+                if (!["진행중", "예약"].includes(project.status)) {
+                  return false;
+                }
+                const projectStart = normalizeProjectDate(project.startDate);
+                const projectEnd = normalizeProjectDate(project.endDate);
+                const overlaps =
+                  (!endDate || projectStart <= endDate) &&
+                  (!projectEnd || projectEnd >= startDate);
+                if (!overlaps) {
+                  return false;
+                }
+                if (conflictDepartmentSet.size === 0) {
+                  return true;
+                }
+                const projectDept =
+                  project.department ??
+                  (Array.isArray(project.departmentTags) && project.departmentTags.length > 0
+                    ? project.departmentTags[0] ?? null
+                    : null);
+                if (!projectDept) {
+                  return true;
+                }
+                return conflictDepartmentSet.has(projectDept);
+              })
+              .slice(0, 10)
+              .map((project) => ({
+                projectId: project.id,
+                projectName: project.name,
+                status: project.status,
+              }))
+          : [];
+
+      const response: PreviewResponse = {
+        targetCount: selectedTargets.length,
+        departmentBreakdown,
+        forecast,
+        trend,
+        sampleTargets,
+        conflicts,
+        generatedAt: new Date().toISOString(),
+        cacheKey,
+      };
+
+      previewCache.set(cacheKey, {
+        data: response,
+        expiresAt: now + PREVIEW_CACHE_WINDOW_MS,
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to build preview" });
+    }
+  });
+
+  app.post("/api/projects/test-send", async (req, res) => {
+    try {
+      const payload = z
+        .object({
+          templateId: z.string().min(1, "템플릿을 선택하세요."),
+          sendingDomain: z.string().min(1, "발신 도메인을 선택하세요."),
+          fromEmail: z.string().email("올바른 발신 이메일 주소를 입력하세요."),
+          fromName: z.string().min(1, "발신자 이름을 입력하세요."),
+          recipient: z.string().email("유효한 수신 이메일을 입력하세요."),
+        })
+        .parse(req.body);
+
+      const template = await storage.getTemplate(payload.templateId);
+      if (!template) {
+        return res.status(404).json({
+          error: "template_not_found",
+          reason: "선택한 템플릿을 찾을 수 없습니다.",
+        });
+      }
+
+      if (payload.sendingDomain.includes("inactive")) {
+        return res.status(409).json({
+          error: "domain_inactive",
+          reason: "선택한 도메인이 비활성 상태입니다.",
+        });
+      }
+
+      const delivery = await sendTestEmail({
+        recipient: payload.recipient,
+        subject: template.subject ?? "테스트 메일",
+        htmlBody: template.body ?? "",
+        fromName: payload.fromName,
+        fromEmail: payload.fromEmail,
+        sendingDomain: payload.sendingDomain,
+      });
+
+      res.json({
+        status: "sent" as const,
+        messageId: delivery.messageId,
+        accepted: delivery.accepted,
+        rejected: delivery.rejected,
+        envelope: delivery.envelope,
+        response: delivery.response,
+        previewUrl: delivery.previewUrl || null,
+        processedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({
+          error: "validation_error",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        });
+      }
+
+      if (error instanceof MailerConfigError) {
+        return res.status(503).json({
+          error: "smtp_not_configured",
+          reason: error.message,
+        });
+      }
+
+      res.status(500).json({
+        error: "test_send_failed",
+        reason: "테스트 메일 발송 중 문제가 발생했습니다.",
+      });
     }
   });
 
@@ -338,6 +804,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/projects/:id/status", async (req, res) => {
+    try {
+      const { to } = z
+        .object({
+          to: z.enum(["SCHEDULED", "RUNNING"]),
+        })
+        .parse(req.body);
+
+      const statusMap: Record<"SCHEDULED" | "RUNNING", string> = {
+        SCHEDULED: "예약",
+        RUNNING: "진행중",
+      };
+
+      const updated = await storage.updateProject(req.params.id, {
+        status: statusMap[to],
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      res.json({
+        id: updated.id,
+        status: updated.status,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({
+          error: "validation_error",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        });
+      }
+      res.status(500).json({ error: "Failed to update project status" });
+    }
+  });
+
   app.patch("/api/projects/:id", async (req, res) => {
     try {
       const payload: Record<string, unknown> = { ...req.body };
@@ -346,6 +851,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (payload["end_date"] && !payload.endDate) {
         payload.endDate = payload["end_date"];
+      }
+      if (payload.departmentTags) {
+        payload.departmentTags = normalizeStringArray(payload.departmentTags);
+      }
+      if (payload.notificationEmails) {
+        payload.notificationEmails = normalizeStringArray(payload.notificationEmails);
       }
       const project = await storage.updateProject(req.params.id, payload);
       if (!project) {

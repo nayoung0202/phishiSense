@@ -9,6 +9,7 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import Dashboard from "@/pages/Dashboard";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
+import ProjectCreate from "@/pages/ProjectCreate";
 import Templates from "@/pages/Templates";
 import TemplateEdit from "@/pages/TemplateEdit";
 import Targets from "@/pages/Targets";
@@ -21,8 +22,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/projects" component={Projects} />
+      <Route path="/projects/new" component={ProjectCreate} />
       <Route path="/projects/:id" component={ProjectDetail} />
+      <Route path="/projects" component={Projects} />
       <Route path="/templates" component={Templates} />
       <Route path="/templates/new" component={TemplateEdit} />
       <Route path="/templates/:id/edit" component={TemplateEdit} />
