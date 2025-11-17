@@ -43,6 +43,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { type Project, type Target, type Template, type TrainingPage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useCustomDepartments } from "@/hooks/useCustomDepartments";
+import { CustomDepartmentManager } from "@/components/CustomDepartmentManager";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -270,6 +272,7 @@ export default function ProjectCreate() {
   const { data: existingProjects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
+  const { customDepartments, addCustomDepartment, removeCustomDepartment } = useCustomDepartments();
 
   const selectedTargetIds = form.watch("targetIds");
   const templateId = form.watch("templateId");
@@ -596,8 +599,9 @@ export default function ProjectCreate() {
     existingProjects.forEach((project) => {
       if (Array.isArray(project.departmentTags)) {
         project.departmentTags.forEach((tag) => {
-          if (tag) {
-            tagSet.add(tag);
+          const trimmed = typeof tag === "string" ? tag.trim() : "";
+          if (trimmed) {
+            tagSet.add(trimmed);
           }
         });
       }
@@ -607,8 +611,50 @@ export default function ProjectCreate() {
         tagSet.add(target.department);
       }
     });
-    return Array.from(tagSet).sort();
-  }, [existingProjects, targets]);
+    customDepartments.forEach((department) => {
+      const trimmed = department.trim();
+      if (trimmed.length > 0) {
+        tagSet.add(trimmed);
+      }
+    });
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b, "ko"));
+  }, [existingProjects, targets, customDepartments]);
+
+  const handleManualDepartmentAdd = (label: string) => {
+    const normalized = label.trim();
+    if (!normalized) {
+      return false;
+    }
+    addCustomDepartment(normalized);
+    const current = form.getValues("departmentTags") ?? [];
+    if (!current.includes(normalized)) {
+      form.setValue("departmentTags", [...current, normalized], {
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    }
+    toast({
+      title: "새 조직/팀 추가",
+      description: `"${normalized}" 태그를 추가하고 선택했습니다.`,
+    });
+    return true;
+  };
+
+  const handleManualDepartmentRemove = (label: string) => {
+    removeCustomDepartment(label);
+    const current = form.getValues("departmentTags") ?? [];
+    if (current.includes(label)) {
+      const next = current.filter((item) => item !== label);
+      form.setValue("departmentTags", next, {
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    }
+    toast({
+      title: "조직/팀 제거",
+      description: `"${label}" 태그를 목록에서 제거했습니다.`,
+    });
+  };
 
   const isFormValid = form.formState.isValid;
   const formErrors = flattenErrorMessages(form.formState.errors as Record<string, unknown>);
@@ -985,6 +1031,13 @@ export default function ProjectCreate() {
                   />
                 </CardContent>
               </Card>
+              <CustomDepartmentManager
+                customDepartments={customDepartments}
+                onAdd={handleManualDepartmentAdd}
+                onRemove={handleManualDepartmentRemove}
+                title="새 조직/팀 직접 추가"
+                description="부서 태그 목록에 없다면 아래에서 직접 추가하세요. 추가 즉시 선택된 태그에 반영됩니다."
+              />
 
               <Card>
                 <CardHeader>

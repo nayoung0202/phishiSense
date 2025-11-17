@@ -579,10 +579,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const {
+        departmentTags,
+        notificationEmails,
+        ...projectRest
+      } = validated;
+
       const sanitized: InsertProject = {
-        ...validated,
-        departmentTags: normalizeStringArray(validated.departmentTags),
-        notificationEmails: normalizeStringArray(validated.notificationEmails),
+        ...projectRest,
+        departmentTags: normalizeStringArray(departmentTags),
+        notificationEmails: normalizeStringArray(notificationEmails),
       };
 
       const project = await storage.createProject(sanitized);

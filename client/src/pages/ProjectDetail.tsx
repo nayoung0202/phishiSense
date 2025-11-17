@@ -16,6 +16,7 @@ import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock } from "lucide-reac
 import { type Project } from "@shared/schema";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { apiRequest } from "@/lib/queryClient";
 
 const statusConfig: Record<string, { className: string }> = {
   "예약": { className: "bg-blue-500/20 text-blue-400" },
@@ -27,8 +28,22 @@ const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3
 
 export default function ProjectDetail() {
   const { id } = useParams();
-  const { data: project, isLoading } = useQuery<Project>({
+  const fetchProject = async (): Promise<Project> => {
+    if (!id) {
+      throw new Error("프로젝트 ID가 없습니다.");
+    }
+    const res = await apiRequest("GET", `/api/projects/${id}`);
+    return (await res.json()) as Project;
+  };
+  const {
+    data: project,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<Project>({
     queryKey: ["/api/projects", id],
+    enabled: Boolean(id),
+    queryFn: fetchProject,
   });
 
   if (isLoading) {
@@ -39,10 +54,30 @@ export default function ProjectDetail() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12 space-y-4">
+          <p>프로젝트 정보를 불러오지 못했습니다.</p>
+          <p className="text-sm text-muted-foreground">
+            {(error as Error)?.message ?? "잠시 후 다시 시도하거나 목록으로 돌아가세요."}
+          </p>
+          <Link href="/projects">
+            <Button>프로젝트 목록으로</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
   if (!project) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">프로젝트를 찾을 수 없습니다</div>
+        <div className="text-center py-12 space-y-4">
+          <p>프로젝트 정보를 찾을 수 없습니다.</p>
+          <Link href="/projects">
+            <Button>프로젝트 목록으로</Button>
+          </Link>
+        </div>
       </div>
     );
   }

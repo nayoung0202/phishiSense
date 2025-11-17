@@ -52,7 +52,7 @@ function App() {
             <AppSidebar />
             <div className="flex flex-col flex-1">
               <DashboardHeader />
-              <main className="flex-1 overflow-auto">
+              <main className="flex-1 overflow-auto fullpage-scroll">
                 <Router />
               </main>
             </div>

@@ -91,7 +91,6 @@ export default function Templates() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-              <p>미리보기는 저장된 HTML 내용을 기반으로 표시됩니다.</p>
               {previewUpdatedAt ? <p>최근 업데이트: {previewUpdatedAt}</p> : null}
             </div>
             <ScrollArea className="h-80 rounded-md border bg-background p-4">
