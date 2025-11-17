@@ -217,8 +217,7 @@ export class MemStorage implements IStorage {
     const project4: Project = {
       id: randomUUID(),
       name: "관리부 대상 내부결재 위장 메일 훈련",
-      description:
-        "결재권자 피싱 대응 능력을 점검하는 시나리오입니다. 관리 80%, 인사 20% 구성으로 2025년 10월 25일 09:00에 시작 예정이며 결재 문서 위장 유형을 테스트합니다.",
+      description: null,
       department: "관리부",
       departmentTags: ["관리부", "4분기", "예약훈련"],
       templateId: template2.id,
@@ -349,6 +348,238 @@ export class MemStorage implements IStorage {
       createdAt: new Date("2025-07-28"),
     };
 
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const daySlots = [2, 5, 8, 11, 14, 17, 20, 23, 26, 28];
+    const departmentPool = [
+      {
+        name: "영업본부",
+        tags: ["영업본부", "거래처보호"],
+        scenario: "주요 고객 발주서와 납품 일정을 사칭하는 메시지를 통해 승인 절차를 검증합니다.",
+        notification: "saleslead@company.com",
+      },
+      {
+        name: "인프라운영실",
+        tags: ["인프라운영실", "계정보안"],
+        scenario: "VPN 재인증과 클라우드 계정 설정 변경을 요구하는 위장 메일을 탐지하는 훈련입니다.",
+        notification: "itops@company.com",
+      },
+      {
+        name: "인사부",
+        tags: ["인사부", "교육프로그램"],
+        scenario: "인사 발령 및 급여 정산 안내 메일을 위장한 공격 유형을 점검합니다.",
+        notification: "hr@company.com",
+      },
+      {
+        name: "재무전략실",
+        tags: ["재무전략실", "결재보안"],
+        scenario: "지출 결의와 세금계산서를 가장한 승인 요청에 대한 대응력을 높입니다.",
+        notification: "financecontrol@company.com",
+      },
+      {
+        name: "생산본부",
+        tags: ["생산본부", "현장안전"],
+        scenario: "설비 점검 일정을 사칭해 첨부파일 열람을 유도하는 유형을 다룹니다.",
+        notification: "plant@company.com",
+      },
+      {
+        name: "연구개발센터",
+        tags: ["연구개발센터", "기술보안"],
+        scenario: "신제품 자료 열람 요청으로 위장한 기술 유출 위협을 모의합니다.",
+        notification: "rndlead@company.com",
+      },
+    ];
+    type MonthlySetting = {
+      year: number;
+      month: number;
+      campaignName: string;
+      focusDescription: string;
+      statusCycle: Project["status"][];
+      metrics: { openRate: number; clickRate: number; submitRate: number };
+      target: { start: number; step: number };
+    };
+
+    const monthlySettings: MonthlySetting[] = [
+      {
+        year: 2024,
+        month: 1,
+        campaignName: "신년 인증 절차 점검",
+        focusDescription:
+          "연초 계정 초기화 시즌을 악용한 피싱 메일 시나리오로 사용자 인증 절차 준수 여부를 확인합니다.",
+        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
+        metrics: { openRate: 0.82, clickRate: 0.21, submitRate: 0.08 },
+        target: { start: 150, step: 12 },
+      },
+      {
+        year: 2024,
+        month: 3,
+        campaignName: "봄철 정책 변경 안내 훈련",
+        focusDescription:
+          "복지·휴가 정책 개편 공지를 사칭한 공격 유형을 중심으로 검증합니다.",
+        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
+        metrics: { openRate: 0.79, clickRate: 0.22, submitRate: 0.09 },
+        target: { start: 110, step: 9 },
+      },
+      {
+        year: 2024,
+        month: 6,
+        campaignName: "상반기 마감 대응 훈련",
+        focusDescription:
+          "결산 일정과 청구서 확인 메일을 위장한 사회공학 패턴에 대비합니다.",
+        statusCycle: ["완료", "완료", "진행중", "완료", "완료"],
+        metrics: { openRate: 0.75, clickRate: 0.2, submitRate: 0.07 },
+        target: { start: 95, step: 8 },
+      },
+      {
+        year: 2024,
+        month: 8,
+        campaignName: "하계 집중 모의훈련",
+        focusDescription:
+          "휴가철 사회공학 메일을 모사해 대응 체계를 점검하는 프로그램입니다.",
+        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
+        metrics: { openRate: 0.78, clickRate: 0.23, submitRate: 0.08 },
+        target: { start: 60, step: 8 },
+      },
+      {
+        year: 2024,
+        month: 9,
+        campaignName: "가을 전사 캠페인",
+        focusDescription:
+          "신규 정책 안내 메일과 결재 알림을 위장한 공격을 중심으로 한 훈련입니다.",
+        statusCycle: ["완료", "완료", "진행중", "진행중", "완료"],
+        metrics: { openRate: 0.76, clickRate: 0.2, submitRate: 0.07 },
+        target: { start: 75, step: 9 },
+      },
+      {
+        year: 2024,
+        month: 10,
+        campaignName: "4분기 선제 대응 훈련",
+        focusDescription:
+          "연말 정산·납품 일정 안내를 사칭한 메일을 통해 대응 절차를 선제적으로 점검합니다.",
+        statusCycle: ["완료", "완료", "진행중", "진행중", "완료"],
+        metrics: { openRate: 0.74, clickRate: 0.19, submitRate: 0.06 },
+        target: { start: 90, step: 10 },
+      },
+      {
+        year: 2025,
+        month: 1,
+        campaignName: "Q1 전사 리프레시 훈련",
+        focusDescription:
+          "연초 조직 개편 공지를 악용한 사칭 메일로 전사 대응력을 재점검합니다.",
+        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
+        metrics: { openRate: 0.81, clickRate: 0.24, submitRate: 0.09 },
+        target: { start: 200, step: 15 },
+      },
+      {
+        year: 2025,
+        month: 5,
+        campaignName: "개발본부 심화 프로그램",
+        focusDescription:
+          "코드 저장소 접근권한과 패키지 서명을 사칭한 메일에 대응하는 심화 훈련입니다.",
+        statusCycle: ["진행중", "진행중", "완료", "진행중", "완료"],
+        metrics: { openRate: 0.73, clickRate: 0.18, submitRate: 0.05 },
+        target: { start: 120, step: 10 },
+      },
+      {
+        year: 2025,
+        month: 8,
+        campaignName: "하계 통합 대응 프로그램",
+        focusDescription:
+          "여름철 외부 위탁업체 공지로 위장한 메일을 활용해 공급망 보안 인식을 높입니다.",
+        statusCycle: ["진행중", "진행중", "진행중", "진행중", "예약"],
+        metrics: { openRate: 0.7, clickRate: 0.17, submitRate: 0.05 },
+        target: { start: 130, step: 11 },
+      },
+      {
+        year: 2025,
+        month: 9,
+        campaignName: "추석 연휴 대비 훈련",
+        focusDescription:
+          "연휴 전 결제 및 택배 안내를 위장한 공격 유형을 사전 차단하기 위한 훈련입니다.",
+        statusCycle: ["예약", "예약", "예약", "진행중", "예약"],
+        metrics: { openRate: 0.68, clickRate: 0.16, submitRate: 0.05 },
+        target: { start: 115, step: 9 },
+      },
+      {
+        year: 2025,
+        month: 10,
+        campaignName: "연말 정산 대비 훈련",
+        focusDescription:
+          "연말 정산, 납품 일정, 투자 제안서를 사칭한 메시지를 가상 시나리오로 구성합니다.",
+        statusCycle: ["진행중", "예약", "예약", "진행중", "예약"],
+        metrics: { openRate: 0.69, clickRate: 0.16, submitRate: 0.05 },
+        target: { start: 140, step: 12 },
+      },
+    ];
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const monthlyProjects: Project[] = [];
+    monthlySettings.forEach((setting) => {
+      const lastDay = new Date(setting.year, setting.month, 0).getDate();
+      const monthLabel = `${setting.year}년 ${pad(setting.month)}월`;
+      for (let i = 0; i < 10; i++) {
+        const departmentInfo = departmentPool[(i + setting.month) % departmentPool.length];
+        const baseDay = daySlots[i] ?? daySlots[daySlots.length - 1];
+        const startDay = Math.min(baseDay, Math.max(1, lastDay - 2));
+        const endDay = Math.min(startDay + 4, lastDay);
+        const startDate = new Date(
+          `${setting.year}-${pad(setting.month)}-${pad(startDay)}T09:00:00+09:00`,
+        );
+        const endDate = new Date(
+          `${setting.year}-${pad(setting.month)}-${pad(endDay)}T18:00:00+09:00`,
+        );
+        const targetCount = setting.target.start + i * setting.target.step;
+        const status = setting.statusCycle[i % setting.statusCycle.length];
+        const planned = status === "예약";
+        const openCount = planned
+          ? null
+          : Math.min(
+              targetCount,
+              Math.max(0, Math.round(targetCount * setting.metrics.openRate) - (i % 3)),
+            );
+        const clickCount =
+          planned || openCount === null
+            ? null
+            : Math.min(
+                openCount,
+                Math.max(0, Math.round(openCount * setting.metrics.clickRate) - (i % 2)),
+              );
+        const submitCount =
+          planned || clickCount === null
+            ? null
+            : Math.min(
+                clickCount,
+                Math.max(0, Math.round(clickCount * setting.metrics.submitRate)),
+              );
+        const templateId = i % 2 === 0 ? template1.id : template2.id;
+        const project: Project = {
+          id: randomUUID(),
+          name: `${monthLabel} ${setting.campaignName} ${i + 1}차`,
+          description: `${setting.focusDescription} ${departmentInfo.scenario}`,
+          department: departmentInfo.name,
+          departmentTags: departmentInfo.tags,
+          templateId,
+          trainingPageId: null,
+          sendingDomain: "security.phishsense.dev",
+          fromName: "정보보안팀",
+          fromEmail: "security@company.com",
+          timezone: "Asia/Seoul",
+          notificationEmails: ["security@company.com", departmentInfo.notification],
+          startDate,
+          endDate,
+          status,
+          targetCount,
+          openCount,
+          clickCount,
+          submitCount,
+          fiscalYear: null,
+          fiscalQuarter: null,
+          weekOfYear: [],
+          createdAt: new Date(startDate.getTime() - 7 * msPerDay),
+        };
+        monthlyProjects.push(project);
+      }
+    });
+
     const seedProjects = [
       project1,
       project2,
@@ -358,6 +589,7 @@ export class MemStorage implements IStorage {
       project2025Q1,
       project2025Q2,
       project2025Q3,
+      ...monthlyProjects,
     ];
 
     seedProjects.forEach((project) => {

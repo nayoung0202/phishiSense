@@ -30,6 +30,8 @@ import { ArrowLeft, Save, Plus, Star, X } from "lucide-react";
 import { type Target } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCustomDepartments } from "@/hooks/useCustomDepartments";
+import { CustomDepartmentManager } from "@/components/CustomDepartmentManager";
 import { cn } from "@/lib/utils";
 
 const targetFormSchema = z.object({
@@ -70,8 +72,6 @@ const defaultDepartmentSeeds: DepartmentOption[] = [
     searchText: "전사본부 개발부 플랫폼팀",
   },
 ];
-
-const canCreateDepartment = false;
 
 function normalizeStatus(status?: string | null): "active" | "inactive" {
   return status === "inactive" ? "inactive" : "active";
@@ -168,6 +168,7 @@ export default function TargetEdit() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { customDepartments, addCustomDepartment, removeCustomDepartment } = useCustomDepartments();
   const targetId = id ?? "";
   const isNew = targetId.length === 0;
   const [isMainOpen, setIsMainOpen] = useState(false);
@@ -184,10 +185,20 @@ export default function TargetEdit() {
     queryKey: ["/api/targets"],
   });
 
-  const departmentOptions = useMemo(
-    () => buildDepartmentOptions(allTargets),
-    [allTargets],
-  );
+  const departmentOptions = useMemo(() => {
+    const base = buildDepartmentOptions(allTargets);
+    if (!customDepartments.length) {
+      return base;
+    }
+    const map = new Map(base.map((option) => [option.id, option]));
+    customDepartments.forEach((label) => {
+      const option = findDepartmentOption(label, base);
+      if (option.id.length > 0 && !map.has(option.id)) {
+        map.set(option.id, option);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "ko"));
+  }, [allTargets, customDepartments]);
 
   const { main: initialMainDepartment, additional: initialAdditionalDepartments } = useMemo(() => {
     const entries = target ? splitDepartments(target.department) : [];
@@ -277,6 +288,27 @@ export default function TargetEdit() {
     return ordered.map((value) => findDepartmentOption(value, departmentOptions));
   }, [mainDepartmentValue, additionalDepartmentValues, departmentOptions]);
 
+  const mainCandidateOption =
+    mainQuery.trim().length > 0 ? findDepartmentOption(mainQuery, departmentOptions) : null;
+  const canAddMainDepartment =
+    Boolean(
+      mainCandidateOption &&
+        mainCandidateOption.label.trim().length > 0 &&
+        !departmentOptions.some((option) => option.id === mainCandidateOption.id),
+    );
+
+  const additionalCandidateOption =
+    additionalQuery.trim().length > 0
+      ? findDepartmentOption(additionalQuery, departmentOptions)
+      : null;
+  const canAddAdditionalDepartment =
+    Boolean(
+      additionalCandidateOption &&
+        additionalCandidateOption.label.trim().length > 0 &&
+        additionalCandidateOption.id !== mainDepartmentValue &&
+        !additionalDepartmentValues.includes(additionalCandidateOption.id),
+    );
+
   const handleSelectMain = (option: DepartmentOption) => {
     const previousMain = form.getValues("mainDepartment");
     const currentAdditional = form.getValues("additionalDepartments") ?? [];
@@ -357,6 +389,53 @@ export default function TargetEdit() {
     form.setValue("additionalDepartments", next, {
       shouldDirty: true,
       shouldTouch: true,
+    });
+  };
+
+  const handleManualDepartmentAdd = (label: string) => {
+    const option = findDepartmentOption(label, departmentOptions);
+    addCustomDepartment(option.label);
+    if (!form.getValues("mainDepartment")) {
+      handleSelectMain(option);
+    } else {
+      const current = form.getValues("additionalDepartments") ?? [];
+      if (!current.includes(option.id) && option.id !== form.getValues("mainDepartment")) {
+        form.setValue("additionalDepartments", [...current, option.id], {
+          shouldDirty: true,
+          shouldTouch: true,
+        });
+      }
+    }
+    toast({
+      title: "새 소속 추가",
+      description: `"${option.label}" 소속을 추가했습니다.`,
+    });
+    return true;
+  };
+
+  const handleManualDepartmentRemove = (label: string) => {
+    removeCustomDepartment(label);
+    toast({
+      title: "소속 제거",
+      description: `"${label}" 소속을 목록에서 제거했습니다.`,
+    });
+  };
+
+  const handleCreateDepartmentOption = (option: DepartmentOption, target: "main" | "additional") => {
+    const normalizedLabel = option.label.trim();
+    if (!normalizedLabel) return;
+    addCustomDepartment(normalizedLabel);
+    if (target === "main") {
+      handleSelectMain(option);
+      setMainQuery("");
+    } else {
+      handleToggleAdditional(option);
+      setAdditionalQuery("");
+      setIsAdditionalOpen(false);
+    }
+    toast({
+      title: "새 소속 추가",
+      description: `"${normalizedLabel}" 소속을 추가했습니다.`,
     });
   };
 
@@ -504,10 +583,22 @@ export default function TargetEdit() {
                                   {field.value === option.id ? (
                                     <Badge variant="outline" className="text-xs">
                                       선택됨
-                                    </Badge>
-                                  ) : null}
-                                </CommandItem>
-                              ))}
+                                  </Badge>
+                                ) : null}
+                              </CommandItem>
+                            ))}
+                            {canAddMainDepartment && mainCandidateOption ? (
+                              <CommandItem
+                                value={`create-${mainCandidateOption.label}`}
+                                onSelect={() =>
+                                  handleCreateDepartmentOption(mainCandidateOption, "main")
+                                }
+                                className="flex items-center gap-2 text-sm text-primary"
+                              >
+                                <Plus className="h-4 w-4" />
+                                "{mainCandidateOption.label}" 소속 추가
+                              </CommandItem>
+                            ) : null}
                             </CommandGroup>
                           </CommandList>
                         </Command>
@@ -580,20 +671,19 @@ export default function TargetEdit() {
                                   </CommandItem>
                                 );
                               })}
-                              {canCreateDepartment && additionalQuery.trim().length > 0 ? (
+                              {canAddAdditionalDepartment && additionalCandidateOption ? (
                                 <CommandItem
-                                  value={`create-${additionalQuery}`}
-                                  onSelect={() => {
-                                    // 실제 생성 권한 플로우는 별도 모달로 연결 필요
-                                    toast({
-                                      title: "새 소속 생성",
-                                      description: "소속 생성 기능은 아직 구현되지 않았습니다.",
-                                    });
-                                  }}
+                                  value={`create-${additionalCandidateOption.label}`}
+                                  onSelect={() =>
+                                    handleCreateDepartmentOption(
+                                      additionalCandidateOption,
+                                      "additional",
+                                    )
+                                  }
                                   className="flex items-center gap-2 text-sm text-primary"
                                 >
                                   <Plus className="h-4 w-4" />
-                                  “{additionalQuery}” 소속 추가
+                                  "{additionalCandidateOption.label}" 소속 추가
                                 </CommandItem>
                               ) : null}
                             </CommandGroup>
@@ -656,6 +746,14 @@ export default function TargetEdit() {
                   ) : null}
                 </FormItem>
               )}
+            />
+
+            <CustomDepartmentManager
+              customDepartments={customDepartments}
+              onAdd={handleManualDepartmentAdd}
+              onRemove={handleManualDepartmentRemove}
+              title="새 조직/팀 직접 추가"
+              description="조직/팀 목록에 없다면 아래에서 직접 추가하세요. 추가 즉시 주 소속 또는 추가 소속으로 지정할 수 있습니다."
             />
 
             <FormField

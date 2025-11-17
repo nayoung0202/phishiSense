@@ -48,6 +48,14 @@ const toMonthLabel = (date: Date) => format(date, "yyyy년 MM월");
 const formatPercent = (value: number | null) =>
   value === null ? "-" : `${value.toFixed(1)}%`;
 
+const extractPhaseLabel = (name: string) => {
+  const match = name.match(/(\d+)\s*차/);
+  if (match) {
+    return `${match[1]}차`;
+  }
+  return name;
+};
+
 export default function Dashboard() {
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -172,7 +180,8 @@ export default function Dashboard() {
         targetCount > 0 ? (count / targetCount) * 100 : 0;
 
       return {
-        프로젝트: project.name,
+        차수: extractPhaseLabel(project.name ?? ""),
+        프로젝트명: project.name ?? "",
         발송수: targetCount,
         오픈률: rate(openCount),
         클릭률: rate(clickCount),
@@ -284,7 +293,7 @@ export default function Dashboard() {
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
-                  dataKey="프로젝트"
+                  dataKey="차수"
                   stroke="hsl(var(--muted-foreground))"
                   interval={0}
                   tickMargin={12}
@@ -310,7 +319,7 @@ export default function Dashboard() {
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "0.5rem",
                   }}
-                  formatter={(value, name) => {
+                  formatter={(value, name, props) => {
                     const label = String(name);
                     if (label.endsWith("률")) {
                       return [`${Number(value).toFixed(1)}%`, label];

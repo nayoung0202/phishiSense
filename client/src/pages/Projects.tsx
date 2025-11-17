@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -154,6 +154,13 @@ type QuarterGroup = {
   statusCounts: Record<StatusFilter, number>;
 };
 
+type MonthOption = {
+  value: string;
+  label: string;
+  month: number;
+  quarter: Quarter;
+};
+
 /* -------------------------------------------------------------------------- */
 /*                                 Constants                                  */
 /* -------------------------------------------------------------------------- */
@@ -211,6 +218,12 @@ const numberToQuarter: Record<number, Quarter> = {
   4: "Q4",
 };
 
+const quarterStartMonth: Record<Quarter, string> = {
+  Q1: "1",
+  Q2: "4",
+  Q3: "7",
+  Q4: "10",
+};
 const MONTH_CARD_HEIGHT = 420;
 const WEEK_CARD_HEIGHT = 280;
 
@@ -270,6 +283,10 @@ function parseSearchTerm(raw: string) {
     year,
     quarter,
   };
+}
+
+function formatMonthLabel(date: Date) {
+  return format(date, "yyyy년 MM월");
 }
 
 function toDate(value: Date | string): Date {
@@ -354,6 +371,7 @@ export default function Projects() {
   const [selectedQuarter, setSelectedQuarter] = useState<Quarter>(
     quarterOrder[Math.floor(today.getMonth() / 3)],
   );
+  const [selectedMonth, setSelectedMonth] = useState<string>(String(today.getMonth() + 1));
   const [monthIndex, setMonthIndex] = useState(0);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [reportProject, setReportProject] = useState<Project | null>(null);
@@ -374,6 +392,20 @@ export default function Projects() {
   >(null);
 
   const searchMeta = useMemo(() => parseSearchTerm(searchTerm), [searchTerm]);
+  const handleQuarterChange = useCallback((quarter: Quarter) => {
+    setSelectedQuarter(quarter);
+    setSelectedMonth(quarterStartMonth[quarter]);
+  }, []);
+
+  const handleMonthChange = useCallback((value: string) => {
+    setSelectedMonth(value);
+    const monthNumber = Number(value);
+    if (Number.isNaN(monthNumber)) return;
+    const derivedQuarter = numberToQuarter[Math.ceil(monthNumber / 3)];
+    if (derivedQuarter) {
+      setSelectedQuarter(derivedQuarter);
+    }
+  }, []);
 
   useEffect(() => {
     if (searchMeta.year) {
@@ -383,10 +415,9 @@ export default function Projects() {
 
   useEffect(() => {
     if (searchMeta.quarter) {
-      setSelectedQuarter(searchMeta.quarter);
+      handleQuarterChange(searchMeta.quarter);
     }
-  }, [searchMeta.quarter]);
-
+  }, [searchMeta.quarter, handleQuarterChange]);
 
   const statusParam = statusQueryMap[statusFilter];
   const quarterNumber = quarterNumberMap[selectedQuarter];
@@ -470,7 +501,55 @@ export default function Projects() {
     enabled: viewMode === "calendar",
   });
 
-  const projects = projectsQuery.data ?? [];
+  const quarterProjects = projectsQuery.data ?? [];
+  const monthOptions = useMemo<MonthOption[]>(() => {
+    const map = new Map<number, MonthOption>();
+    quarterProjects.forEach((project) => {
+      const rawStart = project.startDate;
+      if (!rawStart) return;
+      const start =
+        rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart);
+      if (Number.isNaN(start.getTime())) return;
+      const month = start.getMonth() + 1;
+      if (map.has(month)) return;
+      const quarter = numberToQuarter[Math.ceil(month / 3)];
+      map.set(month, {
+        value: String(month),
+        label: formatMonthLabel(start),
+        month,
+        quarter,
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.month - b.month);
+  }, [quarterProjects]);
+
+  useEffect(() => {
+    if (monthOptions.length === 0) {
+      setSelectedMonth(quarterStartMonth[selectedQuarter]);
+      return;
+    }
+    if (!monthOptions.some((option) => option.value === selectedMonth)) {
+      setSelectedMonth(monthOptions[0].value);
+    }
+  }, [monthOptions, selectedMonth, selectedQuarter]);
+
+  const selectedMonthNumber = Number(selectedMonth);
+
+  const projects = useMemo(() => {
+    if (Number.isNaN(selectedMonthNumber)) {
+      return quarterProjects;
+    }
+
+    return quarterProjects.filter((project) => {
+      const rawStart = project.startDate;
+      if (!rawStart) return false;
+      const start =
+        rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart);
+      if (Number.isNaN(start.getTime())) return false;
+      return start.getMonth() + 1 === selectedMonthNumber;
+    });
+  }, [quarterProjects, selectedMonthNumber]);
+
   const quarterStats = quarterStatsQuery.data ?? [];
   const calendarData = calendarQuery.data ?? { months: [], weeks: [] };
 
@@ -1448,7 +1527,7 @@ export default function Projects() {
           <ToggleGroup
             type="single"
             value={selectedQuarter}
-            onValueChange={(value) => value && setSelectedQuarter(value as Quarter)}
+            onValueChange={(value) => value && handleQuarterChange(value as Quarter)}
             className="flex items-center gap-1 rounded-md border bg-background p-1"
           >
             {quarterOrder.map((quarter) => (
@@ -1461,6 +1540,31 @@ export default function Projects() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">월</span>
+            <Select
+              value={selectedMonth}
+              onValueChange={handleMonthChange}
+              disabled={monthOptions.length === 0}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="월 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    표시할 월이 없습니다.
+                  </div>
+                ) : (
+                  monthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
           <ToggleGroup
             type="single"
             value={statusFilter}
