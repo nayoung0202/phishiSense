@@ -1,3 +1,5 @@
+import process from "node:process";
+import nodemailer from "nodemailer";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -25,7 +27,6 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
-import { sendTestEmail, MailerConfigError } from "./mailer";
 
 const statusParamMap: Record<string, string> = {
   running: "진행중",
@@ -133,6 +134,8 @@ type ProjectValidationIssue = {
 
 const PREVIEW_CACHE_WINDOW_MS = 2 * 60 * 1000;
 const previewCache = new Map<string, { data: PreviewResponse; expiresAt: number }>();
+const NODEMAILER_VERSION =
+  (nodemailer as unknown as { version?: string }).version ?? "unknown";
 
 const normalizeOptionalString = (value: unknown) => {
   if (typeof value !== "string") return "";
@@ -159,21 +162,53 @@ const toSafeDate = (value: unknown): Date | null => {
   return null;
 };
 
-const parseTargetsQuery = (value: unknown): string[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => parseTargetsQuery(entry));
+const previewRequestSchema = z.object({
+  targetIds: z.array(z.string().trim().min(1)).default([]),
+  templateId: z.string().trim().min(1).nullish(),
+  sendingDomain: z.string().trim().min(1).nullish(),
+  startDate: z.string().trim().min(1).nullish(),
+  endDate: z.string().trim().min(1).nullish(),
+});
+
+const findMissingSmtpKey = () => {
+  if (!process.env.SMTP_HOST) {
+    return "SMTP_HOST";
   }
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
+  if (!process.env.SMTP_USER) {
+    return "SMTP_USER";
   }
-  return [];
+  if (!process.env.SMTP_PASS) {
+    return "SMTP_PASS";
+  }
+  return null;
 };
 
+const stripHtml = (value: string) =>
+  value
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, recipient: string) => `
+    <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
+      <header style="margin-bottom: 16px;">
+        <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
+      </header>
+      <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
+        ${htmlBody}
+      </section>
+      <footer style="margin-top: 24px; font-size: 12px; color: #94a3b8;">
+        <p style="margin: 0;">수신자: ${recipient}</p>
+        <p style="margin: 4px 0 0;">PhishSense 테스트 발송 · 실 사용자에게 자동으로 전달되지 않습니다.</p>
+      </footer>
+    </article>
+  `;
+
 const buildPreviewCacheKey = (options: {
+  projectId?: string | null;
   targetIds: string[];
   templateId?: string | null;
   sendingDomain?: string | null;
@@ -181,6 +216,7 @@ const buildPreviewCacheKey = (options: {
   endDate?: string | null;
 }) => {
   const key = {
+    projectId: options.projectId ?? null,
     targetIds: [...options.targetIds].sort(),
     templateId: options.templateId ?? null,
     sendingDomain: options.sendingDomain ?? null,
@@ -608,19 +644,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/projects/preview", async (req, res) => {
+  app.post("/api/projects/:id/preview", async (req, res) => {
     try {
-      const targetIds = parseTargetsQuery(req.query.targets ?? req.query.targetIds);
-      const templateId =
-        typeof req.query.templateId === "string" ? req.query.templateId.trim() : undefined;
-      const sendingDomain =
-        typeof req.query.sendingDomain === "string" ? req.query.sendingDomain.trim() : undefined;
-      const startDateParam =
-        typeof req.query.startDate === "string" ? req.query.startDate.trim() : undefined;
-      const endDateParam =
-        typeof req.query.endDate === "string" ? req.query.endDate.trim() : undefined;
+      const payload = previewRequestSchema.parse(req.body ?? {});
+      const targetIds = payload.targetIds;
+
+      const templateId = payload.templateId ?? undefined;
+      const sendingDomain = payload.sendingDomain ?? undefined;
+      const startDateParam = payload.startDate ?? undefined;
+      const endDateParam = payload.endDate ?? undefined;
+      const projectId =
+        typeof req.params.id === "string" && req.params.id.trim().length > 0
+          ? req.params.id.trim()
+          : "new";
 
       const cacheKey = buildPreviewCacheKey({
+        projectId,
         targetIds,
         templateId,
         sendingDomain,
@@ -728,7 +767,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/projects/test-send", async (req, res) => {
+    res.setHeader("X-Mailer-Version", `nodemailer/${NODEMAILER_VERSION}`);
     try {
+      const missingKey = findMissingSmtpKey();
+
+      if (missingKey) {
+        return res.status(503).json({
+          error: "smtp_not_configured",
+          reason: `${missingKey} 환경 변수가 누락되어 테스트 메일을 발송할 수 없습니다.`,
+        });
+      }
+
       const payload = z
         .object({
           templateId: z.string().min(1, "템플릿을 선택하세요."),
@@ -754,23 +803,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const delivery = await sendTestEmail({
-        recipient: payload.recipient,
-        subject: template.subject ?? "테스트 메일",
-        htmlBody: template.body ?? "",
-        fromName: payload.fromName,
-        fromEmail: payload.fromEmail,
-        sendingDomain: payload.sendingDomain,
+      const smtpPort = Number(process.env.SMTP_PORT ?? 587);
+      const smtpSecure = String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true";
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
       });
+
+      const htmlBody = template.body ?? "";
+      const subject = template.subject ?? "테스트 메일";
+      const prefixedSubject = `[테스트] ${subject}`;
+      const composedHtml = buildTestEmailHtml(htmlBody, payload.sendingDomain, payload.recipient);
+      const plainText = stripHtml(htmlBody);
+
+      let delivery;
+      try {
+        delivery = await transporter.sendMail({
+          envelope: {
+            from: payload.fromEmail,
+            to: [payload.recipient],
+          },
+          from: `"${payload.fromName}" <${payload.fromEmail}>`,
+          to: payload.recipient,
+          subject: prefixedSubject,
+          html: composedHtml,
+          text: plainText || undefined,
+          headers: {
+            "X-PhishSense-Preview": "true",
+            "X-PhishSense-Sending-Domain": payload.sendingDomain,
+          },
+        });
+      } finally {
+        if (typeof transporter.close === "function") {
+          transporter.close();
+        }
+      }
 
       res.json({
         status: "sent" as const,
         messageId: delivery.messageId,
-        accepted: delivery.accepted,
-        rejected: delivery.rejected,
-        envelope: delivery.envelope,
+        accepted: Array.isArray(delivery.accepted) ? delivery.accepted.map(String) : [],
+        rejected: Array.isArray(delivery.rejected) ? delivery.rejected.map(String) : [],
+        envelope: {
+          from: delivery.envelope?.from ?? payload.fromEmail,
+          to: Array.isArray(delivery.envelope?.to)
+            ? delivery.envelope.to.map(String)
+            : [payload.recipient],
+        },
         response: delivery.response,
-        previewUrl: delivery.previewUrl || null,
+        previewUrl: (delivery as { previewUrl?: string }).previewUrl ?? null,
         processedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -784,16 +871,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      if (error instanceof MailerConfigError) {
-        return res.status(503).json({
-          error: "smtp_not_configured",
-          reason: error.message,
-        });
-      }
-
       res.status(500).json({
         error: "test_send_failed",
-        reason: "테스트 메일 발송 중 문제가 발생했습니다.",
+        reason: "테스트 메일 발송 중 오류가 발생했습니다.",
       });
     }
   });
