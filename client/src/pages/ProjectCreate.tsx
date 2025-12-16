@@ -164,6 +164,7 @@ const DOMAIN_OPTIONS = [
   { value: "security.phishsense.dev", label: "security.phishsense.dev", status: "인증 완료" },
   { value: "alerts.phishsense.dev", label: "alerts.phishsense.dev", status: "활성" },
   { value: "training.phishsense.dev", label: "training.phishsense.dev", status: "인증 만료" },
+  { value: "evriz.co.kr", label: "evriz.co.kr", status: "신규" },
 ];
 
 const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
@@ -194,29 +195,47 @@ const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
 
 const asIsoString = (value: Date | undefined) => (value ? value.toISOString() : undefined);
 
-const createPreviewQuery = (
+type PreviewRequestBody = {
+  targetIds: string[];
+  startDate?: string;
+  endDate?: string;
+  templateId?: string;
+  sendingDomain?: string;
+};
+
+type PreviewRequest = {
+  projectId: string;
+  body: PreviewRequestBody;
+};
+
+const buildPreviewRequest = (
+  projectId: string,
   targetIds: string[],
   startDate?: Date,
   endDate?: Date,
   templateId?: string,
   sendingDomain?: string,
-) => {
+): PreviewRequest | null => {
   if (targetIds.length === 0) return null;
-  const params = new URLSearchParams();
-  params.set("targets", targetIds.join(","));
-  if (startDate) {
-    params.set("startDate", startDate.toISOString());
+  const payload: PreviewRequestBody = {
+    targetIds: [...targetIds],
+  };
+  if (startDate instanceof Date && !Number.isNaN(startDate.getTime())) {
+    payload.startDate = startDate.toISOString();
   }
-  if (endDate) {
-    params.set("endDate", endDate.toISOString());
+  if (endDate instanceof Date && !Number.isNaN(endDate.getTime())) {
+    payload.endDate = endDate.toISOString();
   }
   if (templateId) {
-    params.set("templateId", templateId);
+    payload.templateId = templateId;
   }
   if (sendingDomain) {
-    params.set("sendingDomain", sendingDomain);
+    payload.sendingDomain = sendingDomain;
   }
-  return `/api/projects/preview?${params.toString()}`;
+  return {
+    projectId,
+    body: payload,
+  };
 };
 
 type CreateProjectRequest = {
@@ -558,9 +577,10 @@ export default function ProjectCreate() {
 
   const selectedTargetCount = selectedTargetIds.length;
 
-  const previewUrl = useMemo(
+  const previewRequest = useMemo(
     () =>
-      createPreviewQuery(
+      buildPreviewRequest(
+        "new",
         selectedTargetIds,
         startDateValue,
         endDateValue,
@@ -571,17 +591,21 @@ export default function ProjectCreate() {
   );
 
   const previewQuery = useQuery<PreviewResponse>({
-    queryKey: ["projects-preview", previewUrl],
-    enabled: Boolean(previewUrl),
+    queryKey: ["projects-preview", previewRequest],
+    enabled: Boolean(previewRequest),
     gcTime: 2 * 60 * 1000,
     staleTime: 0,
-    queryFn: async ({ queryKey }) => {
-      const [, url] = queryKey;
-      if (typeof url !== "string" || url.length === 0) {
-        throw new Error("미리보기 URL이 유효하지 않습니다.");
+    queryFn: async () => {
+      if (!previewRequest) {
+        throw new Error("미리보기 요청 정보가 없습니다.");
       }
-      const res = await fetch(url, {
+      const res = await fetch(`/api/projects/${previewRequest.projectId}/preview`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
+        body: JSON.stringify(previewRequest.body),
       });
       if (!res.ok) {
         throw new Error("미리보기 데이터를 불러오지 못했습니다.");

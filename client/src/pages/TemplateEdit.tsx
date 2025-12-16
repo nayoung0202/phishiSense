@@ -37,11 +37,13 @@ export default function TemplateEdit() {
       name: template?.name || "",
       subject: template?.subject || "",
       body: template?.body || "",
+      maliciousPageContent: template?.maliciousPageContent || "",
     },
     values: template ? {
       name: template.name,
       subject: template.subject,
       body: template.body,
+      maliciousPageContent: template.maliciousPageContent,
     } : undefined,
   });
 
@@ -125,6 +127,27 @@ export default function TemplateEdit() {
                         onChange={field.onChange}
                         onBlur={field.onBlur}
                         placeholder="메일 본문을 자유롭게 작성하세요."
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="maliciousPageContent"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>악성 메일 본문</FormLabel>
+                  <FormControl>
+                    <div data-testid="editor-malicious">
+                      <RichTextEditor
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder="실제 악성 메일 페이지 본문을 작성하세요."
                       />
                     </div>
                   </FormControl>
