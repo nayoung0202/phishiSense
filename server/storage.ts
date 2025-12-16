@@ -115,22 +115,91 @@ export class MemStorage implements IStorage {
     // Seed templates
     const template1: Template = {
       id: randomUUID(),
-      name: "배송 알림 템플릿",
-      subject: "[긴급] 배송 주소 확인 필요",
-      body: "<p>고객님의 주문 건에 대한 배송지 주소 확인이 필요합니다...</p>",
+      name: "택배 보류 알림",
+      subject: "[CJ대한통운] 배송 주소 확인 미완료",
+      body: [
+        "<p>안녕하세요. CJ대한통운 고객센터입니다.</p>",
+        "<p>택배 <strong>송장번호 3812-4477</strong> 건이 주소 불일치로 분류센터에서 보류되었습니다.</p>",
+        "<p>48시간 내 아래 링크에서 주소를 확인하지 않으면 반송 처리됩니다.</p>",
+        '<p><a href="https://notice-cjsecure.center/track/38124477" target="_blank" rel="noopener noreferrer" class="text-primary underline">배송 보류 내역 확인 (링크)</a></p>',
+        "<p>사내 보안팀 안내에 따라 확인 즉시 담당자에게 공유해주세요.</p>",
+      ].join(""),
+      maliciousPageContent: [
+        "<article style='font-family: Pretendard, sans-serif; line-height:1.6; max-width:560px; margin:0 auto;'>",
+        "<header style='display:flex; align-items:center; gap:12px; margin-bottom:16px;'>",
+        "<img src='https://static.cjlogistics.co.kr/logo.svg' alt='CJ대한통운' width='48' height='48' />",
+        "<div>",
+        "<p style=\"margin:0; font-size:14px; color:#0f172a;\">CJ대한통운 주소 재확인센터</p>",
+        "<p style=\"margin:0; font-size:12px; color:#64748b;\">송장번호 3812-4477</p>",
+        "</div>",
+        "</header>",
+        "<section style='background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:rgba(15,23,42,0.08) 0 10px 20px;'>",
+        "<p style='margin:0 0 12px;'>주소가 확인되지 않아 배송이 보류되었습니다. 아래 정보를 입력하시면 즉시 재배정됩니다.</p>",
+        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>사내 이메일</label>",
+        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' value='honggd@company.com' />",
+        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>사번</label>",
+        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='예: 2024-00123' />",
+        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>OTP/보안번호</label>",
+        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:16px;' placeholder='6자리' />",
+        "<button style='width:100%; background:#2563eb; color:#fff; border:none; border-radius:8px; padding:12px; font-weight:600;'>주소 재확인 요청</button>",
+        "<p style='font-size:12px; color:#94a3b8; margin-top:12px;'>※ 버튼 클릭 시 \"배송 담당자에게 전달됨\" 문구와 함께 입력값이 공격자 서버로 전송되도록 설계되어 있습니다.</p>",
+        "</section>",
+        "<footer style='margin-top:16px; font-size:12px; color:#94a3b8;'>본 페이지는 훈련용 악성 메일 본문 예시입니다.</footer>",
+        "</article>",
+      ].join(""),
       createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
       updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     };
     const template2: Template = {
       id: randomUUID(),
-      name: "계정 보안 알림",
-      subject: "보안 위협 감지 - 즉시 확인 요망",
-      body: "<p>귀하의 계정에서 이상 로그인 시도가 감지되었습니다...</p>",
+      name: "계정 잠금 해제 요청",
+      subject: "[M365] 비정상 로그인 차단 - 본인 확인 필요",
+      body: [
+        "<p>회사 M365 시스템에서 서울이 아닌 위치에서의 로그인 시도가 3회 이상 감지되었습니다.</p>",
+        "<p>보안을 위해 계정이 임시 잠김 처리되었으며, 1시간 내 아래 확인 절차를 진행하지 않으면 업무용 메일 접근이 제한됩니다.</p>",
+        '<p><a href="https://secure-m365review.net/verify/session" target="_blank" rel="noopener noreferrer" class="text-primary underline">M365 본인 확인 (가짜 링크)</a></p>',
+        "<p>링크 접속 후 다중 인증 코드를 입력하도록 안내되지만, 실제로는 공격자가 인증 토큰을 탈취하는 구조입니다.</p>",
+      ].join(""),
+      maliciousPageContent: [
+        "<h3 class='text-lg font-semibold'>가짜 Microsoft 365 보안 센터</h3>",
+        "<p>피싱 링크를 열면 로고와 색상을 그대로 따라한 로그인 페이지가 표시됩니다.</p>",
+        "<ol class='list-decimal list-inside space-y-1'>",
+        "<li>사용자에게 기존 비밀번호와 OTP 6자리를 동시에 요구</li>",
+        "<li>입력 즉시 \"본인 확인 중\"이라는 로딩 UI로 시간을 끌며 백엔드로 전송</li>",
+        "<li>마지막으로 \"비정상 세션 처리 완료\"라는 알림을 띄워 의심을 줄임</li>",
+        "</ol>",
+        "<p class='text-sm text-muted-foreground'>(링크는 훈련용으로만 사용하며 실제 악성 페이지가 아닙니다.)</p>",
+      ].join(""),
       createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
       updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
     };
+    const template3: Template = {
+      id: randomUUID(),
+      name: "연말정산 환급 서류 보완",
+      subject: "[국세청] 추가 환급 대상 서류 제출 안내",
+      body: [
+        "<p>국세청 모의 안내를 사칭해 연말정산 환급을 미끼로 개인정보를 요구하는 유형입니다.</p>",
+        "<p>사내 재무팀 명의로 전달되며, 아래 링크에서 주민등록증 스캔본과 계좌 정보를 업로드하도록 유도합니다.</p>",
+        '<p><a href="https://hometax-refund.kr/statement" target="_blank" rel="noopener noreferrer" class="text-primary underline">환급 신청서 업로드 (가짜 링크)</a></p>',
+        "<p>링크는 사내 외부망 차단 정책을 우회하기 위해 HTTPS 인증서까지 위조한 형태로 제작되었습니다.</p>",
+      ].join(""),
+      maliciousPageContent: [
+        "<h3 class='text-lg font-semibold'>가짜 홈택스 환급 접수 페이지</h3>",
+        "<p>정부 서체와 로고를 그대로 복제해 신뢰도를 높인 뒤, 다음 입력값을 요구합니다.</p>",
+        "<ul class='list-disc list-inside space-y-1'>",
+        "<li>주민등록번호 전체 13자리와 휴대전화 본인확인 코드</li>",
+        "<li>급여이체 계좌번호 및 보안카드 앞면 사진</li>",
+        "<li>첨부파일 업로드 기능을 사용해 사내 문서를 외부로 유출시키는 스크립트</li>",
+        "</ul>",
+        "<p>제출 즉시 \"당일 환급 예정\"이라는 거짓 메시지를 띄우며 페이지가 종료됩니다.</p>",
+        "<p class='text-sm text-muted-foreground'>※ 모든 텍스트는 훈련용 더미 데이터이며 실제 악성 페이지는 존재하지 않습니다.</p>",
+      ].join(""),
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    };
     this.templates.set(template1.id, template1);
     this.templates.set(template2.id, template2);
+    this.templates.set(template3.id, template3);
     
     // Seed projects
     const project1: Project = {

@@ -1,6 +1,18 @@
+import "dotenv/config";
+import process from "node:process";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+
+
+console.log("[BOOT]", new Date().toISOString());
+console.log("[BOOT][env]", {
+  host: process.env.SMTP_HOST,
+  user: process.env.SMTP_USER,
+  port: process.env.SMTP_PORT,
+  secure: process.env.SMTP_SECURE,
+  pass: process.env.SMTP_PASS ? "***" : "(none)",
+});
 
 if (!process.env.NODE_ENV) {
   const currentPath = new URL(import.meta.url).pathname;

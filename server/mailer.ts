@@ -1,14 +1,12 @@
+import process from "node:process";
 import nodemailer, { type Transporter } from "nodemailer";
 
-type TransportConfig = {
+type MailerConfig = {
   host: string;
+  user: string;
+  pass: string;
   port: number;
   secure: boolean;
-  auth?: {
-    user: string;
-    pass: string;
-  };
-  allowInvalidTls?: boolean;
 };
 
 export class MailerConfigError extends Error {
@@ -18,70 +16,33 @@ export class MailerConfigError extends Error {
   }
 }
 
-const parseBoolean = (value: string | undefined, fallback: boolean) => {
-  if (value === undefined) {
-    return fallback;
-  }
-  const normalized = value.trim().toLowerCase();
-  return ["1", "true", "yes", "y"].includes(normalized);
-};
-
-const resolveTransportConfig = (): TransportConfig => {
+export function getMailerConfig(): MailerConfig {
   const host = process.env.SMTP_HOST;
-  const portValue = process.env.SMTP_PORT ?? "";
-  const secureValue = process.env.SMTP_SECURE;
-  const allowInvalidTlsValue = process.env.SMTP_ALLOW_INVALID_TLS;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
+  const port = Number(process.env.SMTP_PORT ?? 587);
+  const secure = String(process.env.SMTP_SECURE).toLowerCase() === "true";
 
-  if (!host) {
-    throw new MailerConfigError("SMTP_HOST 환경 변수가 설정되어 있지 않습니다.");
+  if (!host || !user || !pass) {
+    throw new MailerConfigError("smtp_not_configured");
   }
 
-  const port = Number.parseInt(portValue || "587", 10);
-  if (Number.isNaN(port) || port <= 0) {
-    throw new MailerConfigError("SMTP_PORT 환경 변수에 올바른 숫자 값을 입력하세요.");
-  }
-
-  const secure = secureValue ? parseBoolean(secureValue, false) : port === 465;
-  const allowInvalidTls = parseBoolean(allowInvalidTlsValue, false);
-
-  if ((user && !pass) || (!user && pass)) {
-    throw new MailerConfigError("SMTP_USER와 SMTP_PASS는 함께 설정해야 합니다.");
-  }
-
-  const config: TransportConfig = {
-    host,
-    port,
-    secure,
-  };
-
-  if (user && pass) {
-    config.auth = { user, pass };
-  }
-
-  if (allowInvalidTls) {
-    config.allowInvalidTls = true;
-  }
-
-  return config;
-};
+  return { host, user, pass, port, secure };
+}
 
 let transporterPromise: Promise<Transporter> | null = null;
 
 const createTransporter = async (): Promise<Transporter> => {
-  const config = resolveTransportConfig();
+  const config = getMailerConfig();
 
   const transporter = nodemailer.createTransport({
     host: config.host,
     port: config.port,
     secure: config.secure,
-    auth: config.auth,
-    tls: config.allowInvalidTls
-      ? {
-          rejectUnauthorized: false,
-        }
-      : undefined,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
   });
 
   try {

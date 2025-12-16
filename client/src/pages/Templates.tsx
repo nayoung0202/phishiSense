@@ -11,18 +11,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Search, Edit, Trash2, Mail, Eye } from "lucide-react";
 import { Link } from "wouter";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 
 export default function Templates() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
+
+  const getSnippet = (html: string, size = 80) => {
+    const plain = html
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (plain.length <= size) {
+      return plain;
+    }
+    return `${plain.slice(0, size)}...`;
+  };
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
@@ -37,10 +50,16 @@ export default function Templates() {
     },
   });
 
-  const filteredTemplates = templates.filter((template) =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    template.subject.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTemplates = templates.filter((template) => {
+    const keyword = searchTerm.toLowerCase();
+    if (!keyword) return true;
+    return (
+      template.name.toLowerCase().includes(keyword) ||
+      template.subject.toLowerCase().includes(keyword) ||
+      template.body.toLowerCase().includes(keyword) ||
+      template.maliciousPageContent.toLowerCase().includes(keyword)
+    );
+  });
 
   const handleDelete = (id: string) => {
     if (confirm('정말 삭제하시겠습니까?')) {
@@ -63,7 +82,7 @@ export default function Templates() {
   };
 
   const previewBody = previewTemplate?.body ?? "";
-  const previewBodyHtml = previewBody.replace(/\n/g, "<br />");
+  const previewMalicious = previewTemplate?.maliciousPageContent ?? "";
   const previewUpdatedAt = previewTemplate?.updatedAt
     ? formatDate(previewTemplate.updatedAt)
     : previewTemplate?.createdAt
@@ -93,20 +112,36 @@ export default function Templates() {
             <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
               {previewUpdatedAt ? <p>최근 업데이트: {previewUpdatedAt}</p> : null}
             </div>
-            <ScrollArea className="h-80 rounded-md border bg-background p-4">
-              {previewTemplate ? (
-                previewBody.trim().length > 0 ? (
-                  <div
-                    className="prose prose-sm max-w-none dark:prose-invert"
-                    dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">본문이 없습니다.</p>
-                )
-              ) : (
-                <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-              )}
-            </ScrollArea>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">메일 본문</p>
+                <div className="h-80 overflow-hidden rounded-md border bg-white">
+                  {previewTemplate ? (
+                    previewBody.trim().length > 0 ? (
+                      <TemplatePreviewFrame html={previewBody} className="h-full w-full" />
+                    ) : (
+                      <p className="p-4 text-sm text-muted-foreground">메일 본문이 없습니다.</p>
+                    )
+                  ) : (
+                    <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">악성 메일 본문</p>
+                <div className="h-80 overflow-hidden rounded-md border bg-white">
+                  {previewTemplate ? (
+                    previewMalicious.trim().length > 0 ? (
+                      <TemplatePreviewFrame html={previewMalicious} className="h-full w-full" />
+                    ) : (
+                      <p className="p-4 text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
+                    )
+                  ) : (
+                    <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClosePreview}>
@@ -159,6 +194,16 @@ export default function Templates() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold mb-1 truncate">{template.name}</h3>
                       <p className="text-sm text-muted-foreground truncate">{template.subject}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">메일 본문</p>
+                      <p>{getSnippet(template.body)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">악성 메일 본문</p>
+                      <p>{getSnippet(template.maliciousPageContent)}</p>
                     </div>
                   </div>
 

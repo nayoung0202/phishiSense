@@ -40,34 +40,51 @@ type MonthlySummary = {
   submitRate: number | null;
 };
 
+type QuarterlySummary = {
+  key: string;
+  quarterLabel: string;
+  quarterDate: Date;
+  targetCount: number;
+  openCount: number;
+  clickCount: number;
+  submitCount: number;
+  openRate: number | null;
+  clickRate: number | null;
+  submitRate: number | null;
+};
+
 const toMonthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
 const toMonthLabel = (date: Date) => format(date, "yyyy년 MM월");
 
+const getQuarterNumber = (date: Date) => Math.floor(date.getMonth() / 3) + 1;
+
+const toQuarterKey = (date: Date) => `${date.getFullYear()}-Q${getQuarterNumber(date)}`;
+
+const toQuarterLabel = (date: Date) =>
+  `${date.getFullYear()}년 ${getQuarterNumber(date)}분기`;
+
+const toQuarterStartDate = (date: Date) =>
+  new Date(date.getFullYear(), (getQuarterNumber(date) - 1) * 3, 1);
+
 const formatPercent = (value: number | null) =>
   value === null ? "-" : `${value.toFixed(1)}%`;
 
-const extractPhaseLabel = (name: string) => {
-  const match = name.match(/(\d+)\s*차/);
-  if (match) {
-    return `${match[1]}차`;
-  }
-  return name;
-};
+const formatProjectLabel = (name: string | null | undefined) => name ?? "무제 프로젝트";
 
 export default function Dashboard() {
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
 
-  const projectsByMonth = useMemo(() => {
+  const projectsByQuarter = useMemo(() => {
     const map = new Map<string, Project[]>();
     projects.forEach((project) => {
       if (!project.startDate) return;
       const date = new Date(project.startDate);
       if (Number.isNaN(date.getTime())) return;
-      const key = toMonthKey(date);
+      const key = toQuarterKey(date);
       const list = map.get(key);
       if (list) {
         list.push(project);
@@ -130,6 +147,89 @@ export default function Dashboard() {
     return summaries;
   }, [projects]);
 
+  const quarterlySummaries = useMemo<QuarterlySummary[]>(() => {
+    if (!projects.length) return [];
+
+    const map = new Map<string, QuarterlySummary>();
+
+    projects.forEach((project) => {
+      if (!project.startDate) return;
+      const date = new Date(project.startDate);
+      if (Number.isNaN(date.getTime())) return;
+
+      const key = toQuarterKey(date);
+      const existing = map.get(key);
+      const summary =
+        existing ??
+        {
+          key,
+          quarterLabel: toQuarterLabel(date),
+          quarterDate: toQuarterStartDate(date),
+          targetCount: 0,
+          openCount: 0,
+          clickCount: 0,
+          submitCount: 0,
+          openRate: null,
+          clickRate: null,
+          submitRate: null,
+        };
+
+      summary.targetCount += project.targetCount ?? 0;
+      summary.openCount += project.openCount ?? 0;
+      summary.clickCount += project.clickCount ?? 0;
+      summary.submitCount += project.submitCount ?? 0;
+
+      map.set(key, summary);
+    });
+
+    const summaries = Array.from(map.values()).map((summary) => {
+      const { targetCount, openCount, clickCount, submitCount } = summary;
+      const safeRate = (count: number) =>
+        targetCount > 0 ? (count / targetCount) * 100 : null;
+
+      return {
+        ...summary,
+        openRate: safeRate(openCount),
+        clickRate: safeRate(clickCount),
+        submitRate: safeRate(submitCount),
+      };
+    });
+
+    summaries.sort((a, b) => b.quarterDate.getTime() - a.quarterDate.getTime());
+    return summaries;
+  }, [projects]);
+
+  const quartersByYear = useMemo(() => {
+    const baseMap = new Map<number, Set<number>>();
+    quarterlySummaries.forEach((summary) => {
+      const year = summary.quarterDate.getFullYear();
+      const quarter = getQuarterNumber(summary.quarterDate);
+      if (!baseMap.has(year)) {
+        baseMap.set(year, new Set());
+      }
+      baseMap.get(year)!.add(quarter);
+    });
+    const normalized = new Map<number, number[]>();
+    baseMap.forEach((set, year) => {
+      normalized.set(
+        year,
+        Array.from(set.values()).sort((a, b) => b - a),
+      );
+    });
+    return normalized;
+  }, [quarterlySummaries]);
+
+  const yearOptions = useMemo(
+    () =>
+      Array.from(quartersByYear.keys())
+        .sort((a, b) => b - a)
+        .map((year) => ({
+          value: String(year),
+          label: `${year}년`,
+        })),
+    [quartersByYear],
+  );
+
   const monthOptions = useMemo(
     () =>
       monthlySummaries.map((summary) => ({
@@ -143,6 +243,26 @@ export default function Dashboard() {
     monthOptions.length > 0 ? monthOptions[0].value : null,
   );
 
+  const [selectedYear, setSelectedYear] = useState<string | null>(() =>
+    yearOptions.length > 0 ? yearOptions[0].value : null,
+  );
+
+  const [selectedQuarterNumber, setSelectedQuarterNumber] = useState<string | null>(() => {
+    if (!yearOptions.length) return null;
+    const initialYear = Number(yearOptions[0].value);
+    const quarters = quartersByYear.get(initialYear) ?? [];
+    return quarters.length > 0 ? String(quarters[0]) : null;
+  });
+
+  const quarterOptions = useMemo(() => {
+    if (!selectedYear) return [];
+    const quarters = quartersByYear.get(Number(selectedYear)) ?? [];
+    return quarters.map((quarter) => ({
+      value: String(quarter),
+      label: `${quarter}분기`,
+    }));
+  }, [quartersByYear, selectedYear]);
+
   useEffect(() => {
     if (!monthOptions.length) {
       setSelectedMonth(null);
@@ -154,46 +274,81 @@ export default function Dashboard() {
     }
   }, [monthOptions, selectedMonth]);
 
+  useEffect(() => {
+    if (!yearOptions.length) {
+      setSelectedYear(null);
+      return;
+    }
+
+    if (!selectedYear || !yearOptions.some((option) => option.value === selectedYear)) {
+      setSelectedYear(yearOptions[0].value);
+    }
+  }, [yearOptions, selectedYear]);
+
+  useEffect(() => {
+    if (!selectedYear) {
+      setSelectedQuarterNumber(null);
+      return;
+    }
+
+    const quarters = quartersByYear.get(Number(selectedYear)) ?? [];
+    if (!quarters.length) {
+      setSelectedQuarterNumber(null);
+      return;
+    }
+
+    if (
+      !selectedQuarterNumber ||
+      !quarters.includes(Number(selectedQuarterNumber))
+    ) {
+      setSelectedQuarterNumber(String(quarters[0]));
+    }
+  }, [quartersByYear, selectedYear, selectedQuarterNumber]);
+
   const selectedSummary =
     monthlySummaries.find((summary) => summary.key === selectedMonth) ??
     monthlySummaries[0];
 
-  const selectedMonthProjects = useMemo(() => {
-    if (!selectedMonth) return [];
-    const list = projectsByMonth.get(selectedMonth);
+  const selectedQuarterKey =
+    selectedYear && selectedQuarterNumber ? `${selectedYear}-Q${selectedQuarterNumber}` : null;
+
+  const selectedQuarterProjects = useMemo(() => {
+    if (!selectedQuarterKey) return [];
+    const list = projectsByQuarter.get(selectedQuarterKey);
     if (!list) return [];
     return [...list].sort((a, b) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      if (dateA !== dateB) {
+        return dateA - dateB;
+      }
       const nameA = a.name ?? "";
       const nameB = b.name ?? "";
       return nameA.localeCompare(nameB, "ko");
     });
-  }, [projectsByMonth, selectedMonth]);
+  }, [projectsByQuarter, selectedQuarterKey]);
 
-  const chartData = useMemo(() => {
-    if (!selectedMonthProjects.length) return [];
-    return selectedMonthProjects.map((project) => {
+  const quarterComparisonData = useMemo(() => {
+    if (!selectedQuarterProjects.length) return [];
+    return selectedQuarterProjects.map((project, index) => {
       const targetCount = project.targetCount ?? 0;
-      const openCount = project.openCount ?? 0;
-      const clickCount = project.clickCount ?? 0;
-      const submitCount = project.submitCount ?? 0;
-      const rate = (count: number) =>
-        targetCount > 0 ? (count / targetCount) * 100 : 0;
-
+      const rate = (count: number | null | undefined) =>
+        targetCount > 0 && count ? (count / targetCount) * 100 : 0;
       return {
-        차수: extractPhaseLabel(project.name ?? ""),
-        프로젝트명: project.name ?? "",
+        index: index + 1,
+        프로젝트: formatProjectLabel(project.name),
         발송수: targetCount,
-        오픈률: rate(openCount),
-        클릭률: rate(clickCount),
-        제출률: rate(submitCount),
+        오픈률: rate(project.openCount),
+        클릭률: rate(project.clickCount),
+        제출률: rate(project.submitCount),
       };
     });
-  }, [selectedMonthProjects]);
+  }, [selectedQuarterProjects]);
 
-  const maxTargetCount = useMemo(() => {
-    if (!chartData.length) return 0;
-    return chartData.reduce((max, item) => Math.max(max, item.발송수 ?? 0), 0);
-  }, [chartData]);
+  const maxQuarterTarget = useMemo(() => {
+    if (!quarterComparisonData.length) return 0;
+    return quarterComparisonData.reduce((max, item) => Math.max(max, item.발송수 ?? 0), 0);
+  }, [quarterComparisonData]);
 
   return (
     <div className="p-6 space-y-8">
@@ -281,29 +436,71 @@ export default function Dashboard() {
               모의훈련 현황 비교
             </h2>
             <p className="text-sm text-muted-foreground">
-              선택한 월의 프로젝트별 실적을 비교하세요.
+              연도와 분기를 선택해 해당 기간의 프로젝트 실적을 비교하세요.
             </p>
+            <p className="text-xs text-muted-foreground">
+              {selectedQuarterKey
+                ? `${selectedYear ?? "-"}년 ${selectedQuarterNumber ?? "-"}분기 · 총 ${selectedQuarterProjects.length.toLocaleString()}개 프로젝트`
+                : "선택 가능한 분기가 없습니다."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {yearOptions.length > 0 && (
+              <Select
+                value={selectedYear ?? undefined}
+                onValueChange={(value) => setSelectedYear(value)}
+              >
+                <SelectTrigger className="w-[160px]" data-testid="select-dashboard-year">
+                  <SelectValue placeholder="연도 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {quarterOptions.length > 0 && (
+              <Select
+                value={selectedQuarterNumber ?? undefined}
+                onValueChange={(value) => setSelectedQuarterNumber(value)}
+              >
+                <SelectTrigger className="w-[150px]" data-testid="select-dashboard-quarter">
+                  <SelectValue placeholder="분기 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {quarterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
         <div className="h-[360px]">
           {isLoading ? (
             <Skeleton className="h-full w-full rounded-md" />
-          ) : chartData.length > 0 ? (
+          ) : quarterComparisonData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData}>
+              <ComposedChart data={quarterComparisonData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
-                  dataKey="차수"
+                  dataKey="index"
                   stroke="hsl(var(--muted-foreground))"
-                  interval={0}
-                  tickMargin={12}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={false}
                 />
                 <YAxis
                   yAxisId="count"
                   stroke="hsl(var(--muted-foreground))"
                   tickFormatter={(value) => `${value}`}
                   width={60}
-                  domain={[0, Math.max(maxTargetCount, 10)]}
+                  domain={[0, Math.max(maxQuarterTarget, 10)]}
                 />
                 <YAxis
                   yAxisId="rate"
@@ -318,6 +515,12 @@ export default function Dashboard() {
                     backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "0.5rem",
+                  }}
+                  labelFormatter={(value) => {
+                    const entry = quarterComparisonData.find(
+                      (item) => item.index === value,
+                    );
+                    return entry?.프로젝트 ?? "";
                   }}
                   formatter={(value, name, props) => {
                     const label = String(name);
@@ -362,7 +565,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              선택한 월에 표시할 프로젝트가 없습니다.
+              선택한 분기에 비교할 프로젝트가 없습니다.
             </div>
           )}
         </div>
