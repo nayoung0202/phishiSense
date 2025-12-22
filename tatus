@@ -1,0 +1,73 @@
+[33mcommit eed648ced73a45adcdacfc776ad1dfa1f6eb02f1[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Codex Assistant <codex@example.com>
+Date:   Tue Dec 16 17:28:01 2025 +0900
+
+    템플릿 수정 페이지 변경 및 테스트 메일 smtp 연결
+
+[33mcommit 65efb77d534a1a67ea9e9c87f9a34aae4dece516[m
+Author: Codex Assistant <codex@example.com>
+Date:   Mon Nov 17 17:28:59 2025 +0900
+
+    훈련대상자 생성 페이지 조직 추가 기능 및 스크롤 수정
+
+[33mcommit d3906af29976b1d233f3f3878f6c3f27a5538085[m
+Author: Codex Assistant <codex@example.com>
+Date:   Mon Nov 3 18:00:43 2025 +0900
+
+    프로젝트 생성 페이지 개선
+
+[33mcommit feb4caaa69a8772e9dfd96bcad58b6add905f43d[m
+Author: Codex Assistant <codex@example.com>
+Date:   Tue Oct 21 13:29:36 2025 +0900
+
+    프로젝트 관리 레이어드 및 분기 별 프로젝트 관리 기능 생성
+
+[33mcommit 32962653b5cad00cab46894fb5043b1a5f2c6952[m
+Author: Codex Assistant <codex@example.com>
+Date:   Mon Oct 20 14:46:06 2025 +0900
+
+    프로젝트 관리 비교 프로젝트 생성
+
+[33mcommit de7b79c034c5daf617983697716ed4dce53f8532[m
+Author: Codex Assistant <codex@example.com>
+Date:   Mon Oct 20 11:43:11 2025 +0900
+
+    프로젝트 관리 기능 개선
+
+[33mcommit 613bb423c268384db50c251984ac38a7cfb137d6[m
+Author: Codex Assistant <codex@example.com>
+Date:   Mon Oct 20 11:37:59 2025 +0900
+
+    프로젝트 관리 기능 개선 및 훈련 대상 소속 확장
+
+[33mcommit 80204349a9049e0b87a92050870d52394360a2ae[m[33m ([m[1;31mgitsafe-backup/main[m[33m)[m
+Author: nayoung9173 <48689049-nayoung9173@users.noreply.replit.com>
+Date:   Thu Oct 16 07:15:36 2025 +0000
+
+    Add comprehensive management for projects, templates, and training pages
+    
+    Implement CRUD operations and routing for Projects, Templates, Targets, and Training Pages, along with schema definitions and UI components for managing these entities.
+    
+    Replit-Commit-Author: Agent
+    Replit-Commit-Session-Id: 741a4e0b-3792-4048-bf4b-7e74a06ec241
+    Replit-Commit-Checkpoint-Type: full_checkpoint
+    Replit-Commit-Screenshot-Url: https://storage.googleapis.com/screenshot-production-us-central1/0ed4e398-4b7e-47ab-8758-aa2f625c4b96/741a4e0b-3792-4048-bf4b-7e74a06ec241/XPUGEzV
+
+[33mcommit 903737dbe4c2c36d2b0dca01c9886558e21c78f0[m
+Author: nayoung9173 <48689049-nayoung9173@users.noreply.replit.com>
+Date:   Thu Oct 16 06:23:56 2025 +0000
+
+    Set up the main dashboard and navigation for the phishing simulation platform
+    
+    Initialize the main dashboard layout, including header, sidebar navigation, and content area, with core components for project and template management.
+    
+    Replit-Commit-Author: Agent
+    Replit-Commit-Session-Id: 741a4e0b-3792-4048-bf4b-7e74a06ec241
+    Replit-Commit-Checkpoint-Type: full_checkpoint
+    Replit-Commit-Screenshot-Url: https://storage.googleapis.com/screenshot-production-us-central1/0ed4e398-4b7e-47ab-8758-aa2f625c4b96/741a4e0b-3792-4048-bf4b-7e74a06ec241/RHCN3dn
+
+[33mcommit 9fd8a00a30ca4f32dc402973097ee4805c293c42[m
+Author: nayoung9173 <48689049-nayoung9173@users.noreply.replit.com>
+Date:   Thu Oct 16 06:19:41 2025 +0000
+
+    Initial commit
