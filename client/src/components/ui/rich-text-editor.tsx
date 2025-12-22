@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bold,
   Italic,
@@ -214,13 +215,13 @@ export function RichTextEditor({
           placeholder={placeholder}
         />
       ) : mode === "preview" ? (
-        <div className="editor-scrollbar min-h-[300px] max-h-[600px] overflow-hidden border-t border-border bg-background">
+        <ScrollArea className="editor-scrollbar h-[420px] border-t border-border bg-muted/30 p-2">
           {value.trim().length > 0 ? (
-            <TemplatePreviewFrame html={value} className="min-h-[300px]" />
+            <TemplatePreviewFrame html={value} className="rounded-md shadow-sm" />
           ) : (
             <p className="p-4 text-sm text-muted-foreground">입력된 내용이 없습니다.</p>
           )}
-        </div>
+        </ScrollArea>
       ) : (
         <div
           ref={editorRef}
