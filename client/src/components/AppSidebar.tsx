@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen, Mail } from "lucide-react";
 import { Link as RouterLink, useLocation } from "wouter";
 import {
   Sidebar,
@@ -36,6 +36,11 @@ const menuItems = [
     title: "훈련 안내 페이지",
     url: "/training-pages",
     icon: BookOpen,
+  },
+  {
+    title: "SMTP 관리",
+    url: "/admin/smtp",
+    icon: Mail,
   },
 ];
 

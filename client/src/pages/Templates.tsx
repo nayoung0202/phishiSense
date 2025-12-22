@@ -18,6 +18,8 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function Templates() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,12 +85,6 @@ export default function Templates() {
 
   const previewBody = previewTemplate?.body ?? "";
   const previewMalicious = previewTemplate?.maliciousPageContent ?? "";
-  const previewUpdatedAt = previewTemplate?.updatedAt
-    ? formatDate(previewTemplate.updatedAt)
-    : previewTemplate?.createdAt
-    ? formatDate(previewTemplate.createdAt)
-    : null;
-
   return (
     <>
       <Dialog
@@ -109,39 +105,38 @@ export default function Templates() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-              {previewUpdatedAt ? <p>최근 업데이트: {previewUpdatedAt}</p> : null}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">메일 본문</p>
-                <div className="h-80 overflow-hidden rounded-md border bg-white">
+            <Tabs defaultValue="body" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="body">메일 본문</TabsTrigger>
+                <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
+              </TabsList>
+              <TabsContent value="body" className="mt-4">
+                <ScrollArea className="h-[420px] rounded-md border bg-white">
                   {previewTemplate ? (
                     previewBody.trim().length > 0 ? (
-                      <TemplatePreviewFrame html={previewBody} className="h-full w-full" />
+                      <TemplatePreviewFrame html={previewBody} />
                     ) : (
                       <p className="p-4 text-sm text-muted-foreground">메일 본문이 없습니다.</p>
                     )
                   ) : (
                     <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
                   )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">악성 메일 본문</p>
-                <div className="h-80 overflow-hidden rounded-md border bg-white">
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="malicious" className="mt-4">
+                <ScrollArea className="h-[420px] rounded-md border bg-white">
                   {previewTemplate ? (
                     previewMalicious.trim().length > 0 ? (
-                      <TemplatePreviewFrame html={previewMalicious} className="h-full w-full" />
+                      <TemplatePreviewFrame html={previewMalicious} />
                     ) : (
                       <p className="p-4 text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
                     )
                   ) : (
                     <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
                   )}
-                </div>
-              </div>
-            </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClosePreview}>

@@ -193,6 +193,14 @@ const stripHtml = (value: string) =>
 
 const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, recipient: string) => `
     <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
+      <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        img { max-width: 100%; height: auto; display: block; }
+        input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }
+        label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+        table { border-collapse: collapse; width: 100%; }
+        a { color: #0284c7; text-decoration: underline; }
+      </style>
       <header style="margin-bottom: 16px;">
         <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>
         <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
