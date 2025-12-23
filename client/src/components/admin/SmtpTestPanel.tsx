@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ type Props = {
   lastTestedAt?: SmtpConfigResponse["lastTestedAt"];
   lastTestStatus?: SmtpConfigResponse["lastTestStatus"];
   lastTestError?: SmtpConfigResponse["lastTestError"];
+  disabledReason?: string;
 };
 
 export function SmtpTestPanel({
@@ -29,6 +30,7 @@ export function SmtpTestPanel({
   lastTestedAt,
   lastTestStatus,
   lastTestError,
+  disabledReason,
 }: Props) {
   const [recipient, setRecipient] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,6 +71,12 @@ export function SmtpTestPanel({
     [disabled, isEmailValid, onSubmit, emailValue],
   );
 
+  useEffect(() => {
+    if (disabled) {
+      setErrorMessage(null);
+    }
+  }, [disabled]);
+
   return (
     <Card>
       <CardHeader>
@@ -87,8 +95,13 @@ export function SmtpTestPanel({
               placeholder="user@example.com"
               disabled={disabled}
             />
-            <p className="text-xs text-muted-foreground">허용된 도메인만 사용할 수 있습니다. (예: user@evriz.co.kr) / {domainHint}</p>
+            <p className="text-xs text-muted-foreground">
+              허용된 도메인만 사용할 수 있습니다. (예: user@example.com) / {domainHint}
+            </p>
             {!isEmailValid && recipient && <p className="text-sm text-destructive">올바른 이메일을 입력하세요.</p>}
+            {disabledReason && (
+              <p className="text-xs text-amber-600 mt-1">{disabledReason}</p>
+            )}
           </div>
 
           {errorMessage && (

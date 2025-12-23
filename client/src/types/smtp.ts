@@ -37,3 +37,16 @@ export type UpdateSmtpConfigPayload = {
 export type TestSmtpConfigPayload = {
   testRecipientEmail: string;
 };
+
+export type SmtpConfigSummary = {
+  tenantId: string;
+  host: string;
+  port: number;
+  securityMode: SecurityMode;
+  fromEmail: string;
+  isActive: boolean;
+  hasPassword: boolean;
+  lastTestedAt?: string | null;
+  lastTestStatus?: "success" | "failure" | null;
+  updatedAt: string;
+};

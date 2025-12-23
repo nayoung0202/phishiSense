@@ -50,9 +50,17 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-6">
-        <div className="flex items-center gap-2">
-          <div className="text-2xl font-bold text-primary">PhishSense</div>
-        </div>
+        <RouterLink href="/" data-testid="link-logo" aria-label="대시보드로 이동" className="inline-flex">
+          <div className="flex items-center gap-2">
+            <div
+              className="text-[20pt] font-bold tracking-tight"
+              style={{ fontFamily: "'NanumSquareRound', var(--font-sans)" }}
+            >
+              <span style={{ color: "#FDF6E3" }}>Phish</span>
+              <span style={{ color: "#4EC3E0" }}>Sense</span>
+            </div>
+          </div>
+        </RouterLink>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

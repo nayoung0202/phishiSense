@@ -17,7 +17,9 @@ import TargetEdit from "@/pages/TargetEdit";
 import TrainingPages from "@/pages/TrainingPages";
 import TrainingPageEdit from "@/pages/TrainingPageEdit";
 import NotFound from "@/pages/not-found";
-import SmtpConfigPage from "@/pages/admin/SmtpConfigPage";
+import SmtpListPage from "@/pages/admin/SmtpListPage";
+import SmtpCreatePage from "@/pages/admin/SmtpCreatePage";
+import SmtpEditPage from "@/pages/admin/SmtpEditPage";
 
 function Router() {
   return (
@@ -35,7 +37,9 @@ function Router() {
       <Route path="/training-pages" component={TrainingPages} />
       <Route path="/training-pages/new" component={TrainingPageEdit} />
       <Route path="/training-pages/:id/edit" component={TrainingPageEdit} />
-      <Route path="/admin/smtp" component={SmtpConfigPage} />
+      <Route path="/admin/smtp/new" component={SmtpCreatePage} />
+      <Route path="/admin/smtp/:tenantId" component={SmtpEditPage} />
+      <Route path="/admin/smtp" component={SmtpListPage} />
       <Route component={NotFound} />
     </Switch>
   );

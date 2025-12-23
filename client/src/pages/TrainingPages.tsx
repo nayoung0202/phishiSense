@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,15 @@ import {
 
 export default function TrainingPages() {
   const [searchTerm, setSearchTerm] = useState("");
+
+  const sanitizeSearchTerm = useCallback((value: string) => value.replace(/[<>"'`]/g, ""), []);
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      const safeValue = sanitizeSearchTerm(value);
+      setSearchTerm(safeValue);
+    },
+    [sanitizeSearchTerm],
+  );
 
   const { data: pages = [], isLoading } = useQuery<TrainingPage[]>({
     queryKey: ["/api/training-pages"],
@@ -70,7 +79,7 @@ export default function TrainingPages() {
           <Input
             placeholder="페이지명으로 검색..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
             data-testid="input-search"
           />
