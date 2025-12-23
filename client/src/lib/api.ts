@@ -1,5 +1,6 @@
 import type {
   SmtpConfigResponse,
+  SmtpConfigSummary,
   TestSmtpConfigPayload,
   UpdateSmtpConfigPayload,
 } from "@/types/smtp";
@@ -56,6 +57,10 @@ export async function getSmtpConfig(tenantId: string) {
   return requestJson<SmtpConfigResponse>(
     buildTenantPath(tenantId, "/smtp-config"),
   );
+}
+
+export async function listSmtpConfigs() {
+  return requestJson<SmtpConfigSummary[]>(`${ADMIN_BASE_PATH}/smtp-configs`);
 }
 
 export async function updateSmtpConfig(

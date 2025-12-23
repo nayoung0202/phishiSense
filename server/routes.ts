@@ -27,6 +27,7 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
+import { adminSmtpConfigRouter } from "./routes/adminSmtpConfig";
 
 const statusParamMap: Record<string, string> = {
   running: "진행중",
@@ -373,6 +374,8 @@ const validateProjectPayload = (payload: InsertProject): ProjectValidationIssue[
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.use("/api/admin", adminSmtpConfigRouter);
+
   // Projects
   app.get("/api/projects", async (req, res) => {
     try {
