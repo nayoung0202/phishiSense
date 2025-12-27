@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { SmtpConfigForm, createEmptySmtpConfig } from "@/components/admin/SmtpConfigForm";
+import { SmtpConfigForm, createEmptySmtpConfig, type SmtpConfigFormHandle } from "@/components/admin/SmtpConfigForm";
 import { SmtpTestPanel } from "@/components/admin/SmtpTestPanel";
 import { getSmtpConfig, testSmtpConfig, updateSmtpConfig } from "@/lib/api";
 import type { SmtpConfigResponse, TestSmtpConfigPayload, UpdateSmtpConfigPayload } from "@/types/smtp";
@@ -22,6 +22,8 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
   const { toast } = useToast();
   const [formDirty, setFormDirty] = useState(false);
   const [formResetKey, setFormResetKey] = useState(0);
+  const [saveAndTestPending, setSaveAndTestPending] = useState(false);
+  const formRef = useRef<SmtpConfigFormHandle>(null);
   const queryClient = useQueryClient();
 
   const shouldFetch = mode === "edit" && Boolean(tenantId);
@@ -123,6 +125,24 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
     return (configData as SmtpConfigResponse | undefined) ?? null;
   }, [configData, mode, tenantId]);
 
+  const handleSaveThenTest = useCallback(
+    async (payload: TestSmtpConfigPayload) => {
+      if (!formRef.current) return;
+      setSaveAndTestPending(true);
+      try {
+        await formRef.current.submit();
+        await testMutation.mutateAsync(payload);
+      } catch (error) {
+        // 에러는 각 핸들러에서 처리 (토스트 등)
+      } finally {
+        setSaveAndTestPending(false);
+      }
+    },
+    [testMutation],
+  );
+
+  const testPanelData = mode === "edit" ? (configData ?? null) : null;
+
   return (
     <div className="space-y-6 px-4 py-6 lg:px-8">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -150,6 +170,7 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
       )}
 
       <SmtpConfigForm
+        ref={formRef}
         key={`${tenantId}-${mode}-${formResetKey}`}
         mode={mode}
         tenantId={tenantId}
@@ -164,12 +185,15 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
         key={`test-${tenantId}-${mode}-${formResetKey}`}
         onSubmit={handleTest}
         isTesting={testMutation.isPending}
-        disabled={!canTest || testMutation.isPending}
+        disabled={!canTest || testMutation.isPending || updateMutation.isPending || saveAndTestPending}
+        canSaveAndTest={formDirty && mode === "edit"}
+        onSaveAndTest={formDirty ? handleSaveThenTest : undefined}
+        saveAndTestPending={saveAndTestPending}
         disabledReason={testDisabledReason}
-        allowedDomains={configData?.allowedRecipientDomains || null}
-        lastTestedAt={configData?.lastTestedAt}
-        lastTestStatus={configData?.lastTestStatus}
-        lastTestError={configData?.lastTestError}
+        allowedDomains={testPanelData?.allowedRecipientDomains || null}
+        lastTestedAt={testPanelData?.lastTestedAt}
+        lastTestStatus={testPanelData?.lastTestStatus}
+        lastTestError={testPanelData?.lastTestError}
       />
     </div>
   );

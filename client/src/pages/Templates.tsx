@@ -20,6 +20,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { SafeText } from "@/components/security/SafeText";
 
 export default function Templates() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -187,18 +188,26 @@ export default function Templates() {
                       <Mail className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold mb-1 truncate">{template.name}</h3>
-                      <p className="text-sm text-muted-foreground truncate">{template.subject}</p>
+                      <h3 className="font-semibold mb-1 truncate">
+                        <SafeText value={template.name} fallback="-" />
+                      </h3>
+                      <p className="text-sm text-muted-foreground truncate">
+                        <SafeText value={template.subject} fallback="-" />
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
                     <div>
                       <p className="text-xs font-semibold text-foreground">메일 본문</p>
-                      <p>{getSnippet(template.body)}</p>
+                      <p>
+                        <SafeText value={getSnippet(template.body)} fallback="-" />
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-foreground">악성 메일 본문</p>
-                      <p>{getSnippet(template.maliciousPageContent)}</p>
+                      <p>
+                        <SafeText value={getSnippet(template.maliciousPageContent)} fallback="-" />
+                      </p>
                     </div>
                   </div>
 

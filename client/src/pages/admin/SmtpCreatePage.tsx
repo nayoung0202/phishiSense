@@ -1,9 +1,10 @@
+import { useMemo } from "react";
 import { useLocation } from "wouter";
-import { useAutoTenantId } from "@/lib/tenant";
+import { createNewTenantId } from "@/lib/tenant";
 import { SmtpConfigDetail } from "@/pages/admin/SmtpConfigDetail";
 
 export default function SmtpCreatePage() {
-  const tenantId = useAutoTenantId();
+  const tenantId = useMemo(() => createNewTenantId(), []);
   const [, navigate] = useLocation();
 
   return (
