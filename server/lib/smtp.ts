@@ -1,8 +1,8 @@
 import nodemailer from "nodemailer";
-import type { TenantSmtpConfig } from "./db";
+import type { PersistedSmtpConfig } from "../dao/smtpDao";
 
 type SendTestEmailOptions = {
-  smtpConfig: TenantSmtpConfig;
+  smtpConfig: PersistedSmtpConfig;
   toEmail: string;
 };
 

@@ -5,6 +5,14 @@ import type {
   UpdateSmtpConfigPayload,
 } from "@/types/smtp";
 
+export type ImportTrainingTargetsResponse = {
+  ok: boolean;
+  totalRows: number;
+  successCount: number;
+  failCount: number;
+  failures: Array<{ rowNumber: number; email?: string; reason: string }>;
+};
+
 const ADMIN_BASE_PATH = "/api/admin";
 
 type ApiErrorBody = {
@@ -90,4 +98,31 @@ export async function testSmtpConfig(
       body: JSON.stringify(payload),
     },
   );
+}
+
+export async function importTrainingTargetsExcel(
+  file: File,
+): Promise<ImportTrainingTargetsResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch("/api/admin/training-targets/import", {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    let message = "엑셀 업로드에 실패했습니다.";
+    try {
+      const errorBody = (await response.json()) as ApiErrorBody;
+      if (errorBody?.message) {
+        message = errorBody.message;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new Error(message);
+  }
+
+  return (await response.json()) as ImportTrainingTargetsResponse;
 }

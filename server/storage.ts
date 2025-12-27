@@ -1,5 +1,5 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type Project,
   type InsertProject,
@@ -10,10 +10,20 @@ import {
   type TrainingPage,
   type InsertTrainingPage,
   type ProjectTarget,
-  type InsertProjectTarget
+  type InsertProjectTarget,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
+import { normalizePlainText } from "./lib/validation/text";
+import {
+  listTemplates,
+  getTemplateById,
+  createTemplate as createTemplateRecord,
+  updateTemplateById,
+  deleteTemplateById,
+} from "./dao/templateDao";
+import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
+import { seedTemplates } from "./seed/seedTemplates";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -58,7 +68,6 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private projects: Map<string, Project>;
-  private templates: Map<string, Template>;
   private targets: Map<string, Target>;
   private trainingPages: Map<string, TrainingPage>;
   private projectTargets: Map<string, ProjectTarget>;
@@ -66,11 +75,11 @@ export class MemStorage implements IStorage {
   constructor() {
     this.users = new Map();
     this.projects = new Map();
-    this.templates = new Map();
     this.targets = new Map();
     this.trainingPages = new Map();
     this.projectTargets = new Map();
-    
+
+    void seedTemplates();
     this.seedData();
   }
 
@@ -112,133 +121,8 @@ export class MemStorage implements IStorage {
   }
 
   private seedData() {
-    // Seed templates
-    const template1: Template = {
-      id: randomUUID(),
-      name: "택배 보류 알림",
-      subject: "[CJ대한통운] 배송 주소 확인 미완료",
-      body: [
-        "<p>안녕하세요. CJ대한통운 고객센터입니다.</p>",
-        "<p>택배 <strong>송장번호 3812-4477</strong> 건이 주소 불일치로 분류센터에서 보류되었습니다.</p>",
-        "<p>48시간 내 아래 버튼을 통해 배송지와 연락처를 재확인하지 않으면 반송 처리됩니다.</p>",
-        "<p>아래 \"배송지 재등록\" 버튼을 클릭하면 CJ대한통운 주소 재확인센터 페이지로 연결되며, 사내 이메일/사번/OTP를 모두 입력해야 정상 배송으로 처리된다고 안내하는 시나리오입니다.</p>",
-        '<p><a href="https://notice-cjsecure.center/track/38124477/confirm" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">배송지 재등록 바로가기</a></p>',
-        "<p>버튼으로 이동하는 페이지에 개인정보를 절대 기입하지 않도록 사내에 즉시 공유해주세요.</p>",
-      ].join(""),
-      maliciousPageContent: [
-        "<article style='font-family: Pretendard, sans-serif; line-height:1.6; max-width:560px; margin:0 auto;'>",
-        "<header style='display:flex; align-items:center; gap:12px; margin-bottom:16px;'>",
-        "<img src='https://static.cjlogistics.co.kr/logo.svg' alt='CJ대한통운' width='48' height='48' />",
-        "<div>",
-        "<p style=\"margin:0; font-size:14px; color:#0f172a;\">CJ대한통운 주소 재확인센터</p>",
-        "<p style=\"margin:0; font-size:12px; color:#64748b;\">송장번호 3812-4477</p>",
-        "</div>",
-        "</header>",
-        "<section style='background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:rgba(15,23,42,0.08) 0 10px 20px;'>",
-        "<p style='margin:0 0 12px;'>배송 재배정을 위해 <strong>담당자 개인정보와 OTP</strong>가 필요하다는 메시지로 사용자를 기만합니다.</p>",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>사내 이메일</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' value='honggd@company.com' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>사번</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='예: 2024-00123' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>주민등록번호 앞 6자리</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='예: 900101' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>휴대전화 번호</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='010-0000-0000' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>OTP/보안번호</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:16px;' placeholder='6자리' />",
-        "<button style='width:100%; background:#2563eb; color:#fff; border:none; border-radius:8px; padding:12px; font-weight:600;'>주소 재확인 요청</button>",
-        "<p style='font-size:12px; color:#94a3b8; margin-top:12px;'>※ 버튼 클릭 시 \"배송 담당자에게 전달됨\" 문구와 함께 입력값이 공격자 서버로 전송되도록 설계되어 있습니다.</p>",
-        "</section>",
-        "<footer style='margin-top:16px; font-size:12px; color:#94a3b8;'>본 페이지는 훈련용 악성 메일 본문 예시입니다.</footer>",
-        "</article>",
-      ].join(""),
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    };
-    const template2: Template = {
-      id: randomUUID(),
-      name: "계정 잠금 해제 요청",
-      subject: "[M365] 비정상 로그인 차단 - 본인 확인 필요",
-      body: [
-        "<p>회사 M365 시스템에서 서울 이외 지역에서의 로그인 시도가 3회 이상 감지되었습니다.</p>",
-        "<p>보안을 위해 계정이 임시 잠김 처리되었으며, 1시간 내 보안센터에 접속해 본인 확인을 완료하지 않으면 업무용 메일 접근이 제한됩니다.</p>",
-        "<p>아래 \"보안센터 접속\" 버튼을 클릭하면 Microsoft 365 보안센터와 동일하게 보이는 페이지로 이동해 이메일, 비밀번호, OTP, 휴대전화 번호를 모두 검증하라고 안내합니다.</p>",
-        '<p><a href="https://secure-m365review.net/verify/session?step=unlock" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">보안센터 접속</a></p>',
-        "<p>버튼으로 열리는 페이지는 공격자가 자격 증명을 수집하기 위해 제작한 악성 사이트이므로 즉시 신고해 주세요.</p>",
-      ].join(""),
-      maliciousPageContent: [
-        "<article style='font-family: Segoe UI, sans-serif; max-width:520px; margin:0 auto; line-height:1.6;'>",
-        "<header style='display:flex; align-items:center; gap:8px; margin-bottom:12px;'>",
-        "<img src='https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg' alt='Microsoft 365' width='36' height='36' />",
-        "<div>",
-        "<p style='margin:0; font-size:13px; color:#475569;'>Microsoft 365 보안센터 (사칭)</p>",
-        "<p style='margin:0; font-size:12px; color:#94a3b8;'>증빙번호 S-338120</p>",
-        "</div>",
-        "</header>",
-        "<section style='background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:rgba(15,23,42,0.06) 0 6px 18px;'>",
-        "<p style='margin-top:0; color:#0f172a;'>비정상 로그인 차단을 위해 계정 소유 여부를 확인합니다. 아래 개인정보를 모두 입력하지 않으면 잠금이 해제되지 않는다고 안내합니다.</p>",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>사내 이메일</label>",
-        "<input style='display:block; width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' value='employee@company.com' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>현재 비밀번호</label>",
-        "<input type='password' style='display:block; width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='비밀번호 입력' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>OTP/Authenticator 코드</label>",
-        "<input style='display:block; width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='6자리' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>휴대전화 번호</label>",
-        "<input style='display:block; width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:16px;' placeholder='010-0000-0000' />",
-        "<button style='width:100%; background:#2563eb; color:#fff; font-weight:600; border:none; border-radius:8px; padding:12px;'>계정 잠금 해제</button>",
-        "<p style='font-size:12px; color:#94a3b8; margin-top:12px;'>입력 즉시 \"본인 확인 중\" 메시지를 띄워 사용자가 대기하도록 만들고, 수집된 정보는 공격자 서버로 전송됩니다.</p>",
-        "</section>",
-        "</article>",
-      ].join(""),
-      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    };
-    const template3: Template = {
-      id: randomUUID(),
-      name: "연말정산 환급 서류 보완",
-      subject: "[국세청] 추가 환급 대상 서류 제출 안내",
-      body: [
-        "<p>국세청 환급 누락 안내를 사칭한 메일입니다. 실제로는 공격자가 연말정산 환급을 미끼로 주민등록번호, 계좌번호, 보안카드 사진까지 요구합니다.</p>",
-        "<p>사내 재무팀 명의로 전달되며, 아래 \"환급 서류 제출\" 버튼을 눌러 홈택스와 유사한 페이지에서 개인정보 양식과 첨부파일을 모두 제출하라고 유도합니다.</p>",
-        '<p><a href="https://hometax-refund.kr/statement/form" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#059669; color:#ffffff; text-decoration:none; font-weight:600;">환급 서류 제출</a></p>',
-        "<p>버튼으로 연결되는 페이지는 악성 사이트이며, 입력한 개인정보가 모두 공격자 서버로 전송됩니다.</p>",
-      ].join(""),
-      maliciousPageContent: [
-        "<article style='font-family: Pretendard, sans-serif; max-width:560px; margin:0 auto; line-height:1.6;'>",
-        "<header style='display:flex; align-items:center; gap:10px; margin-bottom:18px;'>",
-        "<img src='https://www.nts.go.kr/images/common/logo_2019.png' alt='국세청' width='48' height='48' />",
-        "<div>",
-        "<p style='margin:0; font-size:14px; color:#0f172a;'>국세청 환급 검증센터 (사칭)</p>",
-        "<p style='margin:2px 0 0; font-size:12px; color:#94a3b8;'>케이스번호 REF-10291</p>",
-        "</div>",
-        "</header>",
-        "<section style='background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:rgba(15,23,42,0.06) 0 6px 18px;'>",
-        "<p style='margin-top:0;'>추가 환급 대상 여부 확인을 위해 <strong>주민등록번호, 계좌 정보, 연락처</strong>를 모두 입력해야 한다고 안내합니다.</p>",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>성명</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='홍길동' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>주민등록번호</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='000000-0000000' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>휴대전화 번호</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='010-0000-0000' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>환급 계좌 (은행 / 계좌번호)</label>",
-        "<input style='width:100%; border:1px solid #cbd5f5; border-radius:8px; padding:10px; margin-bottom:12px;' placeholder='국민은행 / 000-00-000000' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>보안카드 앞면 사진 업로드</label>",
-        "<input type='file' style='width:100%; border:1px dashed #cbd5f5; border-radius:8px; padding:12px; margin-bottom:12px;' />",
-        "<label style='display:block; font-size:12px; color:#475569; margin-bottom:4px;'>연말정산 서류(주민등록증/통장 사본)</label>",
-        "<input type='file' style='width:100%; border:1px dashed #cbd5f5; border-radius:8px; padding:12px; margin-bottom:16px;' />",
-        "<button style='width:100%; background:#059669; color:#fff; border:none; border-radius:8px; padding:12px; font-weight:600;'>서류 제출</button>",
-        "<p style='font-size:12px; color:#94a3b8; margin-top:12px;'>제출 즉시 \"당일 환급 예정\"이라는 거짓 메시지를 띄워 사용자의 경계를 낮춥니다.</p>",
-        "</section>",
-        "<p style='font-size:12px; color:#94a3b8; margin-top:8px;'>※ 모든 내용은 훈련용 더미 데이터입니다.</p>",
-        "</article>",
-      ].join(""),
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    };
-    this.templates.set(template1.id, template1);
-    this.templates.set(template2.id, template2);
-    this.templates.set(template3.id, template3);
-    
+    const [template1, template2, template3] = DEFAULT_TEMPLATES;
+
     // Seed projects
     const project1: Project = {
       id: randomUUID(),
@@ -850,20 +734,22 @@ export class MemStorage implements IStorage {
     const temporal = this.calculateTemporalFields(startDate, endDate);
     const newProject: Project = {
       id,
-      name: project.name,
-      description: project.description ?? null,
-      department: project.department ?? null,
+      name: normalizePlainText(project.name, 200),
+      description: project.description ? normalizePlainText(project.description, 2000) : null,
+      department: project.department ? normalizePlainText(project.department, 200) : null,
       departmentTags: Array.isArray(project.departmentTags)
-        ? [...project.departmentTags]
+        ? project.departmentTags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
         : [],
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
-      sendingDomain: project.sendingDomain ?? null,
-      fromName: project.fromName ?? null,
+      sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
+      fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
-      timezone: project.timezone ?? "Asia/Seoul",
+      timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
       notificationEmails: Array.isArray(project.notificationEmails)
-        ? [...project.notificationEmails]
+        ? project.notificationEmails.map((email) => email.trim())
         : [],
       startDate,
       endDate,
@@ -895,17 +781,40 @@ export class MemStorage implements IStorage {
       const updated: Project = {
         ...existing,
         ...project,
+        name:
+          typeof project.name === "string"
+            ? normalizePlainText(project.name, 200)
+            : existing.name,
+        description:
+          typeof project.description === "string"
+            ? normalizePlainText(project.description, 2000)
+            : existing.description ?? null,
+        department:
+          typeof project.department === "string"
+            ? normalizePlainText(project.department, 200)
+            : existing.department ?? null,
         startDate: updatedStart,
         endDate: updatedEnd,
         departmentTags: Array.isArray(project.departmentTags)
-          ? [...project.departmentTags]
+          ? project.departmentTags
+              .map((tag) => normalizePlainText(tag, 120))
+              .filter((tag) => tag.length > 0)
           : existing.departmentTags ?? [],
-        sendingDomain: project.sendingDomain ?? existing.sendingDomain ?? null,
-        fromName: project.fromName ?? existing.fromName ?? null,
+        sendingDomain:
+          typeof project.sendingDomain === "string"
+            ? normalizePlainText(project.sendingDomain, 200)
+            : existing.sendingDomain ?? null,
+        fromName:
+          typeof project.fromName === "string"
+            ? normalizePlainText(project.fromName, 200)
+            : existing.fromName ?? null,
         fromEmail: project.fromEmail ?? existing.fromEmail ?? null,
-        timezone: project.timezone ?? existing.timezone ?? "Asia/Seoul",
+        timezone:
+          typeof project.timezone === "string"
+            ? normalizePlainText(project.timezone, 64)
+            : existing.timezone ?? "Asia/Seoul",
         notificationEmails: Array.isArray(project.notificationEmails)
-          ? [...project.notificationEmails]
+          ? project.notificationEmails.map((email) => email.trim())
           : existing.notificationEmails ?? [],
         fiscalYear: temporal.fiscalYear,
         fiscalQuarter: temporal.fiscalQuarter,
@@ -970,38 +879,23 @@ export class MemStorage implements IStorage {
 
   // Templates
   async getTemplates(): Promise<Template[]> {
-    return Array.from(this.templates.values()).sort((a, b) => 
-      b.updatedAt!.getTime() - a.updatedAt!.getTime()
-    );
+    return listTemplates();
   }
 
   async getTemplate(id: string): Promise<Template | undefined> {
-    return this.templates.get(id);
+    return getTemplateById(id);
   }
 
   async createTemplate(template: InsertTemplate): Promise<Template> {
-    const id = randomUUID();
-    const now = new Date();
-    const newTemplate: Template = { 
-      ...template, 
-      id, 
-      createdAt: now,
-      updatedAt: now
-    };
-    this.templates.set(id, newTemplate);
-    return newTemplate;
+    return createTemplateRecord(template);
   }
 
   async updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined> {
-    const existing = this.templates.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...template, updatedAt: new Date() };
-    this.templates.set(id, updated);
-    return updated;
+    return updateTemplateById(id, template);
   }
 
   async deleteTemplate(id: string): Promise<boolean> {
-    return this.templates.delete(id);
+    return deleteTemplateById(id);
   }
 
   // Targets
@@ -1015,15 +909,26 @@ export class MemStorage implements IStorage {
     return this.targets.get(id);
   }
 
+  async findTargetByEmail(email: string): Promise<Target | undefined> {
+    const normalized = email.trim().toLowerCase();
+    return Array.from(this.targets.values()).find(
+      (target) => target.email.toLowerCase() === normalized,
+    );
+  }
+
   async createTarget(target: InsertTarget): Promise<Target> {
     const id = randomUUID();
     const newTarget: Target = { 
       id,
-      name: target.name,
+      name: normalizePlainText(target.name, 200),
       email: target.email,
-      department: target.department ?? null,
-      tags: target.tags ?? null,
-      status: target.status ?? null,
+      department: target.department ? normalizePlainText(target.department, 200) : null,
+      tags: target.tags
+        ? target.tags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : null,
+      status: target.status ?? "active",
       createdAt: new Date(),
     };
     this.targets.set(id, newTarget);
@@ -1033,7 +938,27 @@ export class MemStorage implements IStorage {
   async updateTarget(id: string, target: Partial<InsertTarget>): Promise<Target | undefined> {
     const existing = this.targets.get(id);
     if (!existing) return undefined;
-    const updated = { ...existing, ...target };
+    const updated = {
+      ...existing,
+      ...target,
+      name:
+        typeof target.name === "string"
+          ? normalizePlainText(target.name, 200)
+          : existing.name,
+      department:
+        typeof target.department === "string"
+          ? normalizePlainText(target.department, 200)
+          : existing.department ?? null,
+      tags: Array.isArray(target.tags)
+        ? target.tags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : existing.tags ?? null,
+      status:
+        typeof target.status === "string"
+          ? target.status
+          : existing.status ?? "active",
+    };
     this.targets.set(id, updated);
     return updated;
   }
@@ -1058,8 +983,8 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const newPage: TrainingPage = { 
       id,
-      name: page.name,
-      description: page.description ?? null,
+      name: normalizePlainText(page.name, 200),
+      description: page.description ? normalizePlainText(page.description, 1000) : null,
       content: page.content,
       status: page.status ?? null,
       createdAt: now,
@@ -1072,7 +997,17 @@ export class MemStorage implements IStorage {
   async updateTrainingPage(id: string, page: Partial<InsertTrainingPage>): Promise<TrainingPage | undefined> {
     const existing = this.trainingPages.get(id);
     if (!existing) return undefined;
-    const updated = { ...existing, ...page, updatedAt: new Date() };
+    const updated = {
+      ...existing,
+      ...page,
+      name:
+        typeof page.name === "string" ? normalizePlainText(page.name, 200) : existing.name,
+      description:
+        typeof page.description === "string"
+          ? normalizePlainText(page.description, 1000)
+          : existing.description ?? null,
+      updatedAt: new Date(),
+    };
     this.trainingPages.set(id, updated);
     return updated;
   }

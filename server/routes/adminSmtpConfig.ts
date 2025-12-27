@@ -1,13 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
-  getTenantSmtpConfig,
-  insertSmtpTestLog,
-  listTenantSmtpConfigs,
-  upsertTenantSmtpConfig,
-  updateLastSmtpTestResult,
-  type TenantSmtpConfig,
-} from "../lib/db";
+  getSmtpConfig,
+  listSmtpConfigs,
+  upsertSmtpConfig,
+  updateLastTestResult,
+  type PersistedSmtpConfig,
+} from "../dao/smtpDao";
 import {
   assertHostNotPrivateOrLocal,
   validateSmtpInput,
@@ -38,7 +37,7 @@ const testSchema = z.object({
 
 const redactPattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const sanitizeErrorMessage = (raw: string, config: TenantSmtpConfig) => {
+const sanitizeErrorMessage = (raw: string, config: PersistedSmtpConfig) => {
   const secrets = [config.password ?? "", config.username ?? ""]
     .filter((value) => Boolean(value))
     .map((value) => value.trim())
@@ -53,6 +52,23 @@ const sanitizeErrorMessage = (raw: string, config: TenantSmtpConfig) => {
     return sanitized.slice(0, 400);
   }
   return sanitized;
+};
+
+const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  "535": "SMTP 서버가 사용자명 또는 비밀번호를 거부했습니다. 자격 증명을 다시 확인하세요.",
+  EAUTH: "SMTP 서버 인증에 실패했습니다. 계정 또는 앱 비밀번호를 확인하세요.",
+  ETIMEDOUT: "SMTP 서버 응답이 지연되고 있습니다. 네트워크 및 포트 설정을 확인하세요.",
+  ECONNECTION: "SMTP 서버에 연결하지 못했습니다. 호스트/포트 또는 TLS 설정을 확인하세요.",
+};
+
+const mapFriendlySmtpError = (code: string | number, fallback: string) => {
+  const key = String(code).toUpperCase();
+  return FRIENDLY_ERROR_MESSAGES[key] ?? fallback;
+};
+
+const extractCodeFromMessage = (message: string): string | null => {
+  const match = message.match(/\b(5\d{2})\b/);
+  return match ? match[1] : null;
 };
 
 const buildDefaultResponse = (tenantId: string) => ({
@@ -74,7 +90,7 @@ const buildDefaultResponse = (tenantId: string) => ({
   hasPassword: false,
 });
 
-const toResponsePayload = (config: TenantSmtpConfig) => ({
+const toResponsePayload = (config: PersistedSmtpConfig) => ({
   tenantId: config.tenantId,
   host: config.host,
   port: config.port,
@@ -90,7 +106,7 @@ const toResponsePayload = (config: TenantSmtpConfig) => ({
   lastTestedAt: config.lastTestedAt ?? null,
   lastTestStatus: config.lastTestStatus ?? null,
   lastTestError: config.lastTestError ?? null,
-  hasPassword: Boolean(config.password),
+  hasPassword: config.hasPassword,
 });
 
 router.get("/tenants/:tenantId/smtp-config", async (req, res) => {
@@ -98,7 +114,7 @@ router.get("/tenants/:tenantId/smtp-config", async (req, res) => {
   if (!tenantId) {
     return res.status(400).json({ message: "tenantId 파라미터가 필요합니다." });
   }
-  const config = await getTenantSmtpConfig(tenantId);
+  const config = await getSmtpConfig(tenantId);
   if (!config) {
     return res.json(buildDefaultResponse(tenantId));
   }
@@ -106,7 +122,7 @@ router.get("/tenants/:tenantId/smtp-config", async (req, res) => {
 });
 
 router.get("/smtp-configs", async (_req, res) => {
-  const configs = await listTenantSmtpConfigs();
+  const configs = await listSmtpConfigs();
   const summaries = configs.map((config) => ({
     tenantId: config.tenantId,
     host: config.host,
@@ -114,7 +130,7 @@ router.get("/smtp-configs", async (_req, res) => {
     securityMode: config.securityMode,
     fromEmail: config.fromEmail,
     isActive: config.isActive,
-    hasPassword: Boolean(config.password),
+    hasPassword: config.hasPassword,
     lastTestedAt: config.lastTestedAt ?? null,
     lastTestStatus: config.lastTestStatus ?? null,
     updatedAt: config.updatedAt,
@@ -141,13 +157,13 @@ router.put("/tenants/:tenantId/smtp-config", async (req, res) => {
       domain.trim().toLowerCase(),
     );
 
-    await upsertTenantSmtpConfig({
+    await upsertSmtpConfig({
       tenantId,
       host: normalized.host,
       port: normalized.port,
       securityMode: normalized.securityMode,
       username: parsed.username?.trim() || null,
-      password: parsed.password?.trim() || undefined,
+      password: parsed.password ?? undefined,
       fromEmail: parsed.fromEmail.trim(),
       fromName: parsed.fromName?.trim() || null,
       replyTo: parsed.replyTo?.trim() || null,
@@ -183,7 +199,7 @@ router.post("/tenants/:tenantId/smtp-config/test", async (req, res) => {
     }
 
     const body = testSchema.parse(req.body);
-    const config = await getTenantSmtpConfig(tenantId);
+    const config = await getSmtpConfig(tenantId);
     if (!config) {
       return res.status(404).json({ message: "SMTP 설정이 존재하지 않습니다." });
     }
@@ -221,17 +237,24 @@ router.post("/tenants/:tenantId/smtp-config/test", async (req, res) => {
     }
     await assertHostNotPrivateOrLocal(normalized.host);
 
+    const passwordSample = config.password ?? "";
+    console.log("[SMTP_TEST_DEBUG]", {
+      tenantId,
+      host: config.host,
+      port: config.port,
+      securityMode: config.securityMode,
+      username: config.username ?? "(none)",
+      passwordLength: passwordSample.length,
+      passwordHasLeadingSpace: passwordSample.startsWith(" "),
+      passwordHasTrailingSpace: passwordSample.endsWith(" "),
+      passwordHasNewline: /\r|\n/.test(passwordSample),
+    });
+
     await sendTestEmail({
       smtpConfig: config,
       toEmail: normalizedRecipient,
     });
-    await insertSmtpTestLog({
-      tenantId,
-      testRecipientEmail: normalizedRecipient,
-      success: true,
-      errorMessage: null,
-    });
-    await updateLastSmtpTestResult({
+    await updateLastTestResult({
       tenantId,
       success: true,
       errorMessage: null,
@@ -249,7 +272,7 @@ router.post("/tenants/:tenantId/smtp-config/test", async (req, res) => {
       });
     }
     const tenantId = (req.params.tenantId || "").trim();
-    const config = tenantId ? await getTenantSmtpConfig(tenantId) : null;
+    const config = tenantId ? await getSmtpConfig(tenantId) : null;
 
     const sanitizedMessage =
       config && error instanceof Error
@@ -257,20 +280,38 @@ router.post("/tenants/:tenantId/smtp-config/test", async (req, res) => {
         : "SMTP 테스트 중 오류가 발생했습니다.";
 
     if (tenantId) {
-      await insertSmtpTestLog({
-        tenantId,
-        testRecipientEmail: recipientEmail ?? "",
-        success: false,
-        errorMessage: sanitizedMessage,
-      });
-      await updateLastSmtpTestResult({
+      await updateLastTestResult({
         tenantId,
         success: false,
         errorMessage: sanitizedMessage,
       });
     }
 
-    return res.status(400).json({ message: sanitizedMessage });
+    const rawCode =
+      (error as any)?.responseCode || (error as any)?.code || (error as any)?.errno || null;
+    const shouldLogStack = process.env.NODE_ENV !== "production";
+    const errorLog: Record<string, unknown> = {
+      tenantId,
+      recipientEmail,
+      code: rawCode,
+      message: error instanceof Error ? error.message : String(error),
+    };
+    if (shouldLogStack && error instanceof Error && error.stack) {
+      errorLog.stack = error.stack;
+    }
+    console.error("[SMTP_TEST_FAILED]", errorLog);
+
+    const inferredCode =
+      rawCode ??
+      (error instanceof Error ? extractCodeFromMessage(error.message) : null) ??
+      extractCodeFromMessage(sanitizedMessage);
+
+    const userMessage =
+      typeof inferredCode === "number" || typeof inferredCode === "string"
+        ? mapFriendlySmtpError(inferredCode, sanitizedMessage)
+        : sanitizedMessage;
+
+    return res.status(400).json({ message: userMessage });
   }
 });
 
