@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -12,19 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Upload } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Upload, Download, Loader2 } from "lucide-react";
 import { type Target } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { SafeText } from "@/components/security/SafeText";
+import { importTrainingTargetsExcel, type ImportTrainingTargetsResponse } from "@/lib/api";
 
 const parseDepartments = (department: Target["department"]): string[] => {
   if (!department) return [];
@@ -40,6 +35,10 @@ const parseDepartments = (department: Target["department"]): string[] => {
 export default function Targets() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] =
+    useState<ImportTrainingTargetsResponse | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -101,19 +100,71 @@ export default function Targets() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
+    if (confirm("정말 삭제하시겠습니까?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      toast({
-        title: "CSV 업로드",
-        description: `${file.name} 파일을 처리 중입니다...`,
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch("/api/admin/training-targets/template.xlsx", {
+        credentials: "include",
       });
-      console.log('CSV upload:', file.name);
+      if (!response.ok) {
+        throw new Error("샘플 템플릿을 다운로드할 수 없습니다.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "training_targets_template.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "다운로드 실패",
+        description: error instanceof Error ? error.message : "샘플 템플릿을 가져오지 못했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExcelButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      toast({
+        title: "지원하지 않는 형식",
+        description: "엑셀(.xlsx) 파일만 업로드할 수 있습니다.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+    setIsImporting(true);
+    try {
+      const result = await importTrainingTargetsExcel(file);
+      setImportResult(result);
+      toast({
+        title: "업로드 완료",
+        description: `총 ${result.totalRows}건 중 ${result.successCount}건 성공`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/targets"] });
+    } catch (error) {
+      toast({
+        title: "업로드 실패",
+        description: error instanceof Error ? error.message : "엑셀 업로드에 실패했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      event.target.value = "";
     }
   };
 
@@ -124,31 +175,35 @@ export default function Targets() {
           <h1 className="text-4xl font-bold mb-2">훈련 대상 관리</h1>
           <p className="text-muted-foreground">훈련 대상자를 등록하고 관리하세요</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" data-testid="button-csv-upload">
-                <Upload className="w-4 h-4 mr-2" />
-                CSV 업로드
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>CSV 파일 업로드</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  이름, 이메일, 소속, 태그 정보가 포함된 CSV 파일을 업로드하세요.
-                </p>
-                <Input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCSVUpload}
-                  data-testid="input-csv-file"
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDownloadTemplate}
+            data-testid="button-download-template"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            샘플 엑셀 다운로드
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExcelButtonClick}
+            disabled={isImporting}
+            data-testid="button-upload-excel"
+          >
+            {isImporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            엑셀 업로드
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={handleExcelUpload}
+          />
           <Link href="/targets/new">
             <Button data-testid="button-add-target">
               <Plus className="w-4 h-4 mr-2" />
@@ -169,6 +224,46 @@ export default function Targets() {
             data-testid="input-search"
           />
         </div>
+
+        {importResult && (
+          <Card className="mb-4 border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span>총 {importResult.totalRows}건 처리</span>
+              <span className="text-emerald-700">성공 {importResult.successCount}건</span>
+              <span className="text-destructive">실패 {importResult.failCount}건</span>
+            </div>
+            {importResult.failures.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-amber-800">실패 항목</p>
+                <div className="max-h-40 overflow-auto rounded-md border border-amber-200 bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-24">행 번호</TableHead>
+                        <TableHead>이메일</TableHead>
+                        <TableHead>사유</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importResult.failures.slice(0, 50).map((failure, index) => (
+                        <TableRow key={`${failure.rowNumber}-${index}`}>
+                          <TableCell>{failure.rowNumber}</TableCell>
+                          <TableCell>{failure.email || "-"}</TableCell>
+                          <TableCell>{failure.reason}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {importResult.failCount > importResult.failures.length && (
+                  <p className="text-xs text-muted-foreground">
+                    최대 {importResult.failures.length}건까지만 표시됩니다.
+                  </p>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
 
         {selectedTargets.length > 0 && (
           <div className="mb-4 flex items-center gap-2">
@@ -238,14 +333,18 @@ export default function Targets() {
                           data-testid={`checkbox-target-${target.id}`}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{target.name}</TableCell>
-                      <TableCell>{target.email}</TableCell>
+                      <TableCell className="font-medium">
+                        <SafeText value={target.name} fallback="-" />
+                      </TableCell>
+                      <TableCell>
+                        <SafeText value={target.email} fallback="-" />
+                      </TableCell>
                       <TableCell>
                         {departments.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {departments.map((dept) => (
                               <Badge key={`${target.id}-${dept}`} variant="outline" className="text-xs">
-                                {dept}
+                                <SafeText value={dept} fallback="-" />
                               </Badge>
                             ))}
                           </div>
@@ -257,7 +356,7 @@ export default function Targets() {
                         <div className="flex gap-1">
                           {target.tags?.map((tag, index) => (
                             <Badge key={index} variant="outline" className="text-xs">
-                              {tag}
+                              <SafeText value={tag} fallback="-" />
                             </Badge>
                           ))}
                         </div>

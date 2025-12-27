@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -17,18 +17,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { SafeText } from "@/components/security/SafeText";
 
 export default function TrainingPages() {
   const [searchTerm, setSearchTerm] = useState("");
-
-  const sanitizeSearchTerm = useCallback((value: string) => value.replace(/[<>"'`]/g, ""), []);
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      const safeValue = sanitizeSearchTerm(value);
-      setSearchTerm(safeValue);
-    },
-    [sanitizeSearchTerm],
-  );
 
   const { data: pages = [], isLoading } = useQuery<TrainingPage[]>({
     queryKey: ["/api/training-pages"],
@@ -79,7 +71,7 @@ export default function TrainingPages() {
           <Input
             placeholder="페이지명으로 검색..."
             value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
             data-testid="input-search"
           />
@@ -102,7 +94,9 @@ export default function TrainingPages() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">{page.name}</h3>
+                        <h3 className="font-semibold truncate">
+                          <SafeText value={page.name} fallback="-" />
+                        </h3>
                         <Badge className={
                           page.status === "active" 
                             ? "bg-green-500/20 text-green-400" 
@@ -112,7 +106,7 @@ export default function TrainingPages() {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">
-                        {page.description || "설명 없음"}
+                        <SafeText value={page.description} fallback="설명 없음" />
                       </p>
                     </div>
                   </div>
@@ -131,7 +125,9 @@ export default function TrainingPages() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl">
                           <DialogHeader>
-                            <DialogTitle>{page.name}</DialogTitle>
+                            <DialogTitle>
+                              <SafeText value={page.name} fallback="-" />
+                            </DialogTitle>
                           </DialogHeader>
                           <div 
                             className="prose dark:prose-invert max-w-none"

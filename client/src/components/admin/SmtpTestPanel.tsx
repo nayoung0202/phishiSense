@@ -20,6 +20,9 @@ type Props = {
   lastTestStatus?: SmtpConfigResponse["lastTestStatus"];
   lastTestError?: SmtpConfigResponse["lastTestError"];
   disabledReason?: string;
+  onSaveAndTest?: (payload: TestSmtpConfigPayload) => Promise<void> | void;
+  canSaveAndTest?: boolean;
+  saveAndTestPending?: boolean;
 };
 
 export function SmtpTestPanel({
@@ -31,6 +34,9 @@ export function SmtpTestPanel({
   lastTestStatus,
   lastTestError,
   disabledReason,
+  onSaveAndTest,
+  canSaveAndTest,
+  saveAndTestPending,
 }: Props) {
   const [recipient, setRecipient] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -70,6 +76,18 @@ export function SmtpTestPanel({
     },
     [disabled, isEmailValid, onSubmit, emailValue],
   );
+
+  const handleSaveAndTest = useCallback(async () => {
+    if (!onSaveAndTest || !isEmailValid) return;
+    setErrorMessage(null);
+    try {
+      await onSaveAndTest({ testRecipientEmail: emailValue });
+    } catch (error) {
+      if (error instanceof Error) {
+        setErrorMessage(error.message);
+      }
+    }
+  }, [onSaveAndTest, isEmailValid, emailValue]);
 
   useEffect(() => {
     if (disabled) {
@@ -135,9 +153,23 @@ export function SmtpTestPanel({
                 </p>
               </div>
             </div>
-            <Button type="submit" disabled={disabled || !isEmailValid || !!isTesting}>
-              {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : "테스트 발송"}
-            </Button>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <Button type="submit" disabled={disabled || !isEmailValid || !!isTesting || !!saveAndTestPending}>
+                {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : "테스트 발송"}
+              </Button>
+              {onSaveAndTest ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={
+                    !canSaveAndTest || disabled || !isEmailValid || !!isTesting || !!saveAndTestPending
+                  }
+                  onClick={handleSaveAndTest}
+                >
+                  {saveAndTestPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "저장 후 테스트"}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </form>
       </CardContent>
