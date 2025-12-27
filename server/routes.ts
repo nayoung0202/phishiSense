@@ -28,6 +28,7 @@ import {
   endOfWeek,
 } from "date-fns";
 import { adminSmtpConfigRouter } from "./routes/adminSmtpConfig";
+import { adminTrainingTargetsExcelRouter } from "./routes/adminTrainingTargetsExcel";
 
 const statusParamMap: Record<string, string> = {
   running: "진행중",
@@ -1154,6 +1155,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch project targets" });
     }
   });
+
+  app.use("/api/admin", adminTrainingTargetsExcelRouter);
+  app.use("/api/admin", adminSmtpConfigRouter);
 
   const httpServer = createServer(app);
 

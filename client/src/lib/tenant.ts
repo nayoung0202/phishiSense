@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 const defaultTenantFromEnv = import.meta.env.VITE_DEFAULT_TENANT_ID;
 const DEFAULT_TENANT_ID = defaultTenantFromEnv && defaultTenantFromEnv.trim().length > 0
   ? defaultTenantFromEnv.trim()
@@ -11,6 +13,13 @@ export function resolveAutoTenantId() {
   const trimmed = stored?.trim();
   if (trimmed) return trimmed;
   return DEFAULT_TENANT_ID;
+}
+
+export function createNewTenantId() {
+  const fromCrypto = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `tenant-${fromCrypto}`.replace(/[^a-zA-Z0-9-]/g, "");
 }
 
 export function useAutoTenantId(): string {
@@ -31,4 +40,3 @@ export function useAutoTenantId(): string {
 
   return tenantId;
 }
-import { useEffect, useState } from "react";

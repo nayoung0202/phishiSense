@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -85,15 +85,14 @@ type SmtpConfigFormProps = {
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-export function SmtpConfigForm({
-  mode,
-  tenantId,
-  initialData,
-  onSubmit,
-  isSubmitting,
-  disabled,
-  onDirtyChange,
-}: SmtpConfigFormProps) {
+export type SmtpConfigFormHandle = {
+  submit: () => Promise<void>;
+};
+
+export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormProps>(function SmtpConfigForm(
+  { mode, tenantId, initialData, onSubmit, isSubmitting, disabled, onDirtyChange },
+  ref,
+) {
   const [formState, setFormState] = useState<FormState>(defaultFormState);
   const [passwordInput, setPasswordInput] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
@@ -159,7 +158,7 @@ export function SmtpConfigForm({
   useEffect(() => {
     if (!snapshotRef.current) return;
     const currentSnapshot = snapshotFormState(formState);
-    const dirty = currentSnapshot !== snapshotRef.current || passwordInput.trim().length > 0;
+    const dirty = currentSnapshot !== snapshotRef.current || passwordInput.length > 0;
     if (dirty !== isDirtyState) {
       setIsDirtyState(dirty);
       onDirtyChange?.(dirty);
@@ -256,54 +255,68 @@ export function SmtpConfigForm({
     return "SMTP";
   }, [formState.securityMode]);
 
+  const submitForm = useCallback(async () => {
+    if (!canSubmit || !initialData) {
+      setSubmitError("입력값을 확인하세요.");
+      throw new Error("입력값을 확인하세요.");
+    }
+    setSubmitError(null);
+    setDomainError(null);
+
+    const payload: UpdateSmtpConfigPayload = {
+      host: hostValue,
+      port: formState.port,
+      securityMode: formState.securityMode,
+      fromEmail: fromEmailValue,
+      tlsVerify: formState.tlsVerify,
+      rateLimitPerMin: formState.rateLimitPerMin,
+      isActive: formState.isActive,
+    };
+
+    if (formState.username.trim()) payload.username = formState.username.trim();
+    if (formState.fromName.trim()) payload.fromName = formState.fromName.trim();
+    if (replyToValue) payload.replyTo = replyToValue;
+    if (allowedDomains.length > 0) payload.allowedRecipientDomains = allowedDomains;
+    if (passwordInput.length > 0) payload.password = passwordInput;
+
+    try {
+      await onSubmit(payload);
+      setPasswordInput("");
+    } catch (error) {
+      if (error instanceof Error) {
+        setSubmitError(error.message);
+      }
+      throw error;
+    }
+  }, [
+    allowedDomains,
+    canSubmit,
+    formState.fromName,
+    formState.isActive,
+    formState.port,
+    formState.rateLimitPerMin,
+    formState.replyTo,
+    formState.securityMode,
+    formState.tlsVerify,
+    formState.username,
+    fromEmailValue,
+    hostValue,
+    initialData,
+    onSubmit,
+    passwordInput,
+    replyToValue,
+  ]);
+
+  useImperativeHandle(ref, () => ({
+    submit: submitForm,
+  }));
+
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
-      if (!canSubmit || !initialData) return;
-      setSubmitError(null);
-      setDomainError(null);
-
-      const payload: UpdateSmtpConfigPayload = {
-        host: hostValue,
-        port: formState.port,
-        securityMode: formState.securityMode,
-        fromEmail: fromEmailValue,
-        tlsVerify: formState.tlsVerify,
-        rateLimitPerMin: formState.rateLimitPerMin,
-        isActive: formState.isActive,
-      };
-
-      if (formState.username.trim()) payload.username = formState.username.trim();
-      if (formState.fromName.trim()) payload.fromName = formState.fromName.trim();
-      if (replyToValue) payload.replyTo = replyToValue;
-      if (allowedDomains.length > 0) payload.allowedRecipientDomains = allowedDomains;
-      if (passwordInput.trim()) payload.password = passwordInput.trim();
-
-      try {
-        await onSubmit(payload);
-        setPasswordInput("");
-      } catch (error) {
-        if (error instanceof Error) {
-          setSubmitError(error.message);
-        }
-      }
+      await submitForm();
     },
-    [
-      canSubmit,
-      initialData,
-      formState.port,
-      formState.tlsVerify,
-      formState.rateLimitPerMin,
-      formState.isActive,
-      formState.username,
-      formState.fromName,
-      formState.replyTo,
-      allowedDomains,
-      passwordInput,
-      hostValue,
-      fromEmailValue,
-      onSubmit,
-    ],
+    [submitForm],
   );
 
   return (
@@ -451,4 +464,4 @@ export function SmtpConfigForm({
       </CardContent>
     </Card>
   );
-}
+});
