@@ -23,6 +23,14 @@ import {
   updateTemplateById,
   deleteTemplateById,
 } from "./dao/templateDao";
+import {
+  listTargets,
+  getTargetById,
+  findTargetByEmail as findTargetByEmailRecord,
+  createTarget as createTargetRecord,
+  updateTargetById,
+  deleteTargetById,
+} from "./dao/targetDao";
 import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
 import { seedTemplates } from "./seed/seedTemplates";
 
@@ -50,6 +58,7 @@ export interface IStorage {
   // Targets
   getTargets(): Promise<Target[]>;
   getTarget(id: string): Promise<Target | undefined>;
+  findTargetByEmail(email: string): Promise<Target | undefined>;
   createTarget(target: InsertTarget): Promise<Target>;
   updateTarget(id: string, target: Partial<InsertTarget>): Promise<Target | undefined>;
   deleteTarget(id: string): Promise<boolean>;
@@ -70,18 +79,17 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private projects: Map<string, Project>;
-  private targets: Map<string, Target>;
   private trainingPages: Map<string, TrainingPage>;
   private projectTargets: Map<string, ProjectTarget>;
 
   constructor() {
     this.users = new Map();
     this.projects = new Map();
-    this.targets = new Map();
     this.trainingPages = new Map();
     this.projectTargets = new Map();
 
     void seedTemplates();
+    void this.seedTargets();
     this.seedData();
   }
 
@@ -704,23 +712,30 @@ export class MemStorage implements IStorage {
 
     this.trainingPages.set(trainingPage3.id, trainingPage3);
     
-    // Seed targets
+  }
+
+  private async seedTargets() {
+    const targetsToSeed: InsertTarget[] = [];
+
     for (let i = 1; i <= 10; i++) {
       const baseDepartment = i <= 5 ? "영업부" : "개발부";
       const department =
         i % 3 === 0
           ? `${baseDepartment} 1팀, ${baseDepartment} 2팀`
           : baseDepartment;
-      const target: Target = {
-        id: randomUUID(),
+      targetsToSeed.push({
         name: `직원${i}`,
         email: `employee${i}@company.com`,
         department,
         tags: i % 2 === 0 ? ["신입", "교육필요"] : ["경력"],
         status: "active",
-        createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-      };
-      this.targets.set(target.id, target);
+      });
+    }
+
+    for (const target of targetsToSeed) {
+      const existing = await findTargetByEmailRecord(target.email);
+      if (existing) continue;
+      await this.createTarget(target);
     }
   }
 
@@ -950,26 +965,19 @@ export class MemStorage implements IStorage {
 
   // Targets
   async getTargets(): Promise<Target[]> {
-    return Array.from(this.targets.values()).sort((a, b) => 
-      b.createdAt!.getTime() - a.createdAt!.getTime()
-    );
+    return listTargets();
   }
 
   async getTarget(id: string): Promise<Target | undefined> {
-    return this.targets.get(id);
+    return getTargetById(id);
   }
 
   async findTargetByEmail(email: string): Promise<Target | undefined> {
-    const normalized = email.trim().toLowerCase();
-    return Array.from(this.targets.values()).find(
-      (target) => target.email.toLowerCase() === normalized,
-    );
+    return findTargetByEmailRecord(email);
   }
 
   async createTarget(target: InsertTarget): Promise<Target> {
-    const id = randomUUID();
-    const newTarget: Target = { 
-      id,
+    return createTargetRecord({
       name: normalizePlainText(target.name, 200),
       email: target.email,
       department: target.department ? normalizePlainText(target.department, 200) : null,
@@ -979,17 +987,13 @@ export class MemStorage implements IStorage {
             .filter((tag) => tag.length > 0)
         : null,
       status: target.status ?? "active",
-      createdAt: new Date(),
-    };
-    this.targets.set(id, newTarget);
-    return newTarget;
+    });
   }
 
   async updateTarget(id: string, target: Partial<InsertTarget>): Promise<Target | undefined> {
-    const existing = this.targets.get(id);
+    const existing = await getTargetById(id);
     if (!existing) return undefined;
-    const updated = {
-      ...existing,
+    return updateTargetById(id, {
       ...target,
       name:
         typeof target.name === "string"
@@ -1008,13 +1012,11 @@ export class MemStorage implements IStorage {
         typeof target.status === "string"
           ? target.status
           : existing.status ?? "active",
-    };
-    this.targets.set(id, updated);
-    return updated;
+    });
   }
 
   async deleteTarget(id: string): Promise<boolean> {
-    return this.targets.delete(id);
+    return deleteTargetById(id);
   }
 
   // Training Pages
