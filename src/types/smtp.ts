@@ -36,6 +36,8 @@ export type UpdateSmtpConfigPayload = {
 
 export type TestSmtpConfigPayload = {
   testRecipientEmail: string;
+  testSubject?: string;
+  testBody?: string;
 };
 
 export type SmtpConfigSummary = {

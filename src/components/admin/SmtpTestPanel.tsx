@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -10,6 +11,10 @@ import { Loader2, MailCheck, MailWarning } from "lucide-react";
 import type { SmtpConfigResponse, TestSmtpConfigPayload } from "@/types/smtp";
 
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const DEFAULT_TEST_SUBJECT = "테스트 이메일 수신 확인";
+const DEFAULT_TEST_BODY = `안녕하세요,
+이 메일은 메일 서버 및 템플릿 렌더링이 정상적으로 동작하는지 확인하기 위한
+테스트 메일입니다.`;
 
 type Props = {
   onSubmit: (payload: TestSmtpConfigPayload) => Promise<void> | void;
@@ -33,10 +38,16 @@ export function SmtpTestPanel({
   disabledReason,
 }: Props) {
   const [recipient, setRecipient] = useState("");
+  const [subject, setSubject] = useState(DEFAULT_TEST_SUBJECT);
+  const [body, setBody] = useState(DEFAULT_TEST_BODY);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const emailValue = recipient.trim();
   const isEmailValid = emailRegex.test(emailValue);
+  const subjectValue = subject.trim();
+  const bodyValue = body.trim();
+  const isSubjectValid = subjectValue.length > 0;
+  const isBodyValid = bodyValue.length > 0;
 
   const domainHint = useMemo(() => {
     if (!allowedDomains || allowedDomains.length === 0) return "허용된 도메인 제한 없음";
@@ -60,17 +71,21 @@ export function SmtpTestPanel({
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
-      if (disabled || !isEmailValid) return;
+      if (disabled || !isEmailValid || !isSubjectValid || !isBodyValid) return;
       setErrorMessage(null);
       try {
-        await onSubmit({ testRecipientEmail: emailValue });
+        await onSubmit({
+          testRecipientEmail: emailValue,
+          testSubject: subjectValue,
+          testBody: bodyValue,
+        });
       } catch (error) {
         if (error instanceof Error) {
           setErrorMessage(error.message);
         }
       }
     },
-    [disabled, isEmailValid, onSubmit, emailValue],
+    [disabled, isEmailValid, isSubjectValid, isBodyValid, onSubmit, emailValue, subjectValue, bodyValue],
   );
 
   useEffect(() => {
@@ -83,7 +98,7 @@ export function SmtpTestPanel({
     <Card>
       <CardHeader>
         <CardTitle>SMTP 테스트 발송</CardTitle>
-        <CardDescription>허용된 도메인으로 테스트 메일을 전송해 연결 상태를 확인합니다.</CardDescription>
+        <CardDescription>허용된 도메인으로 테스트 메일을 전송해 연결 상태와 템플릿 렌더링을 확인합니다.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
@@ -104,6 +119,33 @@ export function SmtpTestPanel({
             {disabledReason && (
               <p className="text-xs text-amber-600 mt-1">{disabledReason}</p>
             )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="smtp-test-subject">테스트 메일 제목 *</Label>
+            <Input
+              id="smtp-test-subject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              placeholder="테스트 이메일 수신 확인"
+              maxLength={120}
+              disabled={disabled}
+            />
+            <p className="text-xs text-muted-foreground">테스트 메일 제목은 120자 이내로 입력하세요.</p>
+            {!isSubjectValid && <p className="text-sm text-destructive">제목을 입력하세요.</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="smtp-test-body">테스트 메일 본문 *</Label>
+            <Textarea
+              id="smtp-test-body"
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              placeholder={DEFAULT_TEST_BODY}
+              rows={5}
+              maxLength={2000}
+              disabled={disabled}
+            />
+            <p className="text-xs text-muted-foreground">테스트 메일 본문은 2000자 이내로 입력하세요.</p>
+            {!isBodyValid && <p className="text-sm text-destructive">본문을 입력하세요.</p>}
           </div>
 
           {visibleError && (
@@ -131,7 +173,10 @@ export function SmtpTestPanel({
               </div>
             </div>
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <Button type="submit" disabled={disabled || !isEmailValid || !!isTesting}>
+              <Button
+                type="submit"
+                disabled={disabled || !isEmailValid || !isSubjectValid || !isBodyValid || !!isTesting}
+              >
                 {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : "테스트 발송"}
               </Button>
             </div>
