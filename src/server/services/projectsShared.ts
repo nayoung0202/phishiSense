@@ -54,7 +54,11 @@ export const summarizeProject = (project: Project) => ({
   weekOfYear: project.weekOfYear ?? [],
 });
 
-export const projectCreateSchema = insertProjectSchema.extend({
+const projectCreateBaseSchema = insertProjectSchema.omit({
+  trainingLinkToken: true,
+});
+
+export const projectCreateSchema = projectCreateBaseSchema.extend({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
 });
