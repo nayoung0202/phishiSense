@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 import { z, ZodError } from "zod";
 import { storage } from "@/server/storage";
 import {
-  buildTrainingLinkUrl,
+  buildPhishingLinkUrl,
   generateTrainingLinkToken,
   injectTrainingLink,
 } from "@/server/lib/trainingLink";
@@ -162,8 +162,8 @@ export async function POST(request: NextRequest) {
         });
         trainingLinkToken = updated?.trainingLinkToken ?? candidate;
       }
-      const trainingLinkUrl = buildTrainingLinkUrl(trainingLinkToken);
-      htmlBody = injectTrainingLink(htmlBody, trainingLinkUrl);
+      const phishingLinkUrl = buildPhishingLinkUrl(trainingLinkToken);
+      htmlBody = injectTrainingLink(htmlBody, phishingLinkUrl);
     }
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
