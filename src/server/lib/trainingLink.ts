@@ -26,6 +26,7 @@ const anchorHrefFinder = /<a\b[^>]*\bhref=(["'])(.*?)\1/gi;
 
 type InjectTrainingLinkOptions = {
   replaceSingleAnchor?: boolean;
+  appendType?: "link" | "button";
 };
 
 export const injectTrainingLink = (
@@ -49,7 +50,11 @@ export const injectTrainingLink = (
     }
   }
 
-  const linkBlock = `<hr />\n<p>훈련 안내 페이지: <a href="${trainingUrl}">여기 클릭</a></p>`;
+  const appendType = options.appendType ?? "link";
+  const linkBlock =
+    appendType === "button"
+      ? `<hr />\n<form action="${trainingUrl}" method="get" style="margin:16px 0;">\n  <button type="submit" style="padding:10px 16px; border-radius:999px; background:#2563eb; color:#ffffff; border:none; font-weight:600;">훈련 안내 페이지로 이동</button>\n</form>`
+      : `<hr />\n<p>훈련 안내 페이지: <a href="${trainingUrl}">여기 클릭</a></p>`;
   if (!htmlBody || htmlBody.trim().length === 0) {
     return linkBlock;
   }
