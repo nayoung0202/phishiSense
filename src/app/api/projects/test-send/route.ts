@@ -223,7 +223,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "test_send_failed",
-        reason: "테스트 메일 발송 중 오류가 발생했습니다.",
+        reason:
+          isDev && errorDetails?.message
+            ? errorDetails.message
+            : "테스트 메일 발송 중 오류가 발생했습니다.",
         details: isDev ? errorDetails : undefined,
       },
       { status: 500, headers },
