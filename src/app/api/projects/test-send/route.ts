@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
 
     const smtpPort = Number(process.env.SMTP_PORT ?? 587);
     const smtpSecure = String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true";
+    const allowInvalidTls =
+      String(process.env.SMTP_ALLOW_INVALID_TLS ?? "").toLowerCase() === "true";
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: smtpPort,
@@ -122,6 +124,12 @@ export async function POST(request: NextRequest) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      tls: {
+        rejectUnauthorized: !allowInvalidTls,
+      },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
     });
 
     let htmlBody = template.body ?? "";
@@ -201,8 +209,23 @@ export async function POST(request: NextRequest) {
         { status: 422, headers },
       );
     }
+    const isDev = process.env.NODE_ENV !== "production";
+    const errorDetails =
+      error instanceof Error
+        ? {
+            message: error.message,
+            code: (error as { code?: string }).code,
+            command: (error as { command?: string }).command,
+            response: (error as { response?: string }).response,
+          }
+        : null;
+    console.error("테스트 메일 발송 실패", error);
     return NextResponse.json(
-      { error: "test_send_failed", reason: "테스트 메일 발송 중 오류가 발생했습니다." },
+      {
+        error: "test_send_failed",
+        reason: "테스트 메일 발송 중 오류가 발생했습니다.",
+        details: isDev ? errorDetails : undefined,
+      },
       { status: 500, headers },
     );
   }
