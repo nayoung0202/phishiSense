@@ -79,7 +79,7 @@ import { useToast } from "@/hooks/use-toast";
 /*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
 
-type StatusFilter = "all" | "예약" | "진행중" | "완료";
+type StatusFilter = "all" | "임시" | "예약" | "진행중" | "완료";
 type Quarter = "Q1" | "Q2" | "Q3" | "Q4";
 type ViewMode = "list" | "board" | "calendar";
 type CalendarMode = "month" | "timeline";
@@ -172,18 +172,21 @@ type MonthOption = {
 
 const statusOptions: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "전체" },
+  { value: "임시", label: "임시" },
   { value: "예약", label: "예약" },
   { value: "진행중", label: "진행중" },
   { value: "완료", label: "완료" },
 ];
 
 const statusColor: Record<string, string> = {
+  임시: "bg-slate-500/20 text-slate-500",
   예약: "bg-blue-500/20 text-blue-500",
   진행중: "bg-orange-500/20 text-orange-500",
   완료: "bg-green-500/20 text-green-500",
 };
 
 const statusAccent: Record<string, string> = {
+  임시: "bg-slate-500/80 text-white",
   예약: "bg-blue-500/80 text-white",
   진행중: "bg-orange-500/80 text-white",
   완료: "bg-green-500/80 text-white",
@@ -204,6 +207,7 @@ const calendarModeOptions: { value: CalendarMode; label: string }[] = [
 
 const statusQueryMap: Record<StatusFilter, string | undefined> = {
   all: undefined,
+  임시: "temp",
   예약: "scheduled",
   진행중: "running",
   완료: "done",
@@ -682,6 +686,7 @@ export default function Projects() {
     const key = `${selectedYear}-${selectedQuarter}`;
     const statusCounts: Record<StatusFilter, number> = {
       all: projects.length,
+      임시: 0,
       예약: 0,
       진행중: 0,
       완료: 0,
@@ -875,7 +880,7 @@ export default function Projects() {
         <div>
           <h2 className="text-xl font-semibold">{quarterGroup.label}</h2>
           <p className="text-sm text-muted-foreground">
-            {quarterGroup.projects.length}개 프로젝트 · 예약 {quarterGroup.statusCounts["예약"]}개 · 진행중 {quarterGroup.statusCounts["진행중"]}개 · 완료 {quarterGroup.statusCounts["완료"]}개
+            {quarterGroup.projects.length}개 프로젝트 · 임시 {quarterGroup.statusCounts["임시"]}개 · 예약 {quarterGroup.statusCounts["예약"]}개 · 진행중 {quarterGroup.statusCounts["진행중"]}개 · 완료 {quarterGroup.statusCounts["완료"]}개
           </p>
         </div>
         {quarterStatItem ? (

@@ -272,6 +272,7 @@ export default function ProjectCreate() {
   const [domainPopoverOpen, setDomainPopoverOpen] = useState(false);
   const [startDatePopoverOpen, setStartDatePopoverOpen] = useState(false);
   const [endDatePopoverOpen, setEndDatePopoverOpen] = useState(false);
+  const [tempProjectId, setTempProjectId] = useState<string | null>(null);
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
@@ -298,7 +299,12 @@ export default function ProjectCreate() {
 
   const selectedTargetIds = form.watch("targetIds") ?? [];
   const templateId = form.watch("templateId");
+  const trainingPageId = form.watch("trainingPageId");
   const sendingDomain = form.watch("sendingDomain");
+  const fromNameValue = form.watch("fromName");
+  const fromEmailValue = form.watch("fromEmail");
+  const projectName = form.watch("name");
+  const departmentTags = form.watch("departmentTags");
   const startDateValue = form.watch("startDate");
   const endDateValue = form.watch("endDate");
 
@@ -703,6 +709,43 @@ export default function ProjectCreate() {
     return `${format(startDateValue, "yyyy")} · Q${quarter}`;
   }, [startDateValue]);
 
+  const testSendDisabled =
+    !templateId ||
+    !trainingPageId ||
+    !sendingDomain ||
+    !fromEmailValue ||
+    !fromNameValue ||
+    !projectName ||
+    (departmentTags?.length ?? 0) === 0;
+
+  const buildProjectPayload = useCallback(
+    (values: ProjectFormValues, status: string): CreateProjectRequest => {
+      const startDateIso = asIsoString(values.startDate) ?? new Date().toISOString();
+      const fallbackEndDate = new Date(
+        new Date(startDateIso).getTime() + 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const endDateIso = asIsoString(values.endDate) ?? fallbackEndDate;
+
+      return {
+        name: values.name,
+        description: values.description?.trim() || null,
+        department: values.departmentTags[0] ?? null,
+        departmentTags: values.departmentTags,
+        templateId: values.templateId,
+        trainingPageId: values.trainingPageId,
+        sendingDomain: values.sendingDomain,
+        fromName: values.fromName,
+        fromEmail: values.fromEmail,
+        notificationEmails: values.notificationEmails ?? [],
+        startDate: startDateIso,
+        endDate: endDateIso,
+        status,
+        targetCount: values.targetIds.length,
+      };
+    },
+    [],
+  );
+
   const createMutation = useMutation({
     mutationFn: async ({
       payload,
@@ -755,8 +798,64 @@ export default function ProjectCreate() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: CreateProjectRequest;
+    }) => {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw {
+          status: res.status,
+          data,
+        };
+      }
+      return data as { id: string };
+    },
+    onSuccess: (response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({
+        title: "프로젝트 저장 완료",
+        description: "프로젝트가 저장되었습니다.",
+      });
+      setTempProjectId(null);
+      const projectId = response?.id ?? variables.id;
+      if (projectId) {
+        router.push(`/projects/${projectId}`);
+      } else {
+        router.push("/projects");
+      }
+    },
+    onError: (error: unknown) => {
+      let description = "프로젝트 저장 중 오류가 발생했습니다.";
+      if (typeof error === "object" && error && "data" in error) {
+        const payload = error as { status?: number; data?: any };
+        if (payload.status === 422 && payload.data?.issues) {
+          description = payload.data.issues.map((issue: { message: string }) => issue.message).join(", ");
+        } else if (payload.data?.reason) {
+          description = payload.data.reason;
+        }
+      }
+      toast({
+        title: "요청 실패",
+        description,
+        variant: "destructive",
+      });
+    },
+  });
+
   const testSendMutation = useMutation({
-    mutationFn: async (recipient: string) => {
+    mutationFn: async ({ recipient, projectId }: { recipient: string; projectId: string }) => {
       const values = form.getValues();
       const res = await fetch("/api/projects/test-send", {
         method: "POST",
@@ -764,6 +863,7 @@ export default function ProjectCreate() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          projectId,
           templateId: values.templateId,
           sendingDomain: values.sendingDomain,
           fromEmail: values.fromEmail,
@@ -841,34 +941,107 @@ export default function ProjectCreate() {
         return;
       }
 
-      const startDateIso = asIsoString(values.startDate) ?? new Date().toISOString();
-      const endDateIso =
-        asIsoString(values.endDate) ??
-        new Date(new Date(startDateIso).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const status = mode === "run" ? "진행중" : "예약";
+      const payload = buildProjectPayload(values, status);
 
-      const payload: CreateProjectRequest = {
-        name: values.name,
-        description: values.description?.trim() || null,
-        department: values.departmentTags[0] ?? null,
-        departmentTags: values.departmentTags,
-        templateId: values.templateId,
-        trainingPageId: values.trainingPageId,
-        sendingDomain: values.sendingDomain,
-        fromName: values.fromName,
-        fromEmail: values.fromEmail,
-        notificationEmails: values.notificationEmails ?? [],
-        startDate: startDateIso,
-        endDate: endDateIso,
-        status: mode === "run" ? "진행중" : "예약",
-        targetCount: values.targetIds.length,
-      };
+      if (tempProjectId) {
+        updateMutation.mutate({ id: tempProjectId, payload });
+        return;
+      }
 
       createMutation.mutate({ payload });
     },
-    [form, createMutation, toast],
+    [form, buildProjectPayload, createMutation, updateMutation, tempProjectId, toast],
   );
 
-  const handleTestSend = useCallback(() => {
+  const ensureTempProject = useCallback(async () => {
+    const requiredFields: (keyof ProjectFormValues)[] = [
+      "name",
+      "departmentTags",
+      "templateId",
+      "trainingPageId",
+      "sendingDomain",
+      "fromName",
+      "fromEmail",
+      "startDate",
+      "endDate",
+    ];
+    const isValid = await form.trigger(requiredFields, { shouldFocus: true });
+    if (!isValid) {
+      toast({
+        title: "입력값을 확인하세요",
+        description: "임시 저장을 위해 필수 항목을 먼저 입력하세요.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const values = form.getValues();
+    const payload = buildProjectPayload(values, "임시");
+    const baseHeaders = {
+      "Content-Type": "application/json",
+    };
+
+    const resolveErrorMessage = (status: number, data: any) => {
+      if (status === 422 && data?.issues) {
+        return data.issues.map((issue: { message: string }) => issue.message).join(", ");
+      }
+      if (data?.reason) {
+        return data.reason;
+      }
+      return "프로젝트 임시 저장에 실패했습니다.";
+    };
+
+    if (tempProjectId) {
+      const res = await fetch(`/api/projects/${tempProjectId}`, {
+        method: "PATCH",
+        headers: baseHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+        return tempProjectId;
+      }
+      if (res.status === 404) {
+        setTempProjectId(null);
+      }
+      toast({
+        title: "임시 저장 실패",
+        description: resolveErrorMessage(res.status, data),
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      toast({
+        title: "임시 저장 실패",
+        description: resolveErrorMessage(res.status, data),
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const createdId = typeof data?.id === "string" ? data.id : null;
+    if (createdId) {
+      setTempProjectId(createdId);
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    toast({
+      title: "임시 저장 완료",
+      description: "테스트 발송을 위한 프로젝트가 저장되었습니다.",
+    });
+    return createdId;
+  }, [form, buildProjectPayload, tempProjectId, queryClient, toast]);
+
+  const handleTestSend = useCallback(async () => {
     const recipient = testRecipient.trim();
     if (!recipient) {
       toast({
@@ -878,8 +1051,12 @@ export default function ProjectCreate() {
       });
       return;
     }
-    testSendMutation.mutate(recipient);
-  }, [testRecipient, testSendMutation, toast]);
+    const projectId = await ensureTempProject();
+    if (!projectId) {
+      return;
+    }
+    testSendMutation.mutate({ recipient, projectId });
+  }, [testRecipient, ensureTempProject, testSendMutation, toast]);
 
   const handleCancel = () => {
     router.push("/projects");
@@ -899,11 +1076,7 @@ export default function ProjectCreate() {
             <Button
               variant="outline"
               size="sm"
-              disabled={
-                !form.watch("templateId") ||
-                !form.watch("sendingDomain") ||
-                !form.watch("fromEmail")
-              }
+              disabled={testSendDisabled}
               onClick={() => setTestDialogOpen(true)}
             >
               <MailCheck className="mr-2 h-4 w-4" />
@@ -1678,6 +1851,9 @@ export default function ProjectCreate() {
             />
             <p className="text-xs text-muted-foreground">
               실제 메일이 발송되지는 않으며, 시뮬레이션 결과만 반환됩니다.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              테스트 발송 전 현재 입력값으로 프로젝트가 임시 저장됩니다.
             </p>
           </div>
           <DialogFooter className="flex items-center justify-between">

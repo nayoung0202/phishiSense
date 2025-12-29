@@ -13,6 +13,10 @@ export const statusParamMap: Record<string, string> = {
   done: "완료",
   completed: "완료",
   완료: "완료",
+  temp: "임시",
+  temporary: "임시",
+  draft: "임시",
+  임시: "임시",
 };
 
 export const quarterNumbers = [1, 2, 3, 4] as const;
