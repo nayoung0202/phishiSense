@@ -21,6 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { apiRequest } from "@/lib/queryClient";
 
 const statusConfig: Record<string, { className: string }> = {
+  "임시": { className: "bg-slate-500/20 text-slate-400" },
   "예약": { className: "bg-blue-500/20 text-blue-400" },
   "진행중": { className: "bg-orange-500/20 text-orange-400" },
   "완료": { className: "bg-green-500/20 text-green-400" },
