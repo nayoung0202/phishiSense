@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { AppProviders } from "@/components/AppProviders";
 import { AppShell } from "@/components/AppShell";
+import { ClientOnly } from "@/components/ClientOnly";
 
 export const metadata: Metadata = {
   title: "PhishSense Dashboard",
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ko" className="dark">
       <body className="min-h-screen bg-background font-sans antialiased">
         <AppProviders>
-          <AppShell>{children}</AppShell>
+          <ClientOnly>
+            <AppShell>{children}</AppShell>
+          </ClientOnly>
         </AppProviders>
       </body>
     </html>
