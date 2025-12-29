@@ -1,4 +1,6 @@
 import type { Config } from "tailwindcss";
-import config from "./tailwind.config.js";
+import baseConfig from "./tailwind.config.js";
 
-export default config satisfies Config;
+const config = baseConfig as Config;
+
+export default config;

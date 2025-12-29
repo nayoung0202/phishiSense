@@ -2,7 +2,7 @@
 
 ## 데이터베이스 설정
 
-이제 SMTP 계정과 템플릿 정보는 Drizzle 기반 DB에 영구 저장됩니다. 개발 환경에서는 `.env`에 `DATABASE_URL="file:./dev.db"`를 지정해 SQLite 파일을 사용하는 것을 권장합니다. Postgres를 사용하려면 해당 연결 문자열을 동일한 변수에 입력하면 되지만, 현재 단계에서는 SQLite(`file:` 접두사)만 지원합니다.
+이제 SMTP 계정과 템플릿 정보는 PostgreSQL + Drizzle 기반 DB에 영구 저장됩니다. 개발 환경에서도 `.env`에 `DATABASE_URL`로 Postgres 연결 문자열을 지정해 주세요.
 
 1. `.env.example`을 참고해 `.env`를 생성하고 `DATABASE_URL`과 `SMTP_SECRET`을 채웁니다. `SMTP_SECRET`은 AES-256 암호화를 위한 키이므로 운영 환경에서 반드시 안전한 값을 사용하세요.
 2. `npm run db:push`를 실행해 `smtp_accounts`, `templates` 테이블을 생성합니다. `DATABASE_URL`이 비어 있으면 `drizzle-kit push` 단계에서 실패하므로, push 전 반드시 설정해야 합니다.
