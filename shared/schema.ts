@@ -32,7 +32,7 @@ export const projects = pgTable("projects", {
   notificationEmails: text("notification_emails").array(),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
-  status: text("status").notNull(), // 예약, 진행중, 완료
+  status: text("status").notNull(), // 임시, 예약, 진행중, 완료
   targetCount: integer("target_count").default(0),
   openCount: integer("open_count").default(0),
   clickCount: integer("click_count").default(0),
