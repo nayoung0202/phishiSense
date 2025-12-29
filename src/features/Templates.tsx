@@ -234,7 +234,7 @@ export default function Templates() {
                         </Button>
                       </Link>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleDelete(template.id)}
                         data-testid={`button-delete-${template.id}`}
