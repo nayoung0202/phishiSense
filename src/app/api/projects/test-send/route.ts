@@ -1,0 +1,135 @@
+import { NextRequest, NextResponse } from "next/server";
+import nodemailer from "nodemailer";
+import { z, ZodError } from "zod";
+import { storage } from "@/server/storage";
+import {
+  NODEMAILER_VERSION,
+  buildTestEmailHtml,
+  findMissingSmtpKey,
+  stripHtml,
+} from "@/server/services/projectsShared";
+
+const payloadSchema = z.object({
+  templateId: z.string().min(1, "템플릿을 선택하세요."),
+  sendingDomain: z.string().min(1, "발신 도메인을 선택하세요."),
+  fromEmail: z.string().email("올바른 발신 이메일 주소를 입력하세요."),
+  fromName: z.string().min(1, "발신자 이름을 입력하세요."),
+  recipient: z.string().email("유효한 수신 이메일을 입력하세요."),
+});
+
+export async function POST(request: NextRequest) {
+  const headers = new Headers({
+    "X-Mailer-Version": `nodemailer/${NODEMAILER_VERSION}`,
+  });
+  try {
+    const missingKey = findMissingSmtpKey();
+    if (missingKey) {
+      return NextResponse.json(
+        {
+          error: "smtp_not_configured",
+          reason: `${missingKey} 환경 변수가 누락되어 테스트 메일을 발송할 수 없습니다.`,
+        },
+        { status: 503, headers },
+      );
+    }
+
+    const payload = payloadSchema.parse(await request.json());
+    const template = await storage.getTemplate(payload.templateId);
+    if (!template) {
+      return NextResponse.json(
+        {
+          error: "template_not_found",
+          reason: "선택한 템플릿을 찾을 수 없습니다.",
+        },
+        { status: 404, headers },
+      );
+    }
+
+    if (payload.sendingDomain.includes("inactive")) {
+      return NextResponse.json(
+        {
+          error: "domain_inactive",
+          reason: "선택한 도메인이 비활성 상태입니다.",
+        },
+        { status: 409, headers },
+      );
+    }
+
+    const smtpPort = Number(process.env.SMTP_PORT ?? 587);
+    const smtpSecure = String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true";
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    const htmlBody = template.body ?? "";
+    const subject = template.subject ?? "테스트 메일";
+    const prefixedSubject = `[테스트] ${subject}`;
+    const composedHtml = buildTestEmailHtml(htmlBody, payload.sendingDomain, payload.recipient);
+    const plainText = stripHtml(htmlBody);
+
+    let delivery;
+    try {
+      delivery = await transporter.sendMail({
+        envelope: {
+          from: payload.fromEmail,
+          to: [payload.recipient],
+        },
+        from: `"${payload.fromName}" <${payload.fromEmail}>`,
+        to: payload.recipient,
+        subject: prefixedSubject,
+        html: composedHtml,
+        text: plainText || undefined,
+        headers: {
+          "X-PhishSense-Preview": "true",
+          "X-PhishSense-Sending-Domain": payload.sendingDomain,
+        },
+      });
+    } finally {
+      if (typeof transporter.close === "function") {
+        transporter.close();
+      }
+    }
+
+    return NextResponse.json(
+      {
+        status: "sent" as const,
+        messageId: delivery.messageId,
+        accepted: Array.isArray(delivery.accepted) ? delivery.accepted.map(String) : [],
+        rejected: Array.isArray(delivery.rejected) ? delivery.rejected.map(String) : [],
+        envelope: {
+          from: delivery.envelope?.from ?? payload.fromEmail,
+          to: Array.isArray(delivery.envelope?.to)
+            ? delivery.envelope.to.map(String)
+            : [payload.recipient],
+        },
+        response: delivery.response,
+        previewUrl: (delivery as { previewUrl?: string }).previewUrl ?? null,
+        processedAt: new Date().toISOString(),
+      },
+      { headers },
+    );
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 422, headers },
+      );
+    }
+    return NextResponse.json(
+      { error: "test_send_failed", reason: "테스트 메일 발송 중 오류가 발생했습니다." },
+      { status: 500, headers },
+    );
+  }
+}
