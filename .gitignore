@@ -1,11 +1,11 @@
+.next
 node_modules
 dist
 .env
-server/data/*.json
+src/server/data/*.json
 .DS_Store
-server/public
+src/server/public
 vite.config.ts.*
 *.tar.gz
-.env
 dev.db
 *.sqlite
