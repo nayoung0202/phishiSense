@@ -100,6 +100,12 @@ export async function testSmtpConfig(
   );
 }
 
+export async function deleteSmtpConfig(tenantId: string) {
+  return requestJson<void>(buildTenantPath(tenantId, "/smtp-config"), {
+    method: "DELETE",
+  });
+}
+
 export async function importTrainingTargetsExcel(
   file: File,
 ): Promise<ImportTrainingTargetsResponse> {

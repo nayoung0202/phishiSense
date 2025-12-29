@@ -203,3 +203,11 @@ export async function updateLastTestResult(options: {
     })
     .where(eq(smtpAccountsTable.id, options.tenantId));
 }
+
+export async function deleteSmtpConfig(tenantId: string): Promise<boolean> {
+  const rows = await db
+    .delete(smtpAccountsTable)
+    .where(eq(smtpAccountsTable.id, tenantId))
+    .returning({ id: smtpAccountsTable.id });
+  return rows.length > 0;
+}
