@@ -104,9 +104,6 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
     if (!configData.hasPassword) {
       return "SMTP 비밀번호를 저장한 뒤 테스트할 수 있습니다.";
     }
-    if (formDirty) {
-      return "변경 사항을 저장한 뒤 테스트하세요.";
-    }
     if (configData.port !== 465 && configData.port !== 587) {
       return "테스트 발송은 465 또는 587 포트에서만 지원됩니다.";
     }
