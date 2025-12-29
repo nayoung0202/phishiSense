@@ -60,6 +60,8 @@ export function SmtpTestPanel({
   }, [lastTestStatus]);
 
   const formattedDate = lastTestedAt ? format(new Date(lastTestedAt), "yyyy-MM-dd HH:mm:ss") : "-";
+  const visibleError =
+    errorMessage ?? (lastTestStatus === "failure" ? lastTestError ?? null : null);
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
@@ -122,17 +124,10 @@ export function SmtpTestPanel({
             )}
           </div>
 
-          {errorMessage && (
+          {visibleError && (
             <Alert variant="destructive">
               <AlertTitle>테스트 실패</AlertTitle>
-              <AlertDescription>{errorMessage.slice(0, 400)}</AlertDescription>
-            </Alert>
-          )}
-
-          {lastTestError && lastTestStatus === "failure" && (
-            <Alert variant="destructive">
-              <AlertTitle>서버 메시지</AlertTitle>
-              <AlertDescription>{lastTestError.slice(0, 400)}</AlertDescription>
+              <AlertDescription>{visibleError.slice(0, 400)}</AlertDescription>
             </Alert>
           )}
 
@@ -149,7 +144,7 @@ export function SmtpTestPanel({
               <div>
                 <p className="text-xs text-muted-foreground">최근 오류 메시지</p>
                 <p className="text-sm whitespace-pre-wrap break-words">
-                  {lastTestError ? lastTestError.slice(0, 400) : "-"}
+                  {visibleError ? visibleError.slice(0, 400) : "-"}
                 </p>
               </div>
             </div>
