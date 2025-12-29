@@ -47,12 +47,19 @@ export async function GET(_request: Request, { params }: RouteContext) {
       appendType: "button",
     });
 
-    return new NextResponse(renderedHtml, {
+    const response = new NextResponse(renderedHtml, {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
       },
     });
+    response.cookies.set("ps_flow_token", normalized, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 10 * 60,
+    });
+    return response;
   } catch {
     return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
   }
