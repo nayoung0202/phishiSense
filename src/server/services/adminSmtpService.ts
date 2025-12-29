@@ -44,6 +44,11 @@ const testSchema = z.object({
 });
 
 const redactPattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const extractEmailDomain = (value?: string | null) => {
+  if (!value || !value.includes("@")) return "";
+  const [, domain = ""] = value.split("@");
+  return domain.trim().toLowerCase();
+};
 
 const sanitizeErrorMessage = (raw: string, config: PersistedSmtpConfig) => {
   const secrets = [config.password ?? "", config.username ?? ""]
@@ -210,15 +215,14 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
       throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
     }
 
-    const fallbackDomains = (config.allowedRecipientDomains ?? []).map((domain) =>
-      domain.trim().toLowerCase(),
+    const fallbackSet = new Set(
+      (config.allowedRecipientDomains ?? []).map((domain) => domain.trim().toLowerCase()),
     );
-    if (fallbackDomains.length === 0 && config.fromEmail?.includes("@")) {
-      const [, fromDomain = ""] = config.fromEmail.split("@");
-      if (fromDomain.trim()) {
-        fallbackDomains.push(fromDomain.trim().toLowerCase());
-      }
-    }
+    const fromDomain = extractEmailDomain(config.fromEmail);
+    if (fromDomain) fallbackSet.add(fromDomain);
+    const usernameDomain = extractEmailDomain(config.username);
+    if (usernameDomain) fallbackSet.add(usernameDomain);
+    const fallbackDomains = Array.from(fallbackSet);
 
     const normalizedRecipient = validateTestRecipientEmail(
       parsedBody.testRecipientEmail,
