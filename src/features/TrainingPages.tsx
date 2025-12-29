@@ -12,6 +12,7 @@ import { type TrainingPage } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
+import { extractBodyHtml } from "@/lib/html";
 import {
   Dialog,
   DialogContent,
@@ -134,7 +135,7 @@ export default function TrainingPages() {
                           </DialogHeader>
                           <div 
                             className="prose dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: page.content }}
+                            dangerouslySetInnerHTML={{ __html: extractBodyHtml(page.content) }}
                           />
                         </DialogContent>
                       </Dialog>
