@@ -33,10 +33,11 @@ export async function sendTestEmail({ smtpConfig, toEmail }: SendTestEmailOption
 
   try {
     await transport.verify();
+    const senderEmail = smtpConfig.username?.trim() || smtpConfig.fromEmail;
     await transport.sendMail({
       from: smtpConfig.fromName
-        ? `"${smtpConfig.fromName}" <${smtpConfig.fromEmail}>`
-        : smtpConfig.fromEmail,
+        ? `"${smtpConfig.fromName}" <${senderEmail}>`
+        : senderEmail,
       to: toEmail,
       replyTo: smtpConfig.replyTo ?? undefined,
       subject: TEST_SUBJECT,
