@@ -24,6 +24,7 @@ export const projects = pgTable("projects", {
   departmentTags: text("department_tags").array(),
   templateId: varchar("template_id"),
   trainingPageId: varchar("training_page_id"),
+  trainingLinkToken: text("training_link_token").unique(),
   sendingDomain: text("sending_domain"),
   fromName: text("from_name"),
   fromEmail: text("from_email"),
