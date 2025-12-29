@@ -23,9 +23,12 @@ const placeholderDetector = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/;
 const placeholderReplacer = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/g;
 const anchorHrefMatcher = /<a\b([^>]*?)\bhref=(["'])(.*?)\2([^>]*)>/i;
 const anchorHrefFinder = /<a\b[^>]*\bhref=(["'])(.*?)\1/gi;
+const buttonOpenTagMatcher = /<button\b([^>]*)>/i;
 
 type InjectTrainingLinkOptions = {
   replaceSingleAnchor?: boolean;
+  replaceFirstAnchor?: boolean;
+  replaceFirstButton?: boolean;
   appendType?: "link" | "button";
 };
 
@@ -38,6 +41,14 @@ export const injectTrainingLink = (
     return htmlBody.replace(placeholderReplacer, trainingUrl);
   }
 
+  if (options.replaceFirstAnchor && anchorHrefMatcher.test(htmlBody)) {
+    return htmlBody.replace(
+      anchorHrefMatcher,
+      (_match, leading, quote, _href, trailing) =>
+        `<a${leading}href=${quote}${trainingUrl}${quote}${trailing}>`,
+    );
+  }
+
   const shouldReplaceSingleAnchor = options.replaceSingleAnchor !== false;
   if (shouldReplaceSingleAnchor) {
     const anchorMatches = htmlBody.match(anchorHrefFinder);
@@ -47,6 +58,30 @@ export const injectTrainingLink = (
         (_match, leading, quote, _href, trailing) =>
           `<a${leading}href=${quote}${trainingUrl}${quote}${trailing}>`,
       );
+    }
+  }
+
+  if (options.replaceFirstButton) {
+    const buttonMatch = htmlBody.match(buttonOpenTagMatcher);
+    if (buttonMatch) {
+      const rawAttributes = buttonMatch[1] ?? "";
+      const trimmed = rawAttributes.trim();
+      let updatedAttributes = trimmed;
+      const hasOnclick = /\bonclick\s*=/.test(updatedAttributes);
+      const hasType = /\btype\s*=/.test(updatedAttributes);
+      if (hasOnclick) {
+        updatedAttributes = updatedAttributes.replace(
+          /\bonclick\s*=\s*(["'])(.*?)\1/i,
+          `onclick=$1location.href='${trainingUrl}'$1`,
+        );
+      } else {
+        updatedAttributes = `${updatedAttributes} onclick="location.href='${trainingUrl}'"`.trim();
+      }
+      if (!hasType) {
+        updatedAttributes = `${updatedAttributes} type="button"`.trim();
+      }
+      const normalized = updatedAttributes.length > 0 ? ` ${updatedAttributes}` : "";
+      return htmlBody.replace(buttonOpenTagMatcher, `<button${normalized}>`);
     }
   }
 
