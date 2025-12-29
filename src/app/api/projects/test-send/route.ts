@@ -3,19 +3,35 @@ import nodemailer from "nodemailer";
 import { z, ZodError } from "zod";
 import { storage } from "@/server/storage";
 import {
+  buildTrainingLinkUrl,
+  generateTrainingLinkToken,
+  injectTrainingLink,
+} from "@/server/lib/trainingLink";
+import {
   NODEMAILER_VERSION,
   buildTestEmailHtml,
   findMissingSmtpKey,
   stripHtml,
 } from "@/server/services/projectsShared";
 
-const payloadSchema = z.object({
-  templateId: z.string().min(1, "템플릿을 선택하세요."),
-  sendingDomain: z.string().min(1, "발신 도메인을 선택하세요."),
-  fromEmail: z.string().email("올바른 발신 이메일 주소를 입력하세요."),
-  fromName: z.string().min(1, "발신자 이름을 입력하세요."),
-  recipient: z.string().email("유효한 수신 이메일을 입력하세요."),
-});
+const payloadSchema = z
+  .object({
+    projectId: z.string().trim().min(1).nullish(),
+    templateId: z.string().trim().min(1, "템플릿을 선택하세요.").nullish(),
+    sendingDomain: z.string().min(1, "발신 도메인을 선택하세요."),
+    fromEmail: z.string().email("올바른 발신 이메일 주소를 입력하세요."),
+    fromName: z.string().min(1, "발신자 이름을 입력하세요."),
+    recipient: z.string().email("유효한 수신 이메일을 입력하세요."),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.projectId && !data.templateId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["templateId"],
+        message: "프로젝트 또는 템플릿을 선택하세요.",
+      });
+    }
+  });
 
 export async function POST(request: NextRequest) {
   const headers = new Headers({
@@ -34,7 +50,40 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = payloadSchema.parse(await request.json());
-    const template = await storage.getTemplate(payload.templateId);
+    const projectId = payload.projectId?.trim();
+    const project = projectId ? await storage.getProject(projectId) : undefined;
+    if (projectId && !project) {
+      return NextResponse.json(
+        {
+          error: "project_not_found",
+          reason: "프로젝트를 찾을 수 없습니다.",
+        },
+        { status: 404, headers },
+      );
+    }
+
+    if (project && !project.trainingPageId) {
+      return NextResponse.json(
+        {
+          error: "training_page_missing",
+          reason: "프로젝트에 연결된 훈련 안내 페이지가 없습니다.",
+        },
+        { status: 409, headers },
+      );
+    }
+
+    const templateId = project?.templateId ?? payload.templateId;
+    if (!templateId) {
+      return NextResponse.json(
+        {
+          error: "template_required",
+          reason: "프로젝트 또는 템플릿을 선택하세요.",
+        },
+        { status: 422, headers },
+      );
+    }
+
+    const template = await storage.getTemplate(templateId);
     if (!template) {
       return NextResponse.json(
         {
@@ -45,7 +94,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (payload.sendingDomain.includes("inactive")) {
+    const sendingDomain =
+      (typeof project?.sendingDomain === "string" && project.sendingDomain.trim()) ||
+      payload.sendingDomain;
+    const fromEmail =
+      (typeof project?.fromEmail === "string" && project.fromEmail.trim()) || payload.fromEmail;
+    const fromName =
+      (typeof project?.fromName === "string" && project.fromName.trim()) || payload.fromName;
+
+    if (sendingDomain.includes("inactive")) {
       return NextResponse.json(
         {
           error: "domain_inactive",
@@ -67,27 +124,44 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const htmlBody = template.body ?? "";
+    let htmlBody = template.body ?? "";
+    if (project) {
+      const currentToken =
+        typeof project.trainingLinkToken === "string" ? project.trainingLinkToken.trim() : "";
+      let trainingLinkToken = currentToken;
+      if (!trainingLinkToken) {
+        let candidate = generateTrainingLinkToken();
+        while (await storage.getProjectByTrainingLinkToken(candidate)) {
+          candidate = generateTrainingLinkToken();
+        }
+        const updated = await storage.updateProject(project.id, {
+          trainingLinkToken: candidate,
+        });
+        trainingLinkToken = updated?.trainingLinkToken ?? candidate;
+      }
+      const trainingLinkUrl = buildTrainingLinkUrl(trainingLinkToken);
+      htmlBody = injectTrainingLink(htmlBody, trainingLinkUrl);
+    }
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
-    const composedHtml = buildTestEmailHtml(htmlBody, payload.sendingDomain, payload.recipient);
+    const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
     const plainText = stripHtml(htmlBody);
 
     let delivery;
     try {
       delivery = await transporter.sendMail({
         envelope: {
-          from: payload.fromEmail,
+          from: fromEmail,
           to: [payload.recipient],
         },
-        from: `"${payload.fromName}" <${payload.fromEmail}>`,
+        from: `"${fromName}" <${fromEmail}>`,
         to: payload.recipient,
         subject: prefixedSubject,
         html: composedHtml,
         text: plainText || undefined,
         headers: {
           "X-PhishSense-Preview": "true",
-          "X-PhishSense-Sending-Domain": payload.sendingDomain,
+          "X-PhishSense-Sending-Domain": sendingDomain,
         },
       });
     } finally {
@@ -103,7 +177,7 @@ export async function POST(request: NextRequest) {
         accepted: Array.isArray(delivery.accepted) ? delivery.accepted.map(String) : [],
         rejected: Array.isArray(delivery.rejected) ? delivery.rejected.map(String) : [],
         envelope: {
-          from: delivery.envelope?.from ?? payload.fromEmail,
+          from: delivery.envelope?.from ?? fromEmail,
           to: Array.isArray(delivery.envelope?.to)
             ? delivery.envelope.to.map(String)
             : [payload.recipient],

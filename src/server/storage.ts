@@ -15,6 +15,7 @@ import {
 import { randomUUID } from "crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
 import { normalizePlainText } from "./lib/validation/text";
+import { generateTrainingLinkToken } from "./lib/trainingLink";
 import {
   listTemplates,
   getTemplateById,
@@ -33,6 +34,7 @@ export interface IStorage {
   // Projects
   getProjects(): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
+  getProjectByTrainingLinkToken(token: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
@@ -120,6 +122,20 @@ export class MemStorage implements IStorage {
     };
   }
 
+  private createTrainingLinkToken() {
+    const existingTokens = new Set(
+      Array.from(this.projects.values())
+        .map((project) => project.trainingLinkToken)
+        .filter((token): token is string => typeof token === "string" && token.length > 0),
+    );
+
+    let token = generateTrainingLinkToken();
+    while (existingTokens.has(token)) {
+      token = generateTrainingLinkToken();
+    }
+    return token;
+  }
+
   private seedData() {
     const [template1, template2, template3] = DEFAULT_TEMPLATES;
 
@@ -133,6 +149,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["인사부", "신입교육"],
       templateId: template2.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -160,6 +177,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["전사", "정기훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -187,6 +205,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["영업본부", "집중훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -213,6 +232,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["관리부", "4분기", "예약훈련"],
       templateId: template2.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -240,6 +260,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["보안팀", "역훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -267,6 +288,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["전사", "정기훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -294,6 +316,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["개발본부", "심화과정"],
       templateId: template2.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -321,6 +344,7 @@ export class MemStorage implements IStorage {
       departmentTags: ["경영지원부", "예약훈련"],
       templateId: template1.id,
       trainingPageId: null,
+      trainingLinkToken: this.createTrainingLinkToken(),
       sendingDomain: "security.phishsense.dev",
       fromName: "정보보안팀",
       fromEmail: "security@company.com",
@@ -550,6 +574,7 @@ export class MemStorage implements IStorage {
           departmentTags: departmentInfo.tags,
           templateId,
           trainingPageId: null,
+          trainingLinkToken: this.createTrainingLinkToken(),
           sendingDomain: "security.phishsense.dev",
           fromName: "정보보안팀",
           fromEmail: "security@company.com",
@@ -727,11 +752,30 @@ export class MemStorage implements IStorage {
     return this.projects.get(id);
   }
 
+  async getProjectByTrainingLinkToken(token: string): Promise<Project | undefined> {
+    const normalized = token.trim();
+    if (!normalized) return undefined;
+    return Array.from(this.projects.values()).find(
+      (project) => project.trainingLinkToken === normalized,
+    );
+  }
+
   async createProject(project: InsertProject): Promise<Project> {
     const id = randomUUID();
     const startDate = this.parseDate(project.startDate);
     const endDate = this.parseDate(project.endDate, startDate);
     const temporal = this.calculateTemporalFields(startDate, endDate);
+    const providedToken =
+      typeof project.trainingLinkToken === "string" ? project.trainingLinkToken.trim() : "";
+    const hasTokenConflict =
+      providedToken.length > 0 &&
+      Array.from(this.projects.values()).some(
+        (existing) => existing.trainingLinkToken === providedToken,
+      );
+    const trainingLinkToken =
+      providedToken.length > 0 && !hasTokenConflict
+        ? providedToken
+        : this.createTrainingLinkToken();
     const newProject: Project = {
       id,
       name: normalizePlainText(project.name, 200),
@@ -744,6 +788,7 @@ export class MemStorage implements IStorage {
         : [],
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
+      trainingLinkToken,
       sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
       fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
@@ -793,6 +838,10 @@ export class MemStorage implements IStorage {
           typeof project.department === "string"
             ? normalizePlainText(project.department, 200)
             : existing.department ?? null,
+        trainingLinkToken:
+          typeof project.trainingLinkToken === "string"
+            ? project.trainingLinkToken.trim()
+            : existing.trainingLinkToken ?? null,
         startDate: updatedStart,
         endDate: updatedEnd,
         departmentTags: Array.isArray(project.departmentTags)
@@ -860,6 +909,7 @@ export class MemStorage implements IStorage {
         id: newId,
         name: generateCopyName(project.name),
         createdAt: now,
+        trainingLinkToken: this.createTrainingLinkToken(),
         startDate,
         endDate,
         fiscalYear: temporal.fiscalYear,
