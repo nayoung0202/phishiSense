@@ -116,21 +116,36 @@ export async function POST(request: NextRequest) {
     const smtpSecure = String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true";
     const allowInvalidTls =
       String(process.env.SMTP_ALLOW_INVALID_TLS ?? "").toLowerCase() === "true";
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      tls: {
-        rejectUnauthorized: !allowInvalidTls,
-      },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 10_000,
-    });
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    const buildTransporter = (options: { port: number; secure: boolean; requireTLS?: boolean }) =>
+      nodemailer.createTransport({
+        host: smtpHost,
+        port: options.port,
+        secure: options.secure,
+        requireTLS: options.requireTLS,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+        tls: {
+          rejectUnauthorized: !allowInvalidTls,
+        },
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 10_000,
+      });
+
+    const isConnectionError = (error: unknown) => {
+      if (!error || typeof error !== "object") return false;
+      const typed = error as { code?: string; command?: string };
+      if (typed.command === "CONN") return true;
+      return ["ETIMEDOUT", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "ECONNRESET"].includes(
+        typed.code ?? "",
+      );
+    };
 
     let htmlBody = template.body ?? "";
     if (project) {
@@ -155,32 +170,54 @@ export async function POST(request: NextRequest) {
     const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
     const plainText = stripHtml(htmlBody);
 
+    const mailPayload = {
+      envelope: {
+        from: fromEmail,
+        to: [payload.recipient],
+      },
+      from: `"${fromName}" <${fromEmail}>`,
+      to: payload.recipient,
+      subject: prefixedSubject,
+      html: composedHtml,
+      text: plainText || undefined,
+      headers: {
+        "X-PhishSense-Preview": "true",
+        "X-PhishSense-Sending-Domain": sendingDomain,
+      },
+    };
+
     let delivery;
+    let usedFallback = false;
+    const sendWithTransport = async (options: {
+      port: number;
+      secure: boolean;
+      requireTLS?: boolean;
+    }) => {
+      const transporter = buildTransporter(options);
+      try {
+        return await transporter.sendMail(mailPayload);
+      } finally {
+        if (typeof transporter.close === "function") {
+          transporter.close();
+        }
+      }
+    };
+
     try {
-      delivery = await transporter.sendMail({
-        envelope: {
-          from: fromEmail,
-          to: [payload.recipient],
-        },
-        from: `"${fromName}" <${fromEmail}>`,
-        to: payload.recipient,
-        subject: prefixedSubject,
-        html: composedHtml,
-        text: plainText || undefined,
-        headers: {
-          "X-PhishSense-Preview": "true",
-          "X-PhishSense-Sending-Domain": sendingDomain,
-        },
-      });
-    } finally {
-      if (typeof transporter.close === "function") {
-        transporter.close();
+      delivery = await sendWithTransport({ port: smtpPort, secure: smtpSecure });
+    } catch (error) {
+      if (smtpPort === 465 && isConnectionError(error)) {
+        usedFallback = true;
+        delivery = await sendWithTransport({ port: 587, secure: false, requireTLS: true });
+      } else {
+        throw error;
       }
     }
 
     return NextResponse.json(
       {
         status: "sent" as const,
+        fallbackPort: usedFallback ? 587 : null,
         messageId: delivery.messageId,
         accepted: Array.isArray(delivery.accepted) ? delivery.accepted.map(String) : [],
         rejected: Array.isArray(delivery.rejected) ? delivery.rejected.map(String) : [],
