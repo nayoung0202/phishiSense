@@ -1,0 +1,9 @@
+
+> rest-express@1.0.0 check
+> tsc
+
+src/lib/tenant.ts(3,42): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/server/index.ts(32,15): error TS2540: Cannot assign to 'NODE_ENV' because it is a read-only property.
+tailwind.config.ts(4,1): error TS7022: 'default' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+vite.config.ts(1,30): error TS2307: Cannot find module 'vite' or its corresponding type declarations.
+vite.config.ts(2,19): error TS2307: Cannot find module '@vitejs/plugin-react' or its corresponding type declarations.

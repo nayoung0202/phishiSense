@@ -1,12 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 
-const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-const isSqlite = databaseUrl.startsWith("file:");
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL이 설정되지 않았습니다. PostgreSQL 연결 문자열을 지정하세요.");
+}
 
 export default defineConfig({
   out: "./migrations",
-  schema: "./server/db/schema.ts",
-  dialect: isSqlite ? "sqlite" : "postgresql",
+  schema: "./src/server/db/schema.ts",
+  dialect: "postgresql",
   dbCredentials: {
     url: databaseUrl,
   },
