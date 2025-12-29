@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { listSmtpConfigs } from "@/lib/api";
+import { deleteSmtpConfig, listSmtpConfigs } from "@/lib/api";
 import type { SmtpConfigSummary } from "@/types/smtp";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SmtpListPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const {
     data,
     isFetching,
@@ -40,6 +44,35 @@ export default function SmtpListPage() {
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
   }, [items]);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      await deleteSmtpConfig(tenantId);
+      return tenantId;
+    },
+    onMutate: (tenantId) => {
+      setDeletingId(tenantId);
+    },
+    onSuccess: (tenantId) => {
+      toast({
+        title: "SMTP 설정을 삭제했습니다.",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["smtp-configs"] });
+      void queryClient.invalidateQueries({ queryKey: ["smtp-config", tenantId] });
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "삭제에 실패했습니다.";
+      toast({ title: "삭제 실패", description: message, variant: "destructive" });
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
+  });
+
+  const handleDelete = (tenantId: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    deleteMutation.mutate(tenantId);
+  };
 
   return (
     <div className="space-y-6 px-4 py-6 lg:px-8">
@@ -103,9 +136,23 @@ export default function SmtpListPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/admin/smtp/${item.tenantId}`)}>
-                          수정
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/admin/smtp/${item.tenantId}`)}
+                          >
+                            수정
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={deleteMutation.isPending && deletingId === item.tenantId}
+                            onClick={() => handleDelete(item.tenantId)}
+                          >
+                            삭제
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

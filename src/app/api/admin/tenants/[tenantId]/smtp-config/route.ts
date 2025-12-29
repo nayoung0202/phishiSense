@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   AdminSmtpError,
+  deleteTenantSmtpConfig,
   fetchTenantSmtpConfig,
   saveTenantSmtpConfig,
 } from "@/server/services/adminSmtpService";
@@ -35,5 +36,18 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json(error.body, { status: error.status });
     }
     return NextResponse.json({ message: "SMTP 설정을 저장하지 못했습니다." }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+  try {
+    const { tenantId } = await params;
+    const result = await deleteTenantSmtpConfig(tenantId);
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof AdminSmtpError) {
+      return NextResponse.json(error.body, { status: error.status });
+    }
+    return NextResponse.json({ message: "SMTP 설정을 삭제하지 못했습니다." }, { status: 500 });
   }
 }

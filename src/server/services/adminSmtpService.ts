@@ -4,6 +4,7 @@ import {
   listSmtpConfigs,
   upsertSmtpConfig,
   updateLastTestResult,
+  deleteSmtpConfig,
   type PersistedSmtpConfig,
 } from "../dao/smtpDao";
 import {
@@ -148,6 +149,22 @@ export async function fetchSmtpConfigSummaries() {
     lastTestStatus: config.lastTestStatus ?? null,
     updatedAt: config.updatedAt,
   }));
+}
+
+export async function deleteTenantSmtpConfig(tenantId: string) {
+  const normalizedTenantId = (tenantId || "").trim();
+  if (!normalizedTenantId) {
+    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
+  }
+  const exists = await getSmtpConfig(normalizedTenantId);
+  if (!exists) {
+    throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
+  }
+  const deleted = await deleteSmtpConfig(normalizedTenantId);
+  if (!deleted) {
+    throw new AdminSmtpError(500, { message: "SMTP 설정 삭제에 실패했습니다." });
+  }
+  return { ok: true };
 }
 
 export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
