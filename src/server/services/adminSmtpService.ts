@@ -41,7 +41,17 @@ const updateSchema = z.object({
 });
 
 const testSchema = z.object({
-  testRecipientEmail: z.string().trim().min(1),
+  testRecipientEmail: z.string().trim().min(1, "테스트 수신 이메일을 입력하세요."),
+  testSubject: z
+    .string()
+    .trim()
+    .max(120, "테스트 메일 제목은 120자 이내로 입력하세요.")
+    .optional(),
+  testBody: z
+    .string()
+    .trim()
+    .max(2000, "테스트 메일 본문은 2000자 이내로 입력하세요.")
+    .optional(),
 });
 
 const redactPattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -283,6 +293,8 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
     await sendTestEmail({
       smtpConfig: config,
       toEmail: normalizedRecipient,
+      subject: parsedBody.testSubject,
+      body: parsedBody.testBody,
     });
     await updateLastTestResult({
       tenantId: normalizedTenantId,
