@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,7 @@ export type SmtpConfigDetailProps = {
 
 export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, onSaveSuccess }: SmtpConfigDetailProps) {
   const { toast } = useToast();
-  const [formDirty, setFormDirty] = useState(false);
   const [formResetKey, setFormResetKey] = useState(0);
-  const [saveAndTestPending, setSaveAndTestPending] = useState(false);
   const formRef = useRef<SmtpConfigFormHandle>(null);
   const queryClient = useQueryClient();
 
@@ -108,7 +106,7 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
       return "테스트 발송은 465 또는 587 포트에서만 지원됩니다.";
     }
     return undefined;
-  }, [configData, formDirty, mode]);
+  }, [configData, mode]);
 
   const canTest = Boolean(!testDisabledReason);
 
@@ -123,22 +121,6 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
     }
     return (configData as SmtpConfigResponse | undefined) ?? null;
   }, [configData, mode, tenantId]);
-
-  const handleSaveThenTest = useCallback(
-    async (payload: TestSmtpConfigPayload) => {
-      if (!formRef.current) return;
-      setSaveAndTestPending(true);
-      try {
-        await formRef.current.submit();
-        await testMutation.mutateAsync(payload);
-      } catch (error) {
-        // 에러는 각 핸들러에서 처리 (토스트 등)
-      } finally {
-        setSaveAndTestPending(false);
-      }
-    },
-    [testMutation],
-  );
 
   const testPanelData = mode === "edit" ? (configData ?? null) : null;
 
@@ -177,17 +159,13 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
         onSubmit={handleSave}
         isSubmitting={updateMutation.isPending}
         disabled={mode === "create" ? updateMutation.isPending : !configData || updateMutation.isPending}
-        onDirtyChange={setFormDirty}
       />
 
       <SmtpTestPanel
         key={`test-${tenantId}-${mode}-${formResetKey}`}
         onSubmit={handleTest}
         isTesting={testMutation.isPending}
-        disabled={!canTest || testMutation.isPending || updateMutation.isPending || saveAndTestPending}
-        canSaveAndTest={formDirty && mode === "edit"}
-        onSaveAndTest={formDirty ? handleSaveThenTest : undefined}
-        saveAndTestPending={saveAndTestPending}
+        disabled={!canTest || testMutation.isPending || updateMutation.isPending}
         disabledReason={testDisabledReason}
         allowedDomains={testPanelData?.allowedRecipientDomains || null}
         lastTestedAt={testPanelData?.lastTestedAt}
