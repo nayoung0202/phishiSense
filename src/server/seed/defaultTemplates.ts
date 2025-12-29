@@ -12,7 +12,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
       "<p>택배 <strong>송장번호 3812-4477</strong> 건이 주소 불일치로 분류센터에서 보류되었습니다.</p>",
       "<p>48시간 내 아래 버튼을 통해 배송지와 연락처를 재확인하지 않으면 반송 처리됩니다.</p>",
       "<p>아래 \"배송지 재등록\" 버튼을 클릭하면 CJ대한통운 주소 재확인센터 페이지로 연결되며, 사내 이메일/사번/OTP를 모두 입력해야 정상 배송으로 처리된다고 안내하는 시나리오입니다.</p>",
-      '<p><a href="https://notice-cjsecure.center/track/38124477/confirm" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">배송지 재등록 바로가기</a></p>',
+      '<p><a href="{{TRAINING_LINK}}" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">배송지 재등록 바로가기</a></p>',
       "<p>버튼으로 이동하는 페이지에 개인정보를 절대 기입하지 않도록 사내에 즉시 공유해주세요.</p>",
     ].join(""),
     maliciousPageContent: [
@@ -53,7 +53,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
       "<p>회사 M365 시스템에서 서울 이외 지역에서의 로그인 시도가 3회 이상 감지되었습니다.</p>",
       "<p>보안을 위해 계정이 임시 잠김 처리되었으며, 1시간 내 보안센터에 접속해 본인 확인을 완료하지 않으면 업무용 메일 접근이 제한됩니다.</p>",
       "<p>아래 \"보안센터 접속\" 버튼을 클릭하면 Microsoft 365 보안센터와 동일하게 보이는 페이지로 이동해 이메일, 비밀번호, OTP, 휴대전화 번호를 모두 검증하라고 안내합니다.</p>",
-      '<p><a href="https://secure-m365review.net/verify/session?step=unlock" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">보안센터 접속</a></p>',
+      '<p><a href="{{TRAINING_LINK}}" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">보안센터 접속</a></p>',
       "<p>버튼으로 열리는 페이지는 공격자가 자격 증명을 수집하기 위해 제작한 악성 사이트이므로 즉시 신고해 주세요.</p>",
     ].join(""),
     maliciousPageContent: [
@@ -91,7 +91,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
       "<p>국세청 연말정산 시스템에서 귀하가 추가 환급 대상자로 분류되었습니다.</p>",
       "<p>환급 절차를 완료하려면 24시간 이내 소득공제 증빙 서류를 업로드해야 하며, 지연 시 환급이 취소됩니다.</p>",
       "<p>아래 버튼을 클릭하면 국세청 연말정산 센터와 동일한 UI의 페이지가 열리며, 개인정보, 계좌 정보, OTP를 모두 요구합니다.</p>",
-      '<p><a href="https://nts-secure-refund.kr/upload" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">환급 서류 제출</a></p>',
+      '<p><a href="{{TRAINING_LINK}}" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:999px; background:#2563eb; color:#ffffff; text-decoration:none; font-weight:600;">환급 서류 제출</a></p>',
       "<p>실제 국세청은 이메일로 직접 서류 업로드를 요구하지 않으니, 이런 메일은 피싱 가능성이 높습니다.</p>",
     ].join(""),
     maliciousPageContent: [
