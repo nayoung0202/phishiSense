@@ -145,7 +145,7 @@ export default function TrainingPages() {
                         </Button>
                       </Link>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleDelete(page.id)}
                         data-testid={`button-delete-${page.id}`}
