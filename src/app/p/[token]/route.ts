@@ -44,6 +44,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const trainingUrl = buildTrainingLinkUrl(normalized);
     const renderedHtml = injectTrainingLink(baseHtml, trainingUrl, {
       replaceSingleAnchor: false,
+      replaceFirstAnchor: true,
+      replaceFirstButton: true,
       appendType: "button",
     });
 
