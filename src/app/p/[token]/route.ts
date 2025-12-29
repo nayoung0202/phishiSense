@@ -40,7 +40,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const baseHtml = template.maliciousPageContent?.trim() || template.body ?? "";
+    const baseHtml = template.maliciousPageContent?.trim() || template.body || "";
     const trainingUrl = buildTrainingLinkUrl(normalized);
     const renderedHtml = injectTrainingLink(baseHtml, trainingUrl, {
       replaceSingleAnchor: false,
