@@ -219,60 +219,68 @@ export class MemStorage implements IStorage {
       target: { start: number; step: number };
     };
 
-    const monthlyThemePool: Omit<MonthlySetting, "year" | "month">[] = [
+    const monthlyThemePool: Array<Pick<MonthlySetting, "campaignName" | "focusDescription">> = [
       {
         campaignName: "계정 보안 재인증 점검",
         focusDescription:
           "계정 보안 재인증 안내를 사칭한 시나리오로 인증 절차 준수 여부를 확인합니다.",
-        statusCycle: ["완료", "완료", "진행중", "예약", "예약"],
-        metrics: { openRate: 0.78, clickRate: 0.2, submitRate: 0.07 },
-        target: { start: 140, step: 10 },
       },
       {
         campaignName: "거래처 요청 위장 대응 훈련",
         focusDescription:
           "거래처 요청과 납품 일정을 위장한 메일을 중심으로 승인 절차를 점검합니다.",
-        statusCycle: ["완료", "진행중", "완료", "진행중", "완료"],
-        metrics: { openRate: 0.76, clickRate: 0.21, submitRate: 0.08 },
-        target: { start: 95, step: 7 },
       },
       {
         campaignName: "복지·근태 정책 안내 점검",
         focusDescription:
           "복지 및 근태 정책 변경 공지를 사칭한 공격 유형에 대한 대응력을 강화합니다.",
-        statusCycle: ["완료", "완료", "진행중", "진행중", "예약"],
-        metrics: { openRate: 0.75, clickRate: 0.19, submitRate: 0.06 },
-        target: { start: 110, step: 9 },
       },
       {
         campaignName: "결제·정산 요청 대응 훈련",
         focusDescription:
           "결제 요청과 정산 안내를 위장한 사회공학 패턴에 대비하는 훈련입니다.",
-        statusCycle: ["진행중", "진행중", "완료", "예약", "예약"],
-        metrics: { openRate: 0.72, clickRate: 0.18, submitRate: 0.05 },
-        target: { start: 130, step: 11 },
       },
       {
         campaignName: "협력사 보안 점검 공지",
         focusDescription:
           "협력사 보안 점검 요청을 사칭한 메일을 통해 대응 절차를 재확인합니다.",
-        statusCycle: ["완료", "완료", "완료", "진행중", "예약"],
-        metrics: { openRate: 0.74, clickRate: 0.2, submitRate: 0.07 },
-        target: { start: 85, step: 6 },
       },
     ];
 
+    const statusPool: Project["status"][] = ["완료", "진행중", "예약"];
+    const getRandomInt = (min: number, max: number) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
+    const getRandomFloat = (min: number, max: number) => Math.random() * (max - min) + min;
+    const pickRandom = <T,>(items: T[]) => items[getRandomInt(0, items.length - 1)];
+    const toRate = (value: number) => Number(value.toFixed(2));
+    const buildStatusCycle = (length: number) =>
+      Array.from({ length }, () => pickRandom(statusPool));
+    const buildMetrics = () => {
+      const openRate = getRandomFloat(0.7, 0.86);
+      const clickRate = Math.min(getRandomFloat(0.12, 0.28), openRate - 0.4);
+      const submitRate = Math.min(getRandomFloat(0.04, 0.12), clickRate * 0.6);
+      return {
+        openRate: toRate(openRate),
+        clickRate: toRate(clickRate),
+        submitRate: toRate(submitRate),
+      };
+    };
+    const buildTarget = () => ({
+      start: getRandomInt(80, 200),
+      step: getRandomInt(6, 14),
+    });
+
     const buildMonthlySettings = (year: number, months: number[]) =>
-      months.map((month, index) => {
-        const theme = monthlyThemePool[index % monthlyThemePool.length];
+      months.map((month) => {
+        const theme = pickRandom(monthlyThemePool);
         return {
           year,
           month,
           campaignName: `${pad(month)}월 ${theme.campaignName}`,
           focusDescription: theme.focusDescription,
-          statusCycle: theme.statusCycle,
-          metrics: theme.metrics,
-          target: theme.target,
+          statusCycle: buildStatusCycle(5),
+          metrics: buildMetrics(),
+          target: buildTarget(),
         };
       });
 
@@ -285,8 +293,7 @@ export class MemStorage implements IStorage {
     ];
 
     const msPerDay = 24 * 60 * 60 * 1000;
-    const getRandomProjectCount = (min: number, max: number) =>
-      Math.floor(Math.random() * (max - min + 1)) + min;
+    const getRandomProjectCount = (min: number, max: number) => getRandomInt(min, max);
     const monthlyProjects: Project[] = [];
     monthlySettings.forEach((setting) => {
       const lastDay = new Date(setting.year, setting.month, 0).getDate();
@@ -845,9 +852,11 @@ export class MemStorage implements IStorage {
 
 export class DbStorage implements IStorage {
   private users: Map<string, User>;
+  private seedDefaultsPromise: Promise<void> | null;
 
   constructor() {
     this.users = new Map();
+    this.seedDefaultsPromise = null;
 
     void seedTemplates();
     void this.seedTargets();
@@ -941,68 +950,82 @@ export class DbStorage implements IStorage {
   }
 
   private async seedDefaults() {
-    if (process.env.NODE_ENV === "production") return;
+    if (this.seedDefaultsPromise) {
+      await this.seedDefaultsPromise;
+      return;
+    }
 
+    const seedTask = async () => {
+      if (process.env.NODE_ENV === "production") return;
+
+      try {
+        const [existingProjects, existingPages] = await Promise.all([
+          listProjects(),
+          listTrainingPages(),
+        ]);
+
+        const shouldSeedProjects = existingProjects.length === 0;
+        const shouldSeedPages = existingPages.length === 0;
+        if (!shouldSeedProjects && !shouldSeedPages) return;
+
+        const memSeed = new MemStorage();
+
+        if (shouldSeedProjects) {
+          const projects = await memSeed.getProjects();
+          for (const project of projects) {
+            await createProjectRecord({
+              id: project.id,
+              name: project.name,
+              description: project.description,
+              department: project.department,
+              departmentTags: project.departmentTags ?? [],
+              templateId: project.templateId ?? null,
+              trainingPageId: project.trainingPageId ?? null,
+              trainingLinkToken: project.trainingLinkToken ?? null,
+              sendingDomain: project.sendingDomain ?? null,
+              fromName: project.fromName ?? null,
+              fromEmail: project.fromEmail ?? null,
+              timezone: project.timezone ?? null,
+              notificationEmails: project.notificationEmails ?? [],
+              startDate: project.startDate,
+              endDate: project.endDate,
+              status: project.status,
+              targetCount: project.targetCount ?? null,
+              openCount: project.openCount ?? null,
+              clickCount: project.clickCount ?? null,
+              submitCount: project.submitCount ?? null,
+              fiscalYear: project.fiscalYear ?? null,
+              fiscalQuarter: project.fiscalQuarter ?? null,
+              weekOfYear: project.weekOfYear ?? [],
+              createdAt: project.createdAt ?? new Date(),
+            });
+          }
+        }
+
+        if (shouldSeedPages) {
+          const pages = await memSeed.getTrainingPages();
+          for (const page of pages) {
+            await createTrainingPageRecord({
+              id: page.id,
+              name: page.name,
+              description: page.description,
+              content: page.content,
+              status: page.status ?? null,
+              createdAt: page.createdAt ?? new Date(),
+              updatedAt: page.updatedAt ?? new Date(),
+            });
+          }
+        }
+      } catch (error) {
+        console.error("[db_seed_defaults_failed]", error);
+      }
+    };
+
+    this.seedDefaultsPromise = seedTask();
     try {
-      const [existingProjects, existingPages] = await Promise.all([
-        listProjects(),
-        listTrainingPages(),
-      ]);
-
-      const shouldSeedProjects = existingProjects.length === 0;
-      const shouldSeedPages = existingPages.length === 0;
-      if (!shouldSeedProjects && !shouldSeedPages) return;
-
-      const memSeed = new MemStorage();
-
-      if (shouldSeedProjects) {
-        const projects = await memSeed.getProjects();
-        for (const project of projects) {
-          await createProjectRecord({
-            id: project.id,
-            name: project.name,
-            description: project.description,
-            department: project.department,
-            departmentTags: project.departmentTags ?? [],
-            templateId: project.templateId ?? null,
-            trainingPageId: project.trainingPageId ?? null,
-            trainingLinkToken: project.trainingLinkToken ?? null,
-            sendingDomain: project.sendingDomain ?? null,
-            fromName: project.fromName ?? null,
-            fromEmail: project.fromEmail ?? null,
-            timezone: project.timezone ?? null,
-            notificationEmails: project.notificationEmails ?? [],
-            startDate: project.startDate,
-            endDate: project.endDate,
-            status: project.status,
-            targetCount: project.targetCount ?? null,
-            openCount: project.openCount ?? null,
-            clickCount: project.clickCount ?? null,
-            submitCount: project.submitCount ?? null,
-            fiscalYear: project.fiscalYear ?? null,
-            fiscalQuarter: project.fiscalQuarter ?? null,
-            weekOfYear: project.weekOfYear ?? [],
-            createdAt: project.createdAt ?? new Date(),
-          });
-        }
-      }
-
-      if (shouldSeedPages) {
-        const pages = await memSeed.getTrainingPages();
-        for (const page of pages) {
-          await createTrainingPageRecord({
-            id: page.id,
-            name: page.name,
-            description: page.description,
-            content: page.content,
-            status: page.status ?? null,
-            createdAt: page.createdAt ?? new Date(),
-            updatedAt: page.updatedAt ?? new Date(),
-          });
-        }
-      }
-    } catch (error) {
-      console.error("[db_seed_defaults_failed]", error);
+      await this.seedDefaultsPromise;
+    } finally {
+      this.seedDefaultsPromise = null;
     }
   }
 
@@ -1025,7 +1048,12 @@ export class DbStorage implements IStorage {
 
   // Projects
   async getProjects(): Promise<Project[]> {
-    return listProjects();
+    const projects = await listProjects();
+    if (projects.length === 0 && process.env.NODE_ENV !== "production") {
+      await this.seedDefaults();
+      return listProjects();
+    }
+    return projects;
   }
 
   async getProject(id: string): Promise<Project | undefined> {
