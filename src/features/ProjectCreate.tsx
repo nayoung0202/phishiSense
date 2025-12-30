@@ -128,7 +128,7 @@ const projectFormSchema = z
     departmentTags: z.array(z.string()).min(1, "부서 태그를 선택하세요."),
     templateId: z.string().min(1, "템플릿을 선택하세요."),
     trainingPageId: z.string().min(1, "랜딩 페이지를 선택하세요."),
-    sendingDomain: z.string().min(1, "발신 도메인(SMTP)을 입력하세요."),
+    sendingDomain: z.string().min(1, "발신 도메인 (SMTP)을 입력하세요."),
     fromName: z.string().min(1, "발신자 이름을 입력하세요."),
     fromEmail: z.string().email("올바른 이메일 주소를 입력하세요."),
     startDate: z.date({
@@ -1548,16 +1548,18 @@ export default function ProjectCreate() {
                                     </Badge>
                                   </span>
                                 ) : (
-                                  "SMTP 도메인을 선택하세요"
+                                  "발신 도메인 (SMTP)을 선택하세요"
                                 )}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[320px] p-0">
                               <Command>
-                                <CommandInput placeholder="SMTP 도메인 검색" />
+                                <CommandInput placeholder="발신 도메인 (SMTP) 검색" />
                                 <CommandEmpty>
-                                  {hasSmtpDomains ? "검색 결과가 없습니다." : "등록된 SMTP 도메인이 없습니다."}
+                                  {hasSmtpDomains
+                                    ? "검색 결과가 없습니다."
+                                    : "등록된 발신 도메인 (SMTP)이 없습니다."}
                                 </CommandEmpty>
                                 <CommandList>
                                   <CommandGroup>
