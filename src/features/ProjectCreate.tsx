@@ -49,6 +49,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCustomDepartments } from "@/hooks/useCustomDepartments";
 import { CustomDepartmentManager } from "@/components/CustomDepartmentManager";
 import { cn } from "@/lib/utils";
+import { listSmtpConfigs } from "@/lib/api";
+import type { SmtpConfigSummary } from "@/types/smtp";
 import {
   AlertCircle,
   ArrowLeftCircle,
@@ -163,12 +165,12 @@ const DEFAULT_VALUES: ProjectFormValues = {
   allowDuplicateTargets: false,
 };
 
-const DOMAIN_OPTIONS = [
-  { value: "security.phishsense.dev", label: "security.phishsense.dev", status: "인증 완료" },
-  { value: "alerts.phishsense.dev", label: "alerts.phishsense.dev", status: "활성" },
-  { value: "training.phishsense.dev", label: "training.phishsense.dev", status: "인증 만료" },
-  { value: "evriz.co.kr", label: "evriz.co.kr", status: "신규" },
-];
+const extractDomainFromEmail = (value?: string | null) => {
+  if (!value) return "";
+  const parts = value.split("@");
+  if (parts.length < 2) return "";
+  return parts[1].trim().toLowerCase();
+};
 
 const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
   const messages: string[] = [];
@@ -295,6 +297,11 @@ export default function ProjectCreate() {
   const { data: existingProjects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
+
+  const { data: smtpConfigs = [] } = useQuery<SmtpConfigSummary[]>({
+    queryKey: ["smtp-configs"],
+    queryFn: listSmtpConfigs,
+  });
   const { customDepartments, addCustomDepartment, removeCustomDepartment } = useCustomDepartments();
 
   const selectedTargetIds = form.watch("targetIds") ?? [];
@@ -320,6 +327,23 @@ export default function ProjectCreate() {
   const endDateKey = endDateValue?.getTime() ?? null;
 
   const allTargetIds = useMemo(() => targets.map((target) => target.id), [targets]);
+
+  const smtpDomainOptions = useMemo(() => {
+    const domainSet = new Set<string>();
+    smtpConfigs.forEach((config) => {
+      (config.allowedRecipientDomains ?? []).forEach((domain) => {
+        const normalized = domain.trim().toLowerCase();
+        if (normalized) domainSet.add(normalized);
+      });
+      const fromDomain = extractDomainFromEmail(config.fromEmail);
+      if (fromDomain) domainSet.add(fromDomain);
+    });
+    return Array.from(domainSet).map((domain) => ({
+      value: domain,
+      label: domain,
+    }));
+  }, [smtpConfigs]);
+  const hasSmtpDomains = smtpDomainOptions.length > 0;
 
   const targetLookup = useMemo(() => {
     const map = new Map<string, Target>();
@@ -1521,18 +1545,20 @@ export default function ProjectCreate() {
                                     </Badge>
                                   </span>
                                 ) : (
-                                  "도메인을 선택하세요"
+                                  "SMTP 도메인을 선택하세요"
                                 )}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[320px] p-0">
                               <Command>
-                                <CommandInput placeholder="도메인 검색" />
-                                <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                                <CommandInput placeholder="SMTP 도메인 검색" />
+                                <CommandEmpty>
+                                  {hasSmtpDomains ? "검색 결과가 없습니다." : "등록된 SMTP 도메인이 없습니다."}
+                                </CommandEmpty>
                                 <CommandList>
                                   <CommandGroup>
-                                    {DOMAIN_OPTIONS.map((option, index) => (
+                                    {smtpDomainOptions.map((option) => (
                                       <CommandItem
                                         key={option.value}
                                         value={option.value}
@@ -1548,12 +1574,6 @@ export default function ProjectCreate() {
                                             SMTP
                                           </Badge>
                                         </div>
-                                        <Badge
-                                          variant={index === 2 ? "destructive" : "outline"}
-                                          className="text-xs"
-                                        >
-                                          {option.status}
-                                        </Badge>
                                       </CommandItem>
                                     ))}
                                   </CommandGroup>
