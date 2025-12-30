@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import type { SmtpConfigResponse, UpdateSmtpConfigPayload } from "@/types/smtp";
@@ -412,6 +413,19 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2 rounded-md border px-3 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="smtp-active">SMTP 상태</Label>
+                  <p className="text-xs text-muted-foreground">비활성화 시 발송 및 테스트가 제한됩니다.</p>
+                </div>
+                <Switch
+                  id="smtp-active"
+                  checked={formState.isActive}
+                  onCheckedChange={(checked) => handleChange("isActive", checked)}
+                  disabled={disabled}
+                />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
