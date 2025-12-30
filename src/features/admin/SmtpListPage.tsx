@@ -145,7 +145,7 @@ export default function SmtpListPage() {
                             수정
                           </Button>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
                             disabled={deleteMutation.isPending && deletingId === item.tenantId}
                             onClick={() => handleDelete(item.tenantId)}
