@@ -41,9 +41,10 @@ export function SmtpTestPanel({
 
   const emailValue = recipient.trim();
   const isEmailValid = emailRegex.test(emailValue);
-  const subjectValue = typeof testSubject === "string" ? testSubject : "";
-  const bodyValue = typeof testBody === "string" ? testBody : "";
-  const isMessageValid = subjectValue.trim().length > 0 && bodyValue.trim().length > 0;
+  const subjectValue = typeof testSubject === "string" ? testSubject.trim() : "";
+  const bodyValue = typeof testBody === "string" ? testBody.trim() : "";
+  const hasCustomMessage = subjectValue.length > 0 || bodyValue.length > 0;
+  const isMessageValid = !hasCustomMessage || (subjectValue.length > 0 && bodyValue.length > 0);
 
   const domainHint = useMemo(() => {
     if (!allowedDomains || allowedDomains.length === 0) return "허용된 도메인 제한 없음";
@@ -70,11 +71,14 @@ export function SmtpTestPanel({
       if (disabled || !isEmailValid || !isMessageValid) return;
       setErrorMessage(null);
       try {
-        await onSubmit({
-          testRecipientEmail: emailValue,
-          testSubject: subjectValue,
-          testBody: bodyValue,
-        });
+        const payload: TestSmtpConfigPayload = { testRecipientEmail: emailValue };
+        if (subjectValue.length > 0) {
+          payload.testSubject = subjectValue;
+        }
+        if (bodyValue.length > 0) {
+          payload.testBody = bodyValue;
+        }
+        await onSubmit(payload);
       } catch (error) {
         if (error instanceof Error) {
           setErrorMessage(error.message);
