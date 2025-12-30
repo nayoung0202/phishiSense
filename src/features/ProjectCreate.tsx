@@ -126,7 +126,7 @@ const projectFormSchema = z
     departmentTags: z.array(z.string()).min(1, "부서 태그를 선택하세요."),
     templateId: z.string().min(1, "템플릿을 선택하세요."),
     trainingPageId: z.string().min(1, "랜딩 페이지를 선택하세요."),
-    sendingDomain: z.string().min(1, "발신 도메인을 입력하세요."),
+    sendingDomain: z.string().min(1, "발신 도메인(SMTP)을 입력하세요."),
     fromName: z.string().min(1, "발신자 이름을 입력하세요."),
     fromEmail: z.string().email("올바른 이메일 주소를 입력하세요."),
     startDate: z.date({
@@ -1499,7 +1499,7 @@ export default function ProjectCreate() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          발신 도메인<span className="ml-1 text-destructive">*</span>
+                          발신 도메인(SMTP)<span className="ml-1 text-destructive">*</span>
                         </FormLabel>
                         <FormControl>
                           <Popover
@@ -1513,7 +1513,16 @@ export default function ProjectCreate() {
                                 role="combobox"
                                 className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                               >
-                                {field.value || "도메인을 선택하세요"}
+                                {field.value ? (
+                                  <span className="flex items-center gap-2">
+                                    <span>{field.value}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      SMTP
+                                    </Badge>
+                                  </span>
+                                ) : (
+                                  "도메인을 선택하세요"
+                                )}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
@@ -1533,7 +1542,12 @@ export default function ProjectCreate() {
                                         }}
                                         className="flex items-center justify-between gap-2"
                                       >
-                                        <span>{option.label}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span>{option.label}</span>
+                                          <Badge variant="outline" className="text-xs">
+                                            SMTP
+                                          </Badge>
+                                        </div>
                                         <Badge
                                           variant={index === 2 ? "destructive" : "outline"}
                                           className="text-xs"
