@@ -329,7 +329,16 @@ export default function ProjectCreate() {
   const allTargetIds = useMemo(() => targets.map((target) => target.id), [targets]);
 
   const smtpDomainOptions = useMemo(() => {
-    return smtpConfigs.flatMap((config) => {
+    type DomainOption = {
+      value: string;
+      label: string;
+      securityMode: SmtpConfigSummary["securityMode"];
+      isActive: boolean;
+      updatedAt: string;
+    };
+    const domainMap = new Map<string, DomainOption>();
+
+    smtpConfigs.forEach((config) => {
       const domainSet = new Set<string>();
       (config.allowedRecipientDomains ?? []).forEach((domain) => {
         const normalized = domain.trim().toLowerCase();
@@ -339,14 +348,37 @@ export default function ProjectCreate() {
         const fromDomain = extractDomainFromEmail(config.fromEmail);
         if (fromDomain) domainSet.add(fromDomain);
       }
-      return Array.from(domainSet).map((domain) => ({
-        key: `${config.tenantId}-${domain}`,
-        value: domain,
-        label: domain,
-      }));
+
+      domainSet.forEach((domain) => {
+        const existing = domainMap.get(domain);
+        const candidate: DomainOption = {
+          value: domain,
+          label: domain,
+          securityMode: config.securityMode,
+          isActive: config.isActive,
+          updatedAt: config.updatedAt ?? "",
+        };
+        if (!existing) {
+          domainMap.set(domain, candidate);
+          return;
+        }
+        const isBetter =
+          (candidate.isActive && !existing.isActive) ||
+          (candidate.isActive === existing.isActive &&
+            candidate.updatedAt.localeCompare(existing.updatedAt) > 0);
+        if (isBetter) {
+          domainMap.set(domain, candidate);
+        }
+      });
     });
+
+    return Array.from(domainMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [smtpConfigs]);
   const hasSmtpDomains = smtpDomainOptions.length > 0;
+  const selectedDomainOption = useMemo(
+    () => smtpDomainOptions.find((option) => option.value === sendingDomain) ?? null,
+    [smtpDomainOptions, sendingDomain],
+  );
 
   const targetLookup = useMemo(() => {
     const map = new Map<string, Target>();
@@ -1543,9 +1575,11 @@ export default function ProjectCreate() {
                                 {field.value ? (
                                   <span className="flex items-center gap-2">
                                     <span>{field.value}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      SMTP
-                                    </Badge>
+                                    {selectedDomainOption ? (
+                                      <Badge variant="outline" className="text-xs">
+                                        {selectedDomainOption.securityMode}
+                                      </Badge>
+                                    ) : null}
                                   </span>
                                 ) : (
                                   "발신 도메인 (SMTP)을 선택하세요"
@@ -1565,7 +1599,7 @@ export default function ProjectCreate() {
                                   <CommandGroup>
                                     {smtpDomainOptions.map((option) => (
                                       <CommandItem
-                                        key={option.key}
+                                        key={option.value}
                                         value={option.value}
                                         onSelect={() => {
                                           field.onChange(option.value);
@@ -1576,7 +1610,7 @@ export default function ProjectCreate() {
                                         <div className="flex items-center gap-2">
                                           <span>{option.label}</span>
                                           <Badge variant="outline" className="text-xs">
-                                            SMTP
+                                            {option.securityMode}
                                           </Badge>
                                         </div>
                                       </CommandItem>
