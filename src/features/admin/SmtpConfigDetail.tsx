@@ -6,7 +6,6 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SmtpConfigForm, createEmptySmtpConfig, type SmtpConfigFormHandle } from "@/components/admin/SmtpConfigForm";
-import { DEFAULT_SMTP_TEST_BODY, DEFAULT_SMTP_TEST_SUBJECT, SmtpTestMessageForm } from "@/components/admin/SmtpTestMessageForm";
 import { SmtpTestPanel } from "@/components/admin/SmtpTestPanel";
 import { getSmtpConfig, testSmtpConfig, updateSmtpConfig } from "@/lib/api";
 import type { SmtpConfigResponse, TestSmtpConfigPayload, UpdateSmtpConfigPayload } from "@/types/smtp";
@@ -26,8 +25,6 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
   const [formResetKey, setFormResetKey] = useState(0);
   const formRef = useRef<SmtpConfigFormHandle>(null);
   const queryClient = useQueryClient();
-  const [testSubject, setTestSubject] = useState(DEFAULT_SMTP_TEST_SUBJECT);
-  const [testBody, setTestBody] = useState(DEFAULT_SMTP_TEST_BODY);
 
   const shouldFetch = mode === "edit" && Boolean(tenantId);
   const {
@@ -164,14 +161,6 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
         disabled={mode === "create" ? updateMutation.isPending : !configData || updateMutation.isPending}
       />
 
-      <SmtpTestMessageForm
-        subject={testSubject}
-        body={testBody}
-        onSubjectChange={setTestSubject}
-        onBodyChange={setTestBody}
-        disabled={testMutation.isPending}
-      />
-
       <SmtpTestPanel
         key={`test-${tenantId}-${mode}-${formResetKey}`}
         onSubmit={handleTest}
@@ -182,8 +171,6 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
         lastTestedAt={testPanelData?.lastTestedAt}
         lastTestStatus={testPanelData?.lastTestStatus}
         lastTestError={testPanelData?.lastTestError}
-        testSubject={testSubject}
-        testBody={testBody}
       />
     </div>
   );
