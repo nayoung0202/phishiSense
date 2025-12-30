@@ -1128,6 +1128,7 @@ export class DbStorage implements IStorage {
 
     void seedTemplates();
     void this.seedTargets();
+    void this.seedDefaults();
   }
 
   private parseDate(value: unknown, fallback?: Date): Date {
@@ -1213,6 +1214,72 @@ export class DbStorage implements IStorage {
       const existing = await findTargetByEmailRecord(target.email);
       if (existing) continue;
       await this.createTarget(target);
+    }
+  }
+
+  private async seedDefaults() {
+    if (process.env.NODE_ENV === "production") return;
+
+    try {
+      const [existingProjects, existingPages] = await Promise.all([
+        listProjects(),
+        listTrainingPages(),
+      ]);
+
+      const shouldSeedProjects = existingProjects.length === 0;
+      const shouldSeedPages = existingPages.length === 0;
+      if (!shouldSeedProjects && !shouldSeedPages) return;
+
+      const memSeed = new MemStorage();
+
+      if (shouldSeedProjects) {
+        const projects = await memSeed.getProjects();
+        for (const project of projects) {
+          await createProjectRecord({
+            id: project.id,
+            name: project.name,
+            description: project.description,
+            department: project.department,
+            departmentTags: project.departmentTags ?? [],
+            templateId: project.templateId ?? null,
+            trainingPageId: project.trainingPageId ?? null,
+            trainingLinkToken: project.trainingLinkToken ?? null,
+            sendingDomain: project.sendingDomain ?? null,
+            fromName: project.fromName ?? null,
+            fromEmail: project.fromEmail ?? null,
+            timezone: project.timezone ?? null,
+            notificationEmails: project.notificationEmails ?? [],
+            startDate: project.startDate,
+            endDate: project.endDate,
+            status: project.status,
+            targetCount: project.targetCount ?? null,
+            openCount: project.openCount ?? null,
+            clickCount: project.clickCount ?? null,
+            submitCount: project.submitCount ?? null,
+            fiscalYear: project.fiscalYear ?? null,
+            fiscalQuarter: project.fiscalQuarter ?? null,
+            weekOfYear: project.weekOfYear ?? [],
+            createdAt: project.createdAt ?? new Date(),
+          });
+        }
+      }
+
+      if (shouldSeedPages) {
+        const pages = await memSeed.getTrainingPages();
+        for (const page of pages) {
+          await createTrainingPageRecord({
+            id: page.id,
+            name: page.name,
+            description: page.description,
+            content: page.content,
+            status: page.status ?? null,
+            createdAt: page.createdAt ?? new Date(),
+            updatedAt: page.updatedAt ?? new Date(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[db_seed_defaults_failed]", error);
     }
   }
 
