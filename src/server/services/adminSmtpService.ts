@@ -61,6 +61,21 @@ const extractEmailDomain = (value?: string | null) => {
   return domain.trim().toLowerCase();
 };
 
+const normalizeDomains = (domains?: string[] | null) =>
+  Array.from(
+    new Set(
+      (domains ?? [])
+        .map((domain) => domain.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ).sort();
+
+const normalizeOptional = (value?: string | null) => (value ?? "").trim() || null;
+const normalizeEmail = (value?: string | null) => {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed.toLowerCase() : null;
+};
+
 const sanitizeErrorMessage = (raw: string, config: PersistedSmtpConfig) => {
   const secrets = [config.password ?? "", config.username ?? ""]
     .filter((value) => Boolean(value))
@@ -192,9 +207,73 @@ export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
     });
     await assertHostNotPrivateOrLocal(normalized.host);
 
-    const allowedDomains = parsed.allowedRecipientDomains?.map((domain) =>
-      domain.trim().toLowerCase(),
-    );
+    const normalizedAllowedDomains = normalizeDomains(parsed.allowedRecipientDomains);
+    const allowedDomains = parsed.allowedRecipientDomains ? normalizedAllowedDomains : undefined;
+    const fromEmailDomain = extractEmailDomain(parsed.fromEmail);
+    const candidateDomains = new Set<string>(normalizedAllowedDomains);
+    if (fromEmailDomain) {
+      candidateDomains.add(fromEmailDomain);
+    }
+
+    const configs = await listSmtpConfigs();
+    for (const config of configs) {
+      if (config.tenantId === normalizedTenantId) continue;
+      const existingDomains = new Set<string>(normalizeDomains(config.allowedRecipientDomains));
+      const existingFromDomain = extractEmailDomain(config.fromEmail);
+      if (existingFromDomain) {
+        existingDomains.add(existingFromDomain);
+      }
+      const duplicateDomain = Array.from(candidateDomains).find((domain) =>
+        existingDomains.has(domain),
+      );
+      if (duplicateDomain) {
+        throw new AdminSmtpError(409, {
+          message: `이미 등록된 도메인입니다. (${duplicateDomain})`,
+        });
+      }
+    }
+
+    const candidateConfig = {
+      host: normalized.host,
+      port: normalized.port,
+      securityMode: normalized.securityMode,
+      username: normalizeOptional(parsed.username),
+      fromEmail: normalizeEmail(parsed.fromEmail),
+      fromName: normalizeOptional(parsed.fromName),
+      replyTo: normalizeEmail(parsed.replyTo),
+      tlsVerify: parsed.tlsVerify ?? true,
+      rateLimitPerMin: parsed.rateLimitPerMin ?? 60,
+      allowedRecipientDomains: normalizedAllowedDomains,
+      isActive: parsed.isActive ?? true,
+      password: parsed.password ? parsed.password.trim() : null,
+    };
+
+    const hasSameConfig = configs.some((config) => {
+      if (config.tenantId === normalizedTenantId) return false;
+      const existingAllowedDomains = normalizeDomains(config.allowedRecipientDomains);
+      const baseMatches =
+        normalized.host === config.host &&
+        normalized.port === config.port &&
+        normalized.securityMode === config.securityMode &&
+        normalizeOptional(config.username) === candidateConfig.username &&
+        normalizeEmail(config.fromEmail) === candidateConfig.fromEmail &&
+        normalizeOptional(config.fromName) === candidateConfig.fromName &&
+        normalizeEmail(config.replyTo) === candidateConfig.replyTo &&
+        (config.tlsVerify ?? true) === candidateConfig.tlsVerify &&
+        (config.rateLimitPerMin ?? 60) === candidateConfig.rateLimitPerMin &&
+        config.isActive === candidateConfig.isActive &&
+        existingAllowedDomains.join("|") === candidateConfig.allowedRecipientDomains.join("|");
+
+      if (!baseMatches) return false;
+      if (candidateConfig.password) {
+        return (config.password ?? null) === candidateConfig.password;
+      }
+      return true;
+    });
+
+    if (hasSameConfig) {
+      throw new AdminSmtpError(409, { message: "동일한 SMTP 설정이 이미 등록되어 있습니다." });
+    }
 
     await upsertSmtpConfig({
       tenantId: normalizedTenantId,
@@ -214,6 +293,9 @@ export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
 
     return { ok: true };
   } catch (error) {
+    if (error instanceof AdminSmtpError) {
+      throw error;
+    }
     if (error instanceof z.ZodError) {
       throw new AdminSmtpError(400, {
         message: "입력값을 확인하세요.",
