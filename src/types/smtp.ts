@@ -46,6 +46,7 @@ export type SmtpConfigSummary = {
   port: number;
   securityMode: SecurityMode;
   fromEmail: string;
+  allowedRecipientDomains?: string[] | null;
   isActive: boolean;
   hasPassword: boolean;
   lastTestedAt?: string | null;
