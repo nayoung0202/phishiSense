@@ -33,6 +33,8 @@ export function SmtpTestPanel({
   lastTestStatus,
   lastTestError,
   disabledReason,
+  testSubject,
+  testBody,
 }: Props) {
   const [recipient, setRecipient] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
