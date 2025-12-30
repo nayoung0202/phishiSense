@@ -169,229 +169,6 @@ export class MemStorage implements IStorage {
     const [template1, template2, template3] = DEFAULT_TEMPLATES;
 
     // Seed projects
-    const project1: Project = {
-      id: randomUUID(),
-      name: "신입사원 대상 보안 교육",
-      description:
-        "신규 입사자의 보안 인식 강화를 위한 집중 과정입니다. 영업 35%, 개발 25%, 인사 20%, 기타 20% 분포로 구성된 참가자를 대상으로 기본 피싱 대응 절차를 실습합니다.",
-      department: "인사부",
-      departmentTags: ["인사부", "신입교육"],
-      templateId: template2.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["security@company.com"],
-      startDate: new Date("2024-09-02"),
-      endDate: new Date("2024-09-27"),
-      status: "진행중",
-      targetCount: 45,
-      openCount: 20,
-      clickCount: 5,
-      submitCount: 2,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2024-08-20"),
-    };
-
-    const project2: Project = {
-      id: randomUUID(),
-      name: "임직원 전체 정기 모의훈련 (1분기)",
-      description:
-        "전사 보안 인식 점검을 위한 정기 모의훈련입니다. 영업 30%, 기술 25%, 관리 20%, 인사 15%, 기타 10% 구성으로 광범위한 부서를 포괄하며 반응률이 높은 편입니다.",
-      department: "전사",
-      departmentTags: ["전사", "정기훈련"],
-      templateId: template1.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["security@company.com", "ciso@company.com"],
-      startDate: new Date("2024-01-15"),
-      endDate: new Date("2024-02-02"),
-      status: "완료",
-      targetCount: 320,
-      openCount: 218,
-      clickCount: 58,
-      submitCount: 22,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2024-01-02"),
-    };
-
-    const project3: Project = {
-      id: randomUUID(),
-      name: "영업본부 대상 피싱 메일 인식 테스트",
-      description:
-        "영업본부 대응력을 점검하기 위한 실전형 테스트입니다. 영업 70%, 개발 15%, 관리 15% 비중으로 구성되어 있으며 클릭률이 높아 인식 보완이 필요합니다.",
-      department: "영업본부",
-      departmentTags: ["영업본부", "집중훈련"],
-      templateId: template1.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["sales@company.com"],
-      startDate: new Date("2024-06-03"),
-      endDate: new Date("2024-06-21"),
-      status: "진행중",
-      targetCount: 85,
-      openCount: 51,
-      clickCount: 23,
-      submitCount: 9,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2024-05-24"),
-    };
-
-    const project4: Project = {
-      id: randomUUID(),
-      name: "관리부 대상 내부결재 위장 메일 훈련",
-      description: null,
-      department: "관리부",
-      departmentTags: ["관리부", "4분기", "예약훈련"],
-      templateId: template2.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["compliance@company.com"],
-      startDate: new Date("2025-10-25T09:00:00"),
-      endDate: new Date("2025-11-08T18:00:00"),
-      status: "예약",
-      targetCount: 40,
-      openCount: null,
-      clickCount: null,
-      submitCount: null,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2025-09-30"),
-    };
-
-    const project5: Project = {
-      id: randomUUID(),
-      name: "보안담당자 대상 역훈련 (피싱 판별 테스트)",
-      description:
-        "보안 담당자 그룹을 대상으로 한 판별 역테스트입니다. 참가자 전원이 보안 부서로 구성되어 있으며 인식과 제출률이 매우 높은 것이 특징입니다.",
-      department: "보안팀",
-      departmentTags: ["보안팀", "역훈련"],
-      templateId: template1.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["soc@company.com"],
-      startDate: new Date("2024-03-11"),
-      endDate: new Date("2024-03-22"),
-      status: "완료",
-      targetCount: 25,
-      openCount: 23,
-      clickCount: 1,
-      submitCount: 8,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2024-02-28"),
-    };
-
-    const project2025Q1: Project = {
-      id: randomUUID(),
-      name: "2025년 Q1 전사 피싱 훈련",
-      description:
-        "2025년 1분기 전사 대상 모의훈련입니다. 훈련 종료 후 결과 보고서가 배포되었습니다.",
-      department: "전사",
-      departmentTags: ["전사", "정기훈련"],
-      templateId: template1.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["security@company.com"],
-      startDate: new Date("2025-01-13T09:00:00"),
-      endDate: new Date("2025-01-31T18:00:00"),
-      status: "완료",
-      targetCount: 310,
-      openCount: 240,
-      clickCount: 62,
-      submitCount: 18,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2024-12-20"),
-    };
-
-    const project2025Q2: Project = {
-      id: randomUUID(),
-      name: "개발본부 대상 심화 피싱 훈련",
-      description:
-        "개발본부의 보안 인식을 강화하기 위한 심화 과정으로, 실시간 모니터링을 수행 중입니다.",
-      department: "개발본부",
-      departmentTags: ["개발본부", "심화과정"],
-      templateId: template2.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["devlead@company.com"],
-      startDate: new Date("2025-05-06T10:00:00"),
-      endDate: new Date("2025-05-24T18:30:00"),
-      status: "진행중",
-      targetCount: 120,
-      openCount: 54,
-      clickCount: 19,
-      submitCount: 7,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2025-04-15"),
-    };
-
-    const project2025Q3: Project = {
-      id: randomUUID(),
-      name: "2025 Q3 경영지원부 예약 훈련",
-      description:
-        "경영지원부 임직원을 대상으로 한 예약형 훈련으로, 개인정보 유출 시나리오를 활용합니다.",
-      department: "경영지원부",
-      departmentTags: ["경영지원부", "예약훈련"],
-      templateId: template1.id,
-      trainingPageId: null,
-      trainingLinkToken: this.createTrainingLinkToken(),
-      sendingDomain: "security.phishsense.dev",
-      fromName: "정보보안팀",
-      fromEmail: "security@company.com",
-      timezone: "Asia/Seoul",
-      notificationEmails: ["gss@company.com"],
-      startDate: new Date("2025-08-19T09:30:00"),
-      endDate: new Date("2025-09-02T18:00:00"),
-      status: "예약",
-      targetCount: 65,
-      openCount: null,
-      clickCount: null,
-      submitCount: null,
-      fiscalYear: null,
-      fiscalQuarter: null,
-      weekOfYear: [],
-      createdAt: new Date("2025-07-28"),
-    };
-
     const pad = (value: number) => String(value).padStart(2, "0");
     const daySlots = [2, 5, 8, 11, 14, 17, 20, 23, 26, 28];
     const departmentPool = [
@@ -556,11 +333,12 @@ export class MemStorage implements IStorage {
     ];
 
     const msPerDay = 24 * 60 * 60 * 1000;
+    const monthlyProjectCount = 3;
     const monthlyProjects: Project[] = [];
     monthlySettings.forEach((setting) => {
       const lastDay = new Date(setting.year, setting.month, 0).getDate();
       const monthLabel = `${setting.year}년 ${pad(setting.month)}월`;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < monthlyProjectCount; i++) {
         const departmentInfo = departmentPool[(i + setting.month) % departmentPool.length];
         const baseDay = daySlots[i] ?? daySlots[daySlots.length - 1];
         const startDay = Math.min(baseDay, Math.max(1, lastDay - 2));
@@ -625,17 +403,7 @@ export class MemStorage implements IStorage {
       }
     });
 
-    const seedProjects = [
-      project1,
-      project2,
-      project3,
-      project4,
-      project5,
-      project2025Q1,
-      project2025Q2,
-      project2025Q3,
-      ...monthlyProjects,
-    ];
+    const seedProjects = [...monthlyProjects];
 
     seedProjects.forEach((project) => {
       const startDate = this.parseDate(project.startDate);
