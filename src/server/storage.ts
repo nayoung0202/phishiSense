@@ -219,125 +219,79 @@ export class MemStorage implements IStorage {
       target: { start: number; step: number };
     };
 
-    const monthlySettings: MonthlySetting[] = [
+    const monthlyThemePool: Omit<MonthlySetting, "year" | "month">[] = [
       {
-        year: 2024,
-        month: 1,
-        campaignName: "신년 인증 절차 점검",
+        campaignName: "계정 보안 재인증 점검",
         focusDescription:
-          "연초 계정 초기화 시즌을 악용한 피싱 메일 시나리오로 사용자 인증 절차 준수 여부를 확인합니다.",
-        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
-        metrics: { openRate: 0.82, clickRate: 0.21, submitRate: 0.08 },
-        target: { start: 150, step: 12 },
+          "계정 보안 재인증 안내를 사칭한 시나리오로 인증 절차 준수 여부를 확인합니다.",
+        statusCycle: ["완료", "완료", "진행중", "예약", "예약"],
+        metrics: { openRate: 0.78, clickRate: 0.2, submitRate: 0.07 },
+        target: { start: 140, step: 10 },
       },
       {
-        year: 2024,
-        month: 3,
-        campaignName: "봄철 정책 변경 안내 훈련",
+        campaignName: "거래처 요청 위장 대응 훈련",
         focusDescription:
-          "복지·휴가 정책 개편 공지를 사칭한 공격 유형을 중심으로 검증합니다.",
-        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
-        metrics: { openRate: 0.79, clickRate: 0.22, submitRate: 0.09 },
+          "거래처 요청과 납품 일정을 위장한 메일을 중심으로 승인 절차를 점검합니다.",
+        statusCycle: ["완료", "진행중", "완료", "진행중", "완료"],
+        metrics: { openRate: 0.76, clickRate: 0.21, submitRate: 0.08 },
+        target: { start: 95, step: 7 },
+      },
+      {
+        campaignName: "복지·근태 정책 안내 점검",
+        focusDescription:
+          "복지 및 근태 정책 변경 공지를 사칭한 공격 유형에 대한 대응력을 강화합니다.",
+        statusCycle: ["완료", "완료", "진행중", "진행중", "예약"],
+        metrics: { openRate: 0.75, clickRate: 0.19, submitRate: 0.06 },
         target: { start: 110, step: 9 },
       },
       {
-        year: 2024,
-        month: 6,
-        campaignName: "상반기 마감 대응 훈련",
+        campaignName: "결제·정산 요청 대응 훈련",
         focusDescription:
-          "결산 일정과 청구서 확인 메일을 위장한 사회공학 패턴에 대비합니다.",
-        statusCycle: ["완료", "완료", "진행중", "완료", "완료"],
-        metrics: { openRate: 0.75, clickRate: 0.2, submitRate: 0.07 },
-        target: { start: 95, step: 8 },
-      },
-      {
-        year: 2024,
-        month: 8,
-        campaignName: "하계 집중 모의훈련",
-        focusDescription:
-          "휴가철 사회공학 메일을 모사해 대응 체계를 점검하는 프로그램입니다.",
-        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
-        metrics: { openRate: 0.78, clickRate: 0.23, submitRate: 0.08 },
-        target: { start: 60, step: 8 },
-      },
-      {
-        year: 2024,
-        month: 9,
-        campaignName: "가을 전사 캠페인",
-        focusDescription:
-          "신규 정책 안내 메일과 결재 알림을 위장한 공격을 중심으로 한 훈련입니다.",
-        statusCycle: ["완료", "완료", "진행중", "진행중", "완료"],
-        metrics: { openRate: 0.76, clickRate: 0.2, submitRate: 0.07 },
-        target: { start: 75, step: 9 },
-      },
-      {
-        year: 2024,
-        month: 10,
-        campaignName: "4분기 선제 대응 훈련",
-        focusDescription:
-          "연말 정산·납품 일정 안내를 사칭한 메일을 통해 대응 절차를 선제적으로 점검합니다.",
-        statusCycle: ["완료", "완료", "진행중", "진행중", "완료"],
-        metrics: { openRate: 0.74, clickRate: 0.19, submitRate: 0.06 },
-        target: { start: 90, step: 10 },
-      },
-      {
-        year: 2025,
-        month: 1,
-        campaignName: "Q1 전사 리프레시 훈련",
-        focusDescription:
-          "연초 조직 개편 공지를 악용한 사칭 메일로 전사 대응력을 재점검합니다.",
-        statusCycle: ["완료", "완료", "완료", "완료", "완료"],
-        metrics: { openRate: 0.81, clickRate: 0.24, submitRate: 0.09 },
-        target: { start: 200, step: 15 },
-      },
-      {
-        year: 2025,
-        month: 5,
-        campaignName: "개발본부 심화 프로그램",
-        focusDescription:
-          "코드 저장소 접근권한과 패키지 서명을 사칭한 메일에 대응하는 심화 훈련입니다.",
-        statusCycle: ["진행중", "진행중", "완료", "진행중", "완료"],
-        metrics: { openRate: 0.73, clickRate: 0.18, submitRate: 0.05 },
-        target: { start: 120, step: 10 },
-      },
-      {
-        year: 2025,
-        month: 8,
-        campaignName: "하계 통합 대응 프로그램",
-        focusDescription:
-          "여름철 외부 위탁업체 공지로 위장한 메일을 활용해 공급망 보안 인식을 높입니다.",
-        statusCycle: ["진행중", "진행중", "진행중", "진행중", "예약"],
-        metrics: { openRate: 0.7, clickRate: 0.17, submitRate: 0.05 },
+          "결제 요청과 정산 안내를 위장한 사회공학 패턴에 대비하는 훈련입니다.",
+        statusCycle: ["진행중", "진행중", "완료", "예약", "예약"],
+        metrics: { openRate: 0.72, clickRate: 0.18, submitRate: 0.05 },
         target: { start: 130, step: 11 },
       },
       {
-        year: 2025,
-        month: 9,
-        campaignName: "추석 연휴 대비 훈련",
+        campaignName: "협력사 보안 점검 공지",
         focusDescription:
-          "연휴 전 결제 및 택배 안내를 위장한 공격 유형을 사전 차단하기 위한 훈련입니다.",
-        statusCycle: ["예약", "예약", "예약", "진행중", "예약"],
-        metrics: { openRate: 0.68, clickRate: 0.16, submitRate: 0.05 },
-        target: { start: 115, step: 9 },
-      },
-      {
-        year: 2025,
-        month: 10,
-        campaignName: "연말 정산 대비 훈련",
-        focusDescription:
-          "연말 정산, 납품 일정, 투자 제안서를 사칭한 메시지를 가상 시나리오로 구성합니다.",
-        statusCycle: ["진행중", "예약", "예약", "진행중", "예약"],
-        metrics: { openRate: 0.69, clickRate: 0.16, submitRate: 0.05 },
-        target: { start: 140, step: 12 },
+          "협력사 보안 점검 요청을 사칭한 메일을 통해 대응 절차를 재확인합니다.",
+        statusCycle: ["완료", "완료", "완료", "진행중", "예약"],
+        metrics: { openRate: 0.74, clickRate: 0.2, submitRate: 0.07 },
+        target: { start: 85, step: 6 },
       },
     ];
 
+    const buildMonthlySettings = (year: number, months: number[]) =>
+      months.map((month, index) => {
+        const theme = monthlyThemePool[index % monthlyThemePool.length];
+        return {
+          year,
+          month,
+          campaignName: `${pad(month)}월 ${theme.campaignName}`,
+          focusDescription: theme.focusDescription,
+          statusCycle: theme.statusCycle,
+          metrics: theme.metrics,
+          target: theme.target,
+        };
+      });
+
+    const monthlySettings: MonthlySetting[] = [
+      ...buildMonthlySettings(2024, [11, 12]),
+      ...buildMonthlySettings(
+        2025,
+        Array.from({ length: 12 }, (_, index) => index + 1),
+      ),
+    ];
+
     const msPerDay = 24 * 60 * 60 * 1000;
-    const monthlyProjectCount = 3;
+    const getRandomProjectCount = (min: number, max: number) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
     const monthlyProjects: Project[] = [];
     monthlySettings.forEach((setting) => {
       const lastDay = new Date(setting.year, setting.month, 0).getDate();
       const monthLabel = `${setting.year}년 ${pad(setting.month)}월`;
+      const monthlyProjectCount = getRandomProjectCount(2, 5);
       for (let i = 0; i < monthlyProjectCount; i++) {
         const departmentInfo = departmentPool[(i + setting.month) % departmentPool.length];
         const baseDay = daySlots[i] ?? daySlots[daySlots.length - 1];
@@ -372,7 +326,8 @@ export class MemStorage implements IStorage {
                 clickCount,
                 Math.max(0, Math.round(clickCount * setting.metrics.submitRate)),
               );
-        const templateId = i % 2 === 0 ? template1.id : template2.id;
+        const templateId =
+          i % 3 === 0 ? template1.id : i % 3 === 1 ? template2.id : template3.id;
         const project: Project = {
           id: randomUUID(),
           name: `${monthLabel} ${setting.campaignName} ${i + 1}차`,
