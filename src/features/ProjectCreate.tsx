@@ -329,19 +329,22 @@ export default function ProjectCreate() {
   const allTargetIds = useMemo(() => targets.map((target) => target.id), [targets]);
 
   const smtpDomainOptions = useMemo(() => {
-    const domainSet = new Set<string>();
-    smtpConfigs.forEach((config) => {
+    return smtpConfigs.flatMap((config) => {
+      const domainSet = new Set<string>();
       (config.allowedRecipientDomains ?? []).forEach((domain) => {
         const normalized = domain.trim().toLowerCase();
         if (normalized) domainSet.add(normalized);
       });
-      const fromDomain = extractDomainFromEmail(config.fromEmail);
-      if (fromDomain) domainSet.add(fromDomain);
+      if (domainSet.size === 0) {
+        const fromDomain = extractDomainFromEmail(config.fromEmail);
+        if (fromDomain) domainSet.add(fromDomain);
+      }
+      return Array.from(domainSet).map((domain) => ({
+        key: `${config.tenantId}-${domain}`,
+        value: domain,
+        label: domain,
+      }));
     });
-    return Array.from(domainSet).map((domain) => ({
-      value: domain,
-      label: domain,
-    }));
   }, [smtpConfigs]);
   const hasSmtpDomains = smtpDomainOptions.length > 0;
 
@@ -1523,7 +1526,7 @@ export default function ProjectCreate() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          발신 도메인(SMTP)<span className="ml-1 text-destructive">*</span>
+                          발신 도메인 (SMTP)<span className="ml-1 text-destructive">*</span>
                         </FormLabel>
                         <FormControl>
                           <Popover
@@ -1560,7 +1563,7 @@ export default function ProjectCreate() {
                                   <CommandGroup>
                                     {smtpDomainOptions.map((option) => (
                                       <CommandItem
-                                        key={option.value}
+                                        key={option.key}
                                         value={option.value}
                                         onSelect={() => {
                                           field.onChange(option.value);
