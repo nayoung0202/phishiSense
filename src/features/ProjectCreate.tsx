@@ -1812,7 +1812,7 @@ export default function ProjectCreate() {
               onClick={() => handleSubmitProject("create")}
             >
               <Save className="mr-2 h-4 w-4" />
-              생성
+              임시 저장
             </Button>
             <Button
               variant="default"
@@ -1829,7 +1829,7 @@ export default function ProjectCreate() {
               onClick={() => handleSubmitProject("run")}
             >
               <Play className="mr-2 h-4 w-4" />
-              바로 시작
+              바로 생성
             </Button>
           </div>
         </div>
