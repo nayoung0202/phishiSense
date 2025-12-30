@@ -96,7 +96,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
   const [formState, setFormState] = useState<FormState>(defaultFormState);
   const [passwordInput, setPasswordInput] = useState("");
   const [domainDraft, setDomainDraft] = useState("");
-  const [registeredDomain, setRegisteredDomain] = useState("");
   const [portMode, setPortMode] = useState<PortMode>("587");
   const [customPortInput, setCustomPortInput] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -110,7 +109,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
       setPasswordInput("");
       setDomainDraft("");
       setDomainError(null);
-      setRegisteredDomain("");
       setPortMode("587");
       setCustomPortInput("");
       snapshotRef.current = snapshotFormState(defaultFormState);
@@ -144,7 +142,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
       isActive: initialData.isActive,
     };
     setFormState(nextState);
-    setRegisteredDomain(initialDomain);
     setPortMode(nextPortMode);
     setCustomPortInput(nextPortMode === "custom" ? String(initialData.port) : "");
     setPasswordInput("");
@@ -205,7 +202,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
       return;
     }
     setDomainError(null);
-    setRegisteredDomain(nextValue);
     setFormState((prev) => ({
       ...prev,
       allowedRecipientDomains: [nextValue],
@@ -349,9 +345,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
                     disabled={disabled}
                   />
                   {domainError && <p className="text-sm text-destructive">{domainError}</p>}
-                  {!domainError && registeredDomain && (
-                    <p className="text-xs text-muted-foreground">등록된 도메인: {registeredDomain}</p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="smtp-host">SMTP 호스트</Label>
