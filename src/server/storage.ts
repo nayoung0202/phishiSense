@@ -31,6 +31,27 @@ import {
   updateTargetById,
   deleteTargetById,
 } from "./dao/targetDao";
+import {
+  listProjects,
+  listProjectsByIds,
+  getProjectById,
+  getProjectByTrainingLinkToken as getProjectByTrainingLinkTokenRecord,
+  createProjectRecord,
+  updateProjectById,
+  deleteProjectById,
+} from "./dao/projectDao";
+import {
+  listTrainingPages,
+  getTrainingPageById,
+  createTrainingPageRecord,
+  updateTrainingPageById,
+  deleteTrainingPageById,
+} from "./dao/trainingPageDao";
+import {
+  listProjectTargets as listProjectTargetsRecord,
+  createProjectTargetRecord,
+  updateProjectTargetById,
+} from "./dao/projectTargetDao";
 import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
 import { seedTemplates } from "./seed/seedTemplates";
 
@@ -1099,4 +1120,502 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DbStorage implements IStorage {
+  private users: Map<string, User>;
+
+  constructor() {
+    this.users = new Map();
+
+    void seedTemplates();
+    void this.seedTargets();
+  }
+
+  private parseDate(value: unknown, fallback?: Date): Date {
+    if (value instanceof Date) {
+      return new Date(value);
+    }
+    if (typeof value === "string" || typeof value === "number") {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    if (fallback) {
+      return new Date(fallback);
+    }
+    const now = new Date();
+    now.setMilliseconds(0);
+    return now;
+  }
+
+  private calculateTemporalFields(startDate: Date, endDate: Date) {
+    const safeStart = startDate <= endDate ? startDate : endDate;
+    const safeEnd = endDate >= startDate ? endDate : startDate;
+    const fiscalYear = safeStart.getFullYear();
+    const fiscalQuarter = Math.floor(safeStart.getMonth() / 3) + 1;
+    const days = eachDayOfInterval({ start: safeStart, end: safeEnd });
+    const weekSet = new Set<number>();
+    days.forEach((day) => {
+      weekSet.add(getISOWeek(day));
+    });
+    const weekOfYear = Array.from(weekSet).sort((a, b) => a - b);
+
+    return {
+      fiscalYear,
+      fiscalQuarter,
+      weekOfYear,
+    };
+  }
+
+  private async generateTrainingLinkToken() {
+    let token = generateTrainingLinkToken();
+    while (await getProjectByTrainingLinkTokenRecord(token)) {
+      token = generateTrainingLinkToken();
+    }
+    return token;
+  }
+
+  private async resolveTrainingLinkToken(value?: string | null) {
+    const normalized = (value ?? "").trim();
+    if (normalized) {
+      const existing = await getProjectByTrainingLinkTokenRecord(normalized);
+      if (!existing) return normalized;
+    }
+    return this.generateTrainingLinkToken();
+  }
+
+  private async assertUniqueTrainingLinkToken(token: string, projectId: string) {
+    const existing = await getProjectByTrainingLinkTokenRecord(token);
+    if (existing && existing.id !== projectId) {
+      throw new Error("이미 사용 중인 훈련 링크 토큰입니다.");
+    }
+  }
+
+  private async seedTargets() {
+    const targetsToSeed: InsertTarget[] = [];
+
+    for (let i = 1; i <= 10; i++) {
+      const baseDepartment = i <= 5 ? "영업부" : "개발부";
+      const department =
+        i % 3 === 0
+          ? `${baseDepartment} 1팀, ${baseDepartment} 2팀`
+          : baseDepartment;
+      targetsToSeed.push({
+        name: `직원${i}`,
+        email: `employee${i}@company.com`,
+        department,
+        tags: i % 2 === 0 ? ["신입", "교육필요"] : ["경력"],
+        status: "active",
+      });
+    }
+
+    for (const target of targetsToSeed) {
+      const existing = await findTargetByEmailRecord(target.email);
+      if (existing) continue;
+      await this.createTarget(target);
+    }
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username,
+    );
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = randomUUID();
+    const user: User = { ...insertUser, id };
+    this.users.set(id, user);
+    return user;
+  }
+
+  // Projects
+  async getProjects(): Promise<Project[]> {
+    return listProjects();
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    return getProjectById(id);
+  }
+
+  async getProjectByTrainingLinkToken(token: string): Promise<Project | undefined> {
+    const normalized = token.trim();
+    if (!normalized) return undefined;
+    return getProjectByTrainingLinkTokenRecord(normalized);
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const id = randomUUID();
+    const startDate = this.parseDate(project.startDate);
+    const endDate = this.parseDate(project.endDate, startDate);
+    const temporal = this.calculateTemporalFields(startDate, endDate);
+    const trainingLinkToken = await this.resolveTrainingLinkToken(project.trainingLinkToken);
+    const newProject = {
+      id,
+      name: normalizePlainText(project.name, 200),
+      description: project.description ? normalizePlainText(project.description, 2000) : null,
+      department: project.department ? normalizePlainText(project.department, 200) : null,
+      departmentTags: Array.isArray(project.departmentTags)
+        ? project.departmentTags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : [],
+      templateId: project.templateId ?? null,
+      trainingPageId: project.trainingPageId ?? null,
+      trainingLinkToken,
+      sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
+      fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
+      fromEmail: project.fromEmail ?? null,
+      timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
+      notificationEmails: Array.isArray(project.notificationEmails)
+        ? project.notificationEmails.map((email) => email.trim())
+        : [],
+      startDate,
+      endDate,
+      status: project.status,
+      targetCount: project.targetCount ?? null,
+      openCount: project.openCount ?? null,
+      clickCount: project.clickCount ?? null,
+      submitCount: project.submitCount ?? null,
+      fiscalYear: temporal.fiscalYear,
+      fiscalQuarter: temporal.fiscalQuarter,
+      weekOfYear: temporal.weekOfYear,
+      createdAt: new Date(),
+    };
+    return createProjectRecord(newProject);
+  }
+
+  async updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined> {
+    const existing = await getProjectById(id);
+    if (!existing) return undefined;
+    const updatedStart = project.startDate
+      ? this.parseDate(project.startDate)
+      : new Date(existing.startDate);
+    const updatedEnd = project.endDate
+      ? this.parseDate(project.endDate, updatedStart)
+      : new Date(existing.endDate);
+    const temporal = this.calculateTemporalFields(updatedStart, updatedEnd);
+
+    const requestedTokenRaw =
+      typeof project.trainingLinkToken === "string" ? project.trainingLinkToken.trim() : null;
+    const requestedToken = requestedTokenRaw && requestedTokenRaw.length > 0 ? requestedTokenRaw : null;
+    if (requestedToken && requestedToken !== existing.trainingLinkToken) {
+      await this.assertUniqueTrainingLinkToken(requestedToken, id);
+    }
+
+    const nextProject: Project = {
+      ...existing,
+      ...project,
+      name:
+        typeof project.name === "string"
+          ? normalizePlainText(project.name, 200)
+          : existing.name,
+      description:
+        typeof project.description === "string"
+          ? normalizePlainText(project.description, 2000)
+          : existing.description ?? null,
+      department:
+        typeof project.department === "string"
+          ? normalizePlainText(project.department, 200)
+          : existing.department ?? null,
+      templateId:
+        project.templateId !== undefined
+          ? project.templateId ?? null
+          : existing.templateId ?? null,
+      trainingPageId:
+        project.trainingPageId !== undefined
+          ? project.trainingPageId ?? null
+          : existing.trainingPageId ?? null,
+      trainingLinkToken: requestedToken ?? existing.trainingLinkToken ?? null,
+      startDate: updatedStart,
+      endDate: updatedEnd,
+      departmentTags: Array.isArray(project.departmentTags)
+        ? project.departmentTags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : existing.departmentTags ?? [],
+      sendingDomain:
+        typeof project.sendingDomain === "string"
+          ? normalizePlainText(project.sendingDomain, 200)
+          : existing.sendingDomain ?? null,
+      fromName:
+        typeof project.fromName === "string"
+          ? normalizePlainText(project.fromName, 200)
+          : existing.fromName ?? null,
+      fromEmail: project.fromEmail ?? existing.fromEmail ?? null,
+      timezone:
+        typeof project.timezone === "string"
+          ? normalizePlainText(project.timezone, 64)
+          : existing.timezone ?? "Asia/Seoul",
+      notificationEmails: Array.isArray(project.notificationEmails)
+        ? project.notificationEmails.map((email) => email.trim())
+        : existing.notificationEmails ?? [],
+      status: project.status ?? existing.status,
+      targetCount:
+        project.targetCount !== undefined ? project.targetCount ?? null : existing.targetCount ?? null,
+      openCount:
+        project.openCount !== undefined ? project.openCount ?? null : existing.openCount ?? null,
+      clickCount:
+        project.clickCount !== undefined ? project.clickCount ?? null : existing.clickCount ?? null,
+      submitCount:
+        project.submitCount !== undefined ? project.submitCount ?? null : existing.submitCount ?? null,
+      fiscalYear: temporal.fiscalYear,
+      fiscalQuarter: temporal.fiscalQuarter,
+      weekOfYear: temporal.weekOfYear,
+      createdAt: existing.createdAt,
+    };
+
+    const updated = await updateProjectById(id, {
+      name: nextProject.name,
+      description: nextProject.description,
+      department: nextProject.department,
+      departmentTags: nextProject.departmentTags ?? [],
+      templateId: nextProject.templateId ?? null,
+      trainingPageId: nextProject.trainingPageId ?? null,
+      trainingLinkToken: nextProject.trainingLinkToken ?? null,
+      sendingDomain: nextProject.sendingDomain ?? null,
+      fromName: nextProject.fromName ?? null,
+      fromEmail: nextProject.fromEmail ?? null,
+      timezone: nextProject.timezone ?? null,
+      notificationEmails: nextProject.notificationEmails ?? [],
+      startDate: nextProject.startDate,
+      endDate: nextProject.endDate,
+      status: nextProject.status,
+      targetCount: nextProject.targetCount ?? null,
+      openCount: nextProject.openCount ?? null,
+      clickCount: nextProject.clickCount ?? null,
+      submitCount: nextProject.submitCount ?? null,
+      fiscalYear: nextProject.fiscalYear ?? null,
+      fiscalQuarter: nextProject.fiscalQuarter ?? null,
+      weekOfYear: nextProject.weekOfYear ?? [],
+    });
+
+    return updated ?? nextProject;
+  }
+
+  async copyProjects(ids: string[]): Promise<Project[]> {
+    const copies: Project[] = [];
+    const [allProjects, selectedProjects] = await Promise.all([
+      listProjects(),
+      listProjectsByIds(ids),
+    ]);
+    const projectMap = new Map(selectedProjects.map((project) => [project.id, project]));
+    const existingNames = new Set(allProjects.map((project) => project.name));
+
+    const generateCopyName = (original: string) => {
+      const baseName = `${original} 복제`;
+      if (!existingNames.has(baseName)) {
+        existingNames.add(baseName);
+        return baseName;
+      }
+      let index = 2;
+      let candidate = `${baseName} ${index}`;
+      while (existingNames.has(candidate)) {
+        index += 1;
+        candidate = `${baseName} ${index}`;
+      }
+      existingNames.add(candidate);
+      return candidate;
+    };
+
+    for (const id of ids) {
+      const project = projectMap.get(id);
+      if (!project) continue;
+
+      const now = new Date();
+      const startDate = new Date(project.startDate);
+      const endDate = new Date(project.endDate);
+      const temporal = this.calculateTemporalFields(startDate, endDate);
+      const trainingLinkToken = await this.generateTrainingLinkToken();
+      const copyPayload = {
+        id: randomUUID(),
+        name: generateCopyName(project.name),
+        description: project.description ?? null,
+        department: project.department ?? null,
+        departmentTags: project.departmentTags ?? [],
+        templateId: project.templateId ?? null,
+        trainingPageId: project.trainingPageId ?? null,
+        trainingLinkToken,
+        sendingDomain: project.sendingDomain ?? null,
+        fromName: project.fromName ?? null,
+        fromEmail: project.fromEmail ?? null,
+        timezone: project.timezone ?? "Asia/Seoul",
+        notificationEmails: project.notificationEmails ?? [],
+        startDate,
+        endDate,
+        status: project.status,
+        targetCount: project.targetCount ?? null,
+        openCount: project.openCount ?? null,
+        clickCount: project.clickCount ?? null,
+        submitCount: project.submitCount ?? null,
+        fiscalYear: temporal.fiscalYear,
+        fiscalQuarter: temporal.fiscalQuarter,
+        weekOfYear: temporal.weekOfYear,
+        createdAt: now,
+      };
+      const created = await createProjectRecord(copyPayload);
+      copies.push(created);
+    }
+
+    return copies;
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    return deleteProjectById(id);
+  }
+
+  // Templates
+  async getTemplates(): Promise<Template[]> {
+    return listTemplates();
+  }
+
+  async getTemplate(id: string): Promise<Template | undefined> {
+    return getTemplateById(id);
+  }
+
+  async createTemplate(template: InsertTemplate): Promise<Template> {
+    return createTemplateRecord(template);
+  }
+
+  async updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined> {
+    return updateTemplateById(id, template);
+  }
+
+  async deleteTemplate(id: string): Promise<boolean> {
+    return deleteTemplateById(id);
+  }
+
+  // Targets
+  async getTargets(): Promise<Target[]> {
+    return listTargets();
+  }
+
+  async getTarget(id: string): Promise<Target | undefined> {
+    return getTargetById(id);
+  }
+
+  async findTargetByEmail(email: string): Promise<Target | undefined> {
+    return findTargetByEmailRecord(email);
+  }
+
+  async createTarget(target: InsertTarget): Promise<Target> {
+    return createTargetRecord({
+      name: normalizePlainText(target.name, 200),
+      email: target.email,
+      department: target.department ? normalizePlainText(target.department, 200) : null,
+      tags: target.tags
+        ? target.tags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : null,
+      status: target.status ?? "active",
+    });
+  }
+
+  async updateTarget(id: string, target: Partial<InsertTarget>): Promise<Target | undefined> {
+    const existing = await getTargetById(id);
+    if (!existing) return undefined;
+    return updateTargetById(id, {
+      ...target,
+      name:
+        typeof target.name === "string"
+          ? normalizePlainText(target.name, 200)
+          : existing.name,
+      department:
+        typeof target.department === "string"
+          ? normalizePlainText(target.department, 200)
+          : existing.department ?? null,
+      tags: Array.isArray(target.tags)
+        ? target.tags
+            .map((tag) => normalizePlainText(tag, 120))
+            .filter((tag) => tag.length > 0)
+        : existing.tags ?? null,
+      status:
+        typeof target.status === "string"
+          ? target.status
+          : existing.status ?? "active",
+    });
+  }
+
+  async deleteTarget(id: string): Promise<boolean> {
+    return deleteTargetById(id);
+  }
+
+  // Training Pages
+  async getTrainingPages(): Promise<TrainingPage[]> {
+    return listTrainingPages();
+  }
+
+  async getTrainingPage(id: string): Promise<TrainingPage | undefined> {
+    return getTrainingPageById(id);
+  }
+
+  async createTrainingPage(page: InsertTrainingPage): Promise<TrainingPage> {
+    const now = new Date();
+    const newPage = {
+      id: randomUUID(),
+      name: normalizePlainText(page.name, 200),
+      description: page.description ? normalizePlainText(page.description, 1000) : null,
+      content: page.content,
+      status: page.status ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return createTrainingPageRecord(newPage);
+  }
+
+  async updateTrainingPage(id: string, page: Partial<InsertTrainingPage>): Promise<TrainingPage | undefined> {
+    const existing = await getTrainingPageById(id);
+    if (!existing) return undefined;
+    const updated = {
+      ...existing,
+      ...page,
+      name:
+        typeof page.name === "string" ? normalizePlainText(page.name, 200) : existing.name,
+      description:
+        typeof page.description === "string"
+          ? normalizePlainText(page.description, 1000)
+          : existing.description ?? null,
+      updatedAt: new Date(),
+    };
+    return updateTrainingPageById(id, {
+      name: updated.name,
+      description: updated.description ?? null,
+      content: updated.content,
+      status: updated.status ?? null,
+      updatedAt: updated.updatedAt,
+    });
+  }
+
+  async deleteTrainingPage(id: string): Promise<boolean> {
+    return deleteTrainingPageById(id);
+  }
+
+  // Project Targets
+  async getProjectTargets(projectId: string): Promise<ProjectTarget[]> {
+    return listProjectTargetsRecord(projectId);
+  }
+
+  async createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget> {
+    const newProjectTarget = {
+      id: randomUUID(),
+      projectId: projectTarget.projectId,
+      targetId: projectTarget.targetId,
+      status: projectTarget.status ?? null,
+      openedAt: projectTarget.openedAt ?? null,
+      clickedAt: projectTarget.clickedAt ?? null,
+      submittedAt: projectTarget.submittedAt ?? null,
+    };
+    return createProjectTargetRecord(newProjectTarget);
+  }
+
+  async updateProjectTarget(id: string, projectTarget: Partial<InsertProjectTarget>): Promise<ProjectTarget | undefined> {
+    return updateProjectTargetById(id, projectTarget);
+  }
+}
+
+export const storage = new DbStorage();
