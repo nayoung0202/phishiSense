@@ -153,6 +153,7 @@ export async function fetchSmtpConfigSummaries() {
     port: config.port,
     securityMode: config.securityMode,
     fromEmail: config.fromEmail,
+    allowedRecipientDomains: config.allowedRecipientDomains ?? [],
     isActive: config.isActive,
     hasPassword: config.hasPassword,
     lastTestedAt: config.lastTestedAt ?? null,

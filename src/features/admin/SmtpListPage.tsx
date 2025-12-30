@@ -41,6 +41,12 @@ export default function SmtpListPage() {
     }
   };
 
+  const formatDomains = (domains?: string[] | null) => {
+    const normalized = (domains ?? []).map((domain) => domain.trim()).filter(Boolean);
+    if (normalized.length === 0) return "-";
+    return normalized.join(", ");
+  };
+
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
   }, [items]);
@@ -99,6 +105,7 @@ export default function SmtpListPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>호스트</TableHead>
+                    <TableHead>도메인</TableHead>
                     <TableHead>포트</TableHead>
                     <TableHead>보안 모드</TableHead>
                     <TableHead>상태</TableHead>
@@ -111,6 +118,7 @@ export default function SmtpListPage() {
                   {sortedItems.map((item) => (
                     <TableRow key={item.tenantId}>
                       <TableCell>{item.host || "-"}</TableCell>
+                      <TableCell>{formatDomains(item.allowedRecipientDomains)}</TableCell>
                       <TableCell>{item.port}</TableCell>
                       <TableCell>{item.securityMode}</TableCell>
                       <TableCell>
