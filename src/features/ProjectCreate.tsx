@@ -1325,10 +1325,16 @@ export default function ProjectCreate() {
                             훈련 대상자<span className="ml-1 text-destructive">*</span>
                           </FormLabel>
                           <div className="flex flex-wrap items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={handleSelectAllTargets}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleSelectAllTargets}
+                            >
                               전 직원 대상 훈련
                             </Button>
                             <Button
+                              type="button"
                               variant="ghost"
                               size="sm"
                               onClick={handleClearTargets}
