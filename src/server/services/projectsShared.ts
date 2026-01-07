@@ -38,6 +38,12 @@ export const normalizeProjectDate = (date: Project["startDate"]) => {
   return parsed;
 };
 
+export const shouldStartScheduledProject = (project: Project, now = new Date()) => {
+  if (project.status !== "예약") return false;
+  const startDate = normalizeProjectDate(project.startDate);
+  return startDate.getTime() <= now.getTime();
+};
+
 export const projectOverlaps = (project: Project, rangeStart: Date, rangeEnd: Date) => {
   const projectStart = normalizeProjectDate(project.startDate);
   const projectEnd = normalizeProjectDate(project.endDate);
