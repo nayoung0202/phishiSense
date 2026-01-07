@@ -305,6 +305,7 @@ export default function ProjectCreate() {
   const { customDepartments, addCustomDepartment, removeCustomDepartment } = useCustomDepartments();
 
   const selectedTargetIds = form.watch("targetIds") ?? [];
+  const selectedTargetCount = selectedTargetIds.length;
   const templateId = form.watch("templateId");
   const trainingPageId = form.watch("trainingPageId");
   const sendingDomain = form.watch("sendingDomain");
@@ -654,8 +655,6 @@ export default function ProjectCreate() {
     );
   };
 
-  const selectedTargetCount = selectedTargetIds.length;
-
   const previewRequest = useMemo(
     () =>
       buildPreviewRequest(
@@ -695,7 +694,10 @@ export default function ProjectCreate() {
 
   const previewData = previewQuery.data;
   const conflictItems = previewData?.conflicts ?? [];
-  const shouldShowAside = conflictItems.length > 0;
+  const hasConflicts = conflictItems.length > 0;
+  const isAllTargetsSelected =
+    allTargetIds.length > 0 && selectedTargetCount === allTargetIds.length;
+  const shouldUseSplitLayout = hasConflicts && !isAllTargetsSelected;
 
   const departmentTagOptions = useMemo(() => {
     const tagSet = new Set<string>();
@@ -1128,7 +1130,7 @@ export default function ProjectCreate() {
           <div>
             <h1 className="text-2xl font-semibold">프로젝트 생성</h1>
             <p className="text-sm text-muted-foreground">
-              좌측에서 정보를 입력하고 필요한 경우 우측에서 충돌 경고를 확인하세요.
+              좌측에서 정보를 입력하고 필요한 경우 충돌 경고를 확인하세요.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1160,7 +1162,7 @@ export default function ProjectCreate() {
       <div className="flex-1 overflow-auto">
         <div
           className={
-            shouldShowAside
+            shouldUseSplitLayout
               ? "grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,640px)_minmax(400px,1fr)]"
               : "grid gap-6 p-6"
           }
@@ -1834,7 +1836,7 @@ export default function ProjectCreate() {
             </form>
           </Form>
 
-          {shouldShowAside ? (
+          {hasConflicts ? (
             <aside className="space-y-4">
               <Card className="border-amber-200 bg-amber-50">
                 <CardHeader>
