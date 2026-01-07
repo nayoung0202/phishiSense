@@ -8,6 +8,11 @@ export async function listTemplates(): Promise<Template[]> {
   return db.select().from(templates).orderBy(desc(templates.updatedAt));
 }
 
+export async function hasTemplates(): Promise<boolean> {
+  const rows = await db.select({ id: templates.id }).from(templates).limit(1);
+  return rows.length > 0;
+}
+
 export async function getTemplateById(id: string): Promise<Template | undefined> {
   const rows = await db.select().from(templates).where(eq(templates.id, id)).limit(1);
   return rows[0];
