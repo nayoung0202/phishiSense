@@ -384,7 +384,6 @@ export default function Projects() {
   const [selectedMonth, setSelectedMonth] = useState<string>(String(today.getMonth() + 1));
   const [monthIndex, setMonthIndex] = useState(0);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const [startingProjectId, setStartingProjectId] = useState<string | null>(null);
   const [reportProject, setReportProject] = useState<Project | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
@@ -672,35 +671,6 @@ export default function Projects() {
     },
   });
 
-  const startProjectMutation = useMutation({
-    mutationFn: async (project: Project) => {
-      const res = await apiRequest("PATCH", `/api/projects/${project.id}/status`, {
-        to: "RUNNING",
-      });
-      return (await res.json()) as { id: string; status: string };
-    },
-    onMutate: (project) => {
-      setStartingProjectId(project.id);
-    },
-    onSuccess: (_response, project) => {
-      invalidateProjectData();
-      toast({
-        title: "프로젝트 시작",
-        description: `${project.name} 프로젝트가 진행중으로 전환되었습니다.`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "시작 실패",
-        description: error.message ?? "프로젝트를 시작할 수 없습니다.",
-        variant: "destructive",
-      });
-    },
-    onSettled: () => {
-      setStartingProjectId(null);
-    },
-  });
-
   const updateProjectDates = (projectId: string, startDate: Date, endDate: Date, message: string) => {
     updateProjectMutation.mutate({
       id: projectId,
@@ -710,12 +680,6 @@ export default function Projects() {
       },
       successMessage: message,
     });
-  };
-
-  const handleStartProject = (project: Project) => {
-    if (project.status !== "예약") return;
-    if (!confirm(`"${project.name}" 프로젝트를 즉시 시작하시겠습니까?`)) return;
-    startProjectMutation.mutate(project);
   };
 
   const quarterGroup = useMemo<QuarterGroup>(() => {
@@ -1003,18 +967,6 @@ export default function Projects() {
                   <TableCell>{project.department ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {project.status === "예약" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleStartProject(project)}
-                          disabled={startProjectMutation.isPending && startingProjectId === project.id}
-                        >
-                          {startProjectMutation.isPending && startingProjectId === project.id
-                            ? "시작 중"
-                            : "즉시 시작"}
-                        </Button>
-                      ) : null}
                       <Link href={`/projects/${project.id}`}>
                         <Button variant="ghost" size="sm">상세</Button>
                       </Link>
@@ -1084,19 +1036,6 @@ export default function Projects() {
                       <span>대상 {project.targetCount ?? 0}명</span>
                       <span>클릭 {calculateRate(project.clickCount, project.targetCount)}%</span>
                     </div>
-                    {project.status === "예약" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStartProject(project)}
-                        disabled={startProjectMutation.isPending && startingProjectId === project.id}
-                        className="w-fit"
-                      >
-                        {startProjectMutation.isPending && startingProjectId === project.id
-                          ? "시작 중"
-                          : "즉시 시작"}
-                      </Button>
-                    ) : null}
                   </Card>
                 );
               })}
