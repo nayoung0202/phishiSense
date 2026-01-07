@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -265,6 +265,8 @@ export default function ProjectCreate() {
   const { toast } = useToast();
   const router = useRouter();
   const [isTestDialogOpen, setTestDialogOpen] = useState(false);
+  const [isConflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const lastConflictSignatureRef = useRef("");
   const [testRecipient, setTestRecipient] = useState("");
   const [notificationInput, setNotificationInput] = useState("");
   const [targetSearchTerm, setTargetSearchTerm] = useState("");
@@ -695,6 +697,26 @@ export default function ProjectCreate() {
   const previewData = previewQuery.data;
   const conflictItems = previewData?.conflicts ?? [];
   const hasConflicts = conflictItems.length > 0;
+  const conflictSignature = useMemo(
+    () =>
+      conflictItems
+        .map((conflict) => conflict.projectId)
+        .sort()
+        .join("|"),
+    [conflictItems],
+  );
+
+  useEffect(() => {
+    if (!conflictSignature) {
+      lastConflictSignatureRef.current = "";
+      setConflictDialogOpen(false);
+      return;
+    }
+    if (conflictSignature !== lastConflictSignatureRef.current) {
+      lastConflictSignatureRef.current = conflictSignature;
+      setConflictDialogOpen(true);
+    }
+  }, [conflictSignature]);
 
   const departmentTagOptions = useMemo(() => {
     const tagSet = new Set<string>();
@@ -1827,37 +1849,6 @@ export default function ProjectCreate() {
             </form>
           </Form>
 
-          {hasConflicts ? (
-            <aside className="space-y-4">
-              <Card className="border-amber-200 bg-amber-50">
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-amber-700">
-                    중복 대상 충돌 감지
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-amber-700">
-                  <p>다음 프로젝트와 일정이 겹칩니다. 제외하거나 일정을 조정하세요.</p>
-                  <ul className="space-y-1">
-                    {conflictItems.map((conflict) => (
-                      <li key={conflict.projectId} className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        <Link href={`/projects/${conflict.projectId}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto px-0 text-amber-700 underline hover:text-amber-800"
-                          >
-                            {conflict.projectName}
-                          </Button>
-                        </Link>
-                        <Badge variant="outline">{conflict.status}</Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </aside>
-          ) : null}
         </div>
       </div>
 
@@ -1906,6 +1897,44 @@ export default function ProjectCreate() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isConflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <DialogContent className="border-amber-200 bg-amber-50">
+          <DialogHeader>
+            <DialogTitle className="text-amber-700">중복 대상 충돌 감지</DialogTitle>
+            <DialogDescription className="text-amber-700/80">
+              다음 프로젝트와 일정이 겹칩니다. 제외하거나 일정을 조정하세요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-amber-700">
+            <ul className="space-y-1">
+              {conflictItems.map((conflict) => (
+                <li key={conflict.projectId} className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <Link href={`/projects/${conflict.projectId}`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-0 text-amber-700 underline hover:text-amber-800"
+                    >
+                      {conflict.projectName}
+                    </Button>
+                  </Link>
+                  <Badge variant="outline">{conflict.status}</Badge>
+                </li>
+              ))}
+            </ul>
+            {!hasConflicts ? (
+              <p className="text-sm text-muted-foreground">현재 충돌이 없습니다.</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConflictDialogOpen(false)}>
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isTestDialogOpen} onOpenChange={setTestDialogOpen}>
         <DialogContent>
