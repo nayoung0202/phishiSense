@@ -16,6 +16,8 @@ import { randomUUID } from "crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
 import { normalizePlainText } from "./lib/validation/text";
 import { generateTrainingLinkToken } from "./lib/trainingLink";
+import { sanitizeHtml } from "./utils/sanitizeHtml";
+import { shouldStartScheduledProject } from "./services/projectsShared";
 import {
   listTemplates,
   getTemplateById,
@@ -100,16 +102,18 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private projects: Map<string, Project>;
+  private templates: Map<string, Template>;
   private trainingPages: Map<string, TrainingPage>;
   private projectTargets: Map<string, ProjectTarget>;
 
   constructor() {
     this.users = new Map();
     this.projects = new Map();
+    this.templates = new Map();
     this.trainingPages = new Map();
     this.projectTargets = new Map();
 
-    void seedTemplates();
+    this.seedTemplates();
     void this.seedTargets();
     this.seedData();
   }
@@ -151,6 +155,27 @@ export class MemStorage implements IStorage {
     };
   }
 
+  private async syncScheduledProjects(projects: Project[]): Promise<Project[]> {
+    const now = new Date();
+    const toStart = projects.filter((project) => shouldStartScheduledProject(project, now));
+    if (toStart.length === 0) return projects;
+
+    const updated = await Promise.all(
+      toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    );
+    const updatedMap = new Map<string, Project>();
+    updated.forEach((project) => {
+      if (project) updatedMap.set(project.id, project);
+    });
+
+    return projects.map((project) => updatedMap.get(project.id) ?? project);
+  }
+
+  private async startScheduledProject(project: Project): Promise<Project> {
+    const updated = await updateProjectById(project.id, { status: "진행중" });
+    return updated ?? { ...project, status: "진행중" };
+  }
+
   private createTrainingLinkToken() {
     const existingTokens = new Set(
       Array.from(this.projects.values())
@@ -163,6 +188,20 @@ export class MemStorage implements IStorage {
       token = generateTrainingLinkToken();
     }
     return token;
+  }
+
+  private seedTemplates() {
+    DEFAULT_TEMPLATES.forEach((template) => {
+      const createdAt = this.parseDate(template.createdAt);
+      const updatedAt = this.parseDate(template.updatedAt, createdAt);
+      this.templates.set(template.id, {
+        ...template,
+        body: sanitizeHtml(template.body ?? ""),
+        maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
+        createdAt,
+        updatedAt,
+      });
+    });
   }
 
   private seedData() {
@@ -509,21 +548,42 @@ export class MemStorage implements IStorage {
 
   // Projects
   async getProjects(): Promise<Project[]> {
-    return Array.from(this.projects.values()).sort((a, b) => 
-      b.createdAt!.getTime() - a.createdAt!.getTime()
+    const now = new Date();
+    for (const [id, project] of this.projects.entries()) {
+      if (shouldStartScheduledProject(project, now)) {
+        this.projects.set(id, { ...project, status: "진행중" });
+      }
+    }
+
+    return Array.from(this.projects.values()).sort((a, b) =>
+      b.createdAt!.getTime() - a.createdAt!.getTime(),
     );
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    return this.projects.get(id);
+    const project = this.projects.get(id);
+    if (!project) return undefined;
+    if (shouldStartScheduledProject(project, new Date())) {
+      const updated = { ...project, status: "진행중" };
+      this.projects.set(id, updated);
+      return updated;
+    }
+    return project;
   }
 
   async getProjectByTrainingLinkToken(token: string): Promise<Project | undefined> {
     const normalized = token.trim();
     if (!normalized) return undefined;
-    return Array.from(this.projects.values()).find(
+    const project = Array.from(this.projects.values()).find(
       (project) => project.trainingLinkToken === normalized,
     );
+    if (!project) return undefined;
+    if (shouldStartScheduledProject(project, new Date())) {
+      const updated = { ...project, status: "진행중" };
+      this.projects.set(project.id, updated);
+      return updated;
+    }
+    return project;
   }
 
   async createProject(project: InsertProject): Promise<Project> {
@@ -695,23 +755,56 @@ export class MemStorage implements IStorage {
 
   // Templates
   async getTemplates(): Promise<Template[]> {
-    return listTemplates();
+    const toTime = (value?: Date | null) => (value ? value.getTime() : 0);
+    return Array.from(this.templates.values()).sort(
+      (a, b) =>
+        toTime(b.updatedAt ?? b.createdAt) - toTime(a.updatedAt ?? a.createdAt),
+    );
   }
 
   async getTemplate(id: string): Promise<Template | undefined> {
-    return getTemplateById(id);
+    return this.templates.get(id);
   }
 
   async createTemplate(template: InsertTemplate): Promise<Template> {
-    return createTemplateRecord(template);
+    const id = randomUUID();
+    const now = new Date();
+    const newTemplate: Template = {
+      id,
+      name: template.name,
+      subject: template.subject,
+      body: sanitizeHtml(template.body ?? ""),
+      maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.templates.set(id, newTemplate);
+    return newTemplate;
   }
 
   async updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined> {
-    return updateTemplateById(id, template);
+    const existing = this.templates.get(id);
+    if (!existing) return undefined;
+    const updated: Template = {
+      ...existing,
+      name: template.name ?? existing.name,
+      subject: template.subject ?? existing.subject,
+      body:
+        typeof template.body === "string"
+          ? sanitizeHtml(template.body)
+          : existing.body,
+      maliciousPageContent:
+        template.maliciousPageContent !== undefined
+          ? sanitizeHtml(template.maliciousPageContent ?? "")
+          : existing.maliciousPageContent,
+      updatedAt: new Date(),
+    };
+    this.templates.set(id, updated);
+    return updated;
   }
 
   async deleteTemplate(id: string): Promise<boolean> {
-    return deleteTemplateById(id);
+    return this.templates.delete(id);
   }
 
   // Targets
@@ -788,7 +881,7 @@ export class MemStorage implements IStorage {
       id,
       name: normalizePlainText(page.name, 200),
       description: page.description ? normalizePlainText(page.description, 1000) : null,
-      content: page.content,
+      content: sanitizeHtml(page.content ?? ""),
       status: page.status ?? null,
       createdAt: now,
       updatedAt: now,
@@ -809,6 +902,10 @@ export class MemStorage implements IStorage {
         typeof page.description === "string"
           ? normalizePlainText(page.description, 1000)
           : existing.description ?? null,
+      content:
+        typeof page.content === "string"
+          ? sanitizeHtml(page.content)
+          : existing.content,
       updatedAt: new Date(),
     };
     this.trainingPages.set(id, updated);
@@ -949,7 +1046,7 @@ export class DbStorage implements IStorage {
     }
   }
 
-  private async seedDefaults() {
+  async seedDefaults() {
     if (this.seedDefaultsPromise) {
       await this.seedDefaultsPromise;
       return;
@@ -1051,19 +1148,30 @@ export class DbStorage implements IStorage {
     const projects = await listProjects();
     if (projects.length === 0 && process.env.NODE_ENV !== "production") {
       await this.seedDefaults();
-      return listProjects();
+      const seeded = await listProjects();
+      return this.syncScheduledProjects(seeded);
     }
-    return projects;
+    return this.syncScheduledProjects(projects);
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    return getProjectById(id);
+    const project = await getProjectById(id);
+    if (!project) return undefined;
+    if (shouldStartScheduledProject(project, new Date())) {
+      return this.startScheduledProject(project);
+    }
+    return project;
   }
 
   async getProjectByTrainingLinkToken(token: string): Promise<Project | undefined> {
     const normalized = token.trim();
     if (!normalized) return undefined;
-    return getProjectByTrainingLinkTokenRecord(normalized);
+    const project = await getProjectByTrainingLinkTokenRecord(normalized);
+    if (!project) return undefined;
+    if (shouldStartScheduledProject(project, new Date())) {
+      return this.startScheduledProject(project);
+    }
+    return project;
   }
 
   async createProject(project: InsertProject): Promise<Project> {
@@ -1296,11 +1404,22 @@ export class DbStorage implements IStorage {
   }
 
   async createTemplate(template: InsertTemplate): Promise<Template> {
-    return createTemplateRecord(template);
+    return createTemplateRecord({
+      ...template,
+      body: sanitizeHtml(template.body ?? ""),
+      maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
+    });
   }
 
   async updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined> {
-    return updateTemplateById(id, template);
+    const sanitizedPayload: Partial<InsertTemplate> = { ...template };
+    if (typeof template.body === "string") {
+      sanitizedPayload.body = sanitizeHtml(template.body);
+    }
+    if (template.maliciousPageContent !== undefined) {
+      sanitizedPayload.maliciousPageContent = sanitizeHtml(template.maliciousPageContent ?? "");
+    }
+    return updateTemplateById(id, sanitizedPayload);
   }
 
   async deleteTemplate(id: string): Promise<boolean> {
@@ -1378,7 +1497,7 @@ export class DbStorage implements IStorage {
       id: randomUUID(),
       name: normalizePlainText(page.name, 200),
       description: page.description ? normalizePlainText(page.description, 1000) : null,
-      content: page.content,
+      content: sanitizeHtml(page.content ?? ""),
       status: page.status ?? null,
       createdAt: now,
       updatedAt: now,
@@ -1398,6 +1517,10 @@ export class DbStorage implements IStorage {
         typeof page.description === "string"
           ? normalizePlainText(page.description, 1000)
           : existing.description ?? null,
+      content:
+        typeof page.content === "string"
+          ? sanitizeHtml(page.content)
+          : existing.content,
       updatedAt: new Date(),
     };
     return updateTrainingPageById(id, {
