@@ -695,9 +695,6 @@ export default function ProjectCreate() {
   const previewData = previewQuery.data;
   const conflictItems = previewData?.conflicts ?? [];
   const hasConflicts = conflictItems.length > 0;
-  const isAllTargetsSelected =
-    allTargetIds.length > 0 && selectedTargetCount === allTargetIds.length;
-  const shouldUseSplitLayout = hasConflicts && !isAllTargetsSelected;
 
   const departmentTagOptions = useMemo(() => {
     const tagSet = new Set<string>();
@@ -1160,13 +1157,7 @@ export default function ProjectCreate() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        <div
-          className={
-            shouldUseSplitLayout
-              ? "grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,640px)_minmax(400px,1fr)]"
-              : "grid gap-6 p-6"
-          }
-        >
+        <div className="grid gap-6 p-6">
           <Form {...form}>
             <form className="space-y-6">
               <Card>
