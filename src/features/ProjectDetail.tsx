@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play } from "lucide-react";
 import { type Project } from "@shared/schema";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -30,6 +31,9 @@ const statusConfig: Record<string, { className: string }> = {
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
   const fetchProject = async (): Promise<Project> => {
     if (!projectId) {
       throw new Error("프로젝트 ID가 없습니다.");
@@ -46,6 +50,29 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     queryKey: ["/api/projects", projectId],
     enabled: Boolean(projectId),
     queryFn: fetchProject,
+  });
+
+  const startProjectMutation = useMutation({
+    mutationFn: async (target: Project) => {
+      const res = await apiRequest("PATCH", `/api/projects/${target.id}/status`, {
+        to: "RUNNING",
+      });
+      return (await res.json()) as { id: string; status: string };
+    },
+    onSuccess: (_response, target) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      toast({
+        title: "프로젝트 시작",
+        description: `${target.name} 프로젝트가 진행중으로 전환되었습니다.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "시작 실패",
+        description: error.message ?? "프로젝트를 시작할 수 없습니다.",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -121,6 +148,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { time: '2024-01-15 11:00', user: '박민수', action: '정보 제출' },
   ];
 
+  const handleStartProject = () => {
+    if (project.status !== "예약") return;
+    if (!confirm(`"${project.name}" 프로젝트를 지금 시작하시겠습니까?`)) return;
+    startProjectMutation.mutate(project);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -138,10 +171,22 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           </div>
           <p className="text-muted-foreground">{project.description || '프로젝트 설명'}</p>
         </div>
-        <Button data-testid="button-generate-report">
-          <FileText className="w-4 h-4 mr-2" />
-          보고서 생성
-        </Button>
+        <div className="flex items-center gap-2">
+          {project.status === "예약" ? (
+            <Button
+              variant="outline"
+              onClick={handleStartProject}
+              disabled={startProjectMutation.isPending}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              {startProjectMutation.isPending ? "시작 중" : "지금 시작"}
+            </Button>
+          ) : null}
+          <Button data-testid="button-generate-report">
+            <FileText className="w-4 h-4 mr-2" />
+            보고서 생성
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -179,6 +224,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
               <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
               <YAxis stroke="hsl(var(--muted-foreground))" />
               <Tooltip 
+                cursor={false}
                 contentStyle={{ 
                   backgroundColor: 'hsl(var(--popover))', 
                   border: '1px solid hsl(var(--border))',
