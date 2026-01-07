@@ -789,6 +789,11 @@ export default function ProjectCreate() {
     return `${format(startDateValue, "yyyy")} · Q${quarter}`;
   }, [startDateValue]);
 
+  const isScheduleDisabled =
+    !isFormValid ||
+    !startDateValue ||
+    startDateValue.getTime() <= Date.now();
+
   const testSendDisabled =
     !templateId ||
     !trainingPageId ||
@@ -1019,6 +1024,18 @@ export default function ProjectCreate() {
           variant: "destructive",
         });
         return;
+      }
+
+      if (mode === "schedule") {
+        const startDate = values.startDate;
+        if (!startDate || Number.isNaN(startDate.getTime()) || startDate.getTime() <= Date.now()) {
+          toast({
+            title: "예약 시작일 확인",
+            description: "예약 생성은 시작일을 현재 이후로 설정해야 합니다.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       const status = mode === "run" ? "진행중" : "예약";
@@ -1862,7 +1879,7 @@ export default function ProjectCreate() {
                 {endDateValue ? ` · ${format(endDateValue, "yyyy-MM-dd")} 종료` : ""}
               </span>
             ) : (
-              <span>시작일을 설정하면 예약 생성이 활성화됩니다.</span>
+              <span>시작일을 현재 이후로 설정하면 예약 생성이 활성화됩니다.</span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1879,7 +1896,7 @@ export default function ProjectCreate() {
             </Button>
             <Button
               variant="default"
-              disabled={!isFormValid || !startDateValue}
+              disabled={isScheduleDisabled}
               onClick={() => handleSubmitProject("schedule")}
             >
               <Clock className="mr-2 h-4 w-4" />
