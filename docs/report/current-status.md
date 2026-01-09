@@ -1,146 +1,138 @@
-# PhishSenseDashboard 현재 현황 정리
+# PhishSenseDashboard 구조/운영 한눈에 보기
 
-## 1. 진행 과정(커밋 로그 기준, 시간 순)
-1. (9fd8a00) 초기 커밋 - 저장소 기본 골격을 생성했다.
-2. (903737d) 피싱 시뮬레이션 플랫폼 대시보드와 내비게이션의 기본 구조를 세팅했다.
-3. (8020434) 프로젝트·템플릿·훈련 페이지의 통합 관리 기능을 추가했다.
-4. (613bb42) 프로젝트 관리 개선과 훈련 대상 소속 확장을 반영했다.
-5. (de7b79c) 프로젝트 관리 기능을 추가로 개선했다.
-6. (3296265) 비교용 프로젝트 생성 흐름을 추가했다.
-7. (feb4caa) 레이어드 구조와 분기별 프로젝트 관리 기능을 구성했다.
-8. (d3906af) 프로젝트 생성 페이지를 개선했다.
-9. (65efb77) 훈련 대상자 생성 페이지의 조직 추가 기능과 스크롤 동작을 수정했다.
-10. (eed648c) 템플릿 수정 페이지를 변경하고 테스트 메일 SMTP 연결을 반영했다.
-11. (aadee1a) SMTP 관리 페이지 화면을 만들고 API 개발을 진행 중으로 반영했다.
-12. (52d3f76) SMTP 관리 화면 개발을 완료하고 API 수정 진행 상태를 반영했다.
-13. (8829bdf) SMTP API 수정 완료와 훈련 대상 업로드 개발 완료를 반영했다.
-14. (57bcf40) Next.js와 PostgreSQL로 전환을 완료했다.
-15. (b1bca20) 프로젝트 훈련 안내 링크 토큰과 공개 라우트를 추가했다.
-16. (365a0bd) 훈련 대상 업로드 데이터를 DB에 저장하도록 전환했다.
-17. (85b1cb2) 테스트 발송 시 SMTP 오류 진단 정보를 보강했다.
-18. (7dc233d) 훈련 페이지 미리보기 HTML 정리와 폰트 경로를 수정했다.
-19. (46b78d2) 하이드레이션 오류 완화를 위해 클라이언트 전용 렌더링을 적용했다.
-20. (04443df) 개발 환경에서 테스트 발송 오류 메시지를 노출했다.
-21. (2fa9ebd) 테스트 메일 발송에서 465 실패 시 587로 재시도하도록 했다.
-22. (711d76c) 훈련 안내 링크가 템플릿 버튼에 적용되도록 수정했다.
-23. (7e35d59) 테스트 발송 임시 저장과 임시 상태 표시를 추가했다.
-24. (3e6a5a7) 메일 링크를 악성 본문으로 연결하고 안내 링크를 추가했다.
-25. (d56b829) 악성 본문 라우트의 빌드 오류를 수정했다.
-26. (1d05e59) 훈련 안내 링크 이동 방식을 버튼 이동으로 변경했다.
-27. (f157ef5) 훈련 안내 접근을 악성 링크 경유로 제한했다.
-28. (5545857) 악성 본문 링크를 기존 a 또는 button에 자동 지정하도록 했다.
-29. (29de556) SMTP 테스트 수신 도메인 허용 범위를 확장했다.
-30. (3d80522) SMTP 테스트 발송에서 발신자를 계정으로 고정했다.
-31. (e45720e) SMTP 테스트 오류 표시와 실행 조건을 정리했다.
-32. (b26642f) SMTP 테스트 블록에서 저장 후 테스트 버튼을 제거했다.
-33. (b9f1851) SMTP 설정 삭제 기능을 추가했다.
-34. (c6ee0c1) SMTP 설정 상세 화면의 상태 훅 누락을 수정했다.
-35. (edfd223) SMTP 테스트 메일 제목·본문 입력을 지원했다.
-36. (a333134) 삭제 버튼 스타일을 통일했다.
-37. (7fc2fcb) SMTP 테스트 메일 내용 입력 폼을 분리했다.
-38. (85a287c) SMTP 테스트 발송 입력값 전달 오류를 수정했다.
-39. (eb62b32) SMTP 관리 삭제 버튼 스타일을 통일했다.
-40. (b59b5f8) SMTP 설정 목록에 도메인 컬럼을 추가했다.
-41. (f372368) SMTP 테스트 메일 내용 입력 블록을 제거했다.
-42. (9dac58e) SMTP 도메인 안내 문구를 제거했다.
-43. (34a113e) 프로젝트 생성 버튼 문구를 변경했다.
-44. (d06c279) 프로젝트 발신 도메인에 SMTP 표시를 추가했다.
-45. (52ffed2) 프로젝트 발신 도메인을 SMTP 목록과 연동했다.
-46. (379346a) 프로젝트 발신 도메인 옵션 누락을 보완했다.
-47. (d7bb319) 발신 도메인 SMTP 문구를 정리했다.
-48. (5002a32) 발신 도메인 중복 제거와 보안 모드 표시를 반영했다.
-49. (612afcd) SMTP 중복 도메인 및 설정 등록을 방지했다.
-50. (8a8befb) SMTP 상태 토글을 추가했다.
-51. (a732d42) 프로젝트·훈련안내 데이터를 DB 저장 방식으로 전환했다.
-52. (e2595ea) 프로젝트·훈련안내 기본 데이터 시드를 추가했다.
-53. (55855d9) 프로젝트 시드 데이터를 월별 3개로 조정했다.
-54. (cd8e7e6) 프로젝트 월별 시드를 2~5개로 랜덤 구성했다.
-55. (dc809d9) 프로젝트 시드 랜덤화와 기본 시드 재시도 처리를 추가했다.
-56. (cd90109) 전직원 대상 훈련 선택 시 초기화 방지를 반영했다.
-57. (3e198bd) 예약 프로젝트 자동 시작과 즉시 시작 버튼을 추가했다.
-58. (96bcbef) 전직원 대상 선택 시 충돌 경고 레이아웃을 조정했다.
-59. (34b9e6e) 예약 프로젝트 상세에 지금 시작 버튼을 추가했다.
-60. (2f6af5e) 프로젝트 생성 대상 선택 시 우측 여백을 제거했다.
-61. (8eca0b6) 중복 충돌 경고를 모달로 표시했다.
-62. (dda3773) 예약 생성 시 시작일 검증을 추가했다.
-63. (5b1cb04) 프로젝트 관리 예약 항목의 즉시 시작 버튼을 제거했다.
-64. (80ef92c) 템플릿 기본 시딩을 환경과 데이터 상태에 따라 제한했다.
-65. (a51d522) 주요 관리 화면의 부가 설명을 제거했다.
-66. (ce72146) 프로젝트 관리 힌트 문구를 예시 중심으로 변경했다.
-67. (c427bcd) 프로젝트 관리 일괄 액션을 비교·삭제 중심으로 변경했다.
-68. (e24a466) 프로젝트 관리 일괄 액션 버튼 구성을 정리했다.
-69. (8cb67b4) 템플릿 편집 에디터 모드 전환 위치를 조정했다.
-70. (db37d8d) 훈련 대상 관리 타입 참조 오류를 수정했다.
+## 1. 시스템 개요
+- 목적: 악성메일 모의훈련(피싱 시뮬레이션) 관리 콘솔을 제공한다.
+- 핵심 기능: 프로젝트 관리, 훈련 대상 관리, 템플릿/악성 본문 편집, 훈련 페이지 관리, SMTP 설정/테스트 발송, 공개 훈련 링크, 이미지 업로드.
+- 기술 스택: Next.js(App Router) + React 18 + TypeScript, Tailwind CSS, Radix UI, Drizzle ORM + PostgreSQL, nodemailer, sanitize-html, TanStack Query, react-hook-form + zod.
 
-## 2. 현재 라이브러리 구조
-### 프런트엔드
-- Next.js(앱 라우터 기반)와 React 18을 중심으로 화면과 API 라우트를 구성한다.
-- Tailwind CSS + tailwindcss-animate + tailwind-merge로 유틸리티 기반 스타일링을 적용한다.
-- Radix UI 컴포넌트 세트로 접근성 중심의 UI 베이스를 제공한다.
-- @tanstack/react-query로 데이터 패칭/캐싱을 관리한다.
-- react-hook-form + zod/@hookform/resolvers로 폼 입력 검증과 타입 안전성을 확보한다.
-- @toast-ui/react-editor로 템플릿/훈련 콘텐츠 편집을 지원한다.
-- recharts, framer-motion, embla-carousel-react, lucide-react로 데이터 시각화·애니메이션·아이콘을 보강한다.
+## 2. 요청/데이터 흐름(개념도)
+```
+사용자 브라우저(UI)
+  -> UI 화면(src/app, src/features)
+  -> API 호출(src/lib/api + react-query)
+  -> API 라우트(src/app/api/**)
+  -> 서버 도메인 로직(src/server/**)
+  -> 저장소(PostgreSQL/메모리) + SMTP + 업로드 디렉터리
+```
+- 공용 타입/스키마는 `shared/schema.ts`에서 정의하고, 프런트/서버가 함께 사용한다.
 
-### 백엔드/서버 기능
-- drizzle-orm + pg로 PostgreSQL 연동을 담당한다.
-- drizzle-zod로 스키마 기반 검증 모델을 생성한다.
-- nodemailer로 SMTP 테스트 발송과 메일 전송 기능을 제공한다.
-- sanitize-html로 템플릿 및 악성 본문 HTML을 정제한다.
-- dotenv로 환경 변수 로딩을 지원한다.
+## 3. 루트 폴더 구조와 배치 이유
+아래는 루트에 존재하는 주요 폴더와 “왜 이 위치에 둬야 하는지”에 대한 설명이다.
 
-### 개발 도구
-- TypeScript, Vitest, Drizzle Kit, PostCSS, TailwindCSS를 빌드/테스트/스타일링 파이프라인으로 사용한다.
+| 폴더 | 역할 | 배치 이유/생성 시점 |
+| --- | --- | --- |
+| `.git/` | Git 메타데이터 | 버전 관리 기본 폴더로, 저장소 최상위에 위치해야 한다. |
+| `.idea/` | IDE 설정 | JetBrains 계열 IDE 사용 시 자동 생성되는 로컬 설정 폴더다. |
+| `.local/` | 로컬 전용 설정/캐시 | 개발 환경별 임시 데이터가 저장되며 커밋 대상이 아니다. |
+| `.next/` | Next.js 빌드/캐시 | `npm run dev` 또는 `npm run build` 실행 시 자동 생성된다. |
+| `.tmp/` | 임시 파일 | 스크립트/도구의 작업 중간 산출물을 저장한다. |
+| `attached_assets/` | 참고 자산 | 문서/디자인 참고 파일을 소스와 분리해 관리한다. |
+| `dist/` | 배포/번들 산출물 | 과거 또는 보조 빌드 산출물을 분리 보관하기 위해 사용한다. |
+| `docs/` | 문서 저장소 | 설계/운영/현황 문서를 코드와 분리해 기록한다. |
+| `node_modules/` | 의존성 | `npm install` 시 생성되며 실행에 필요한 패키지가 저장된다. |
+| `plans/`, `tasks/`, `work*/` | 작업 계획/기록 | 작업 단위 계획을 남기기 위한 폴더로, 업무 흐름을 추적하기 위해 사용한다. |
+| `scripts/` | 보조 스크립트 | 시드/유지보수 등 반복 작업을 자동화하기 위해 별도 관리한다. |
+| `shared/` | 공용 스키마/타입 | 프런트와 서버가 공통으로 사용하는 타입을 분리해 중복을 줄인다. |
+| `src/` | 애플리케이션 코드 | 실행 코드의 중심 폴더로, UI/서버 로직을 구조화한다. |
+| `tatus/` | 확인 필요 | 역할이 불명확하여 필요 시 정리 대상이다. |
 
-## 3. 현재 파일/디렉터리 구조 요약
-### 상위 구조
-- `src/app`: Next.js 앱 라우터 페이지 및 API 라우트.
-- `src/features`: 화면 단위 기능 구성(대시보드, 프로젝트, 템플릿, 훈련 페이지 등).
-- `src/components`: 공용 UI 컴포넌트와 레이아웃 구성.
-- `src/hooks`: 커스텀 훅 모음.
-- `src/lib`: API 호출, 에디터/보안 유틸, 쿼리 클라이언트 등 공통 유틸.
-- `src/server`: DAO, 서비스, 시드, 유틸 등 서버 로직 모듈.
-- `shared`: Drizzle 스키마와 공용 타입.
-- `docs`: 문서 모음.
-- `attached_assets`: 참고용 자산.
-- `scripts`: 보조 스크립트.
-- `dist`: 빌드 산출물(과거/참고 용도로 존재).
-- `dev.db`: 로컬 개발 DB 파일.
-- 구성 파일: `next.config.mjs`, `tsconfig.json`, `tailwind.config.ts`, `postcss.config.js`, `drizzle.config.ts` 등.
+## 4. `src/` 내부 구조(코드 배치 이유)
+### 4.1 앱 라우터와 화면 구성
+- `src/app/`: Next.js App Router 기반 화면/라우트를 둔다.
+  - `page.tsx`, `layout.tsx`, `globals.css`: 루트 페이지, 레이아웃, 전역 스타일 정의.
+  - `projects/`, `templates/`, `targets/`, `training-pages/`, `admin/smtp/`: 관리 화면 라우트.
+  - `p/[token]/`, `t/[token]/`: 공개 훈련 링크/악성 본문 접근 라우트.
+  - `api/`: 서버 API 라우트(파일 기반 라우팅)로, URL 구조와 파일 구조를 일치시킨다.
 
-### 주요 라우트(Next 앱 라우터)
-- `src/app/projects`, `src/app/templates`, `src/app/targets`, `src/app/training-pages`: 관리 화면 라우트.
-- `src/app/admin/smtp`: SMTP 관리 라우트.
-- `src/app/p/[token]`, `src/app/t/[token]`: 토큰 기반 훈련/안내 라우트.
-- `src/app/api/**`: 프로젝트/템플릿/대상/훈련/업로드/SMTP 관리 API 라우트.
+### 4.2 화면 단위 기능과 공용 컴포넌트
+- `src/features/`: 대시보드/프로젝트/템플릿/훈련 페이지 등 화면 단위 컴포넌트를 분리해 관리한다.
+- `src/components/`: 재사용 가능한 UI/레이아웃 컴포넌트를 모아 중복을 줄인다.
+  - `src/components/ui/`: Radix 기반의 공통 UI 프리미티브.
+  - `src/components/admin/`: 관리 화면에 특화된 컴포넌트.
 
-### 서버 모듈 구성
-- `src/server/dao`: 프로젝트/템플릿/훈련 페이지/대상/SMTP 관련 DB 접근 레이어.
-- `src/server/services`: 프로젝트 공유 로직, SMTP 관리 서비스 등.
-- `src/server/seed`: 기본 템플릿 및 시드 데이터.
-- `src/server/lib`: SMTP, SSRF 방어, 링크 토큰, 검증 유틸.
-- `src/server/utils`: HTML 정제, 암호화 유틸 및 테스트.
-- `src/server/storage.ts`: 메모리 스토리지와 일부 DB 연동 브리지.
+### 4.3 재사용 로직과 타입
+- `src/hooks/`: 커스텀 훅을 모아 UI 로직의 재사용성을 높인다.
+- `src/lib/`: API 호출, 쿼리 클라이언트, HTML 정제 등 공통 유틸을 관리한다.
+- `src/types/`: 화면/도메인에서 필요한 타입을 별도 정의한다.
 
-### 특이사항
-- `*:Zone.Identifier` 파일은 Windows 다운로드 메타데이터로 보이며, 실제 소스 파일이 존재하지 않는 경우가 있어 정리가 필요하다.
+### 4.4 서버 도메인 로직
+- `src/server/`: API 라우트에서 사용하는 서버 전용 로직을 분리한다.
+  - `dao/`: DB 접근 로직을 모아 쿼리 책임을 분리한다.
+  - `services/`: 도메인 비즈니스 로직을 묶어 API 라우트의 복잡도를 줄인다.
+  - `seed/`: 기본 데이터 시드 관리.
+  - `lib/`: SMTP, SSRF 방어, 링크 토큰 등 공통 서버 유틸.
+  - `utils/`: HTML 정제/암호화 관련 유틸 및 테스트.
+  - `data/`: 로컬 스토리지/캐시 성격의 데이터 파일을 보관한다.
 
-## 4. 사용 언어와 활용 방식
-- TypeScript: 프런트/서버 공통으로 사용하며, 프로젝트·템플릿·대상·훈련 페이지 등 핵심 도메인 모델을 타입으로 고정해 안정적인 개발을 지원한다.
-- TSX/JSX: 대시보드/관리 화면 등 UI 렌더링에 활용하며, 컴포넌트 재사용과 상태 관리에 강점이 있다.
-- SQL(PostgreSQL): SMTP 계정·템플릿 등 영속 데이터 저장에 활용한다.
-- HTML: 메일 템플릿 본문과 악성 본문, 훈련 페이지 콘텐츠를 구성한다.
-- CSS(Tailwind): 관리자 콘솔의 빠른 UI 스타일링과 일관된 디자인 토큰 적용에 사용한다.
-- JSON/ENV: 설정(`package.json`), 시드 데이터, 환경 변수 관리에 사용한다.
+## 5. 기능별 위치 매핑(현재까지 개발된 내용)
+| 기능 | UI/라우트 | API 라우트 | 서버 로직 |
+| --- | --- | --- | --- |
+| 프로젝트 관리 | `src/app/projects/`, `src/features/Projects.tsx` | `src/app/api/projects/` | `src/server/dao/projectDao.ts` |
+| 템플릿 관리 | `src/app/templates/`, `src/features/Templates.tsx` | `src/app/api/templates/` | `src/server/dao/templateDao.ts`, `src/server/seed/` |
+| 훈련 대상 관리 | `src/app/targets/`, `src/features/Targets.tsx` | `src/app/api/targets/`, `src/app/api/admin/training-targets/` | `src/server/dao/targetDao.ts` |
+| 훈련 페이지 | `src/app/training-pages/`, `src/features/TrainingPages.tsx` | `src/app/api/training-pages/` | `src/server/dao/trainingPageDao.ts` |
+| SMTP 관리 | `src/app/admin/smtp/`, `src/features/admin/` | `src/app/api/admin/smtp-configs/` | `src/server/services/adminSmtpService.ts`, `src/server/lib/smtp.ts` |
+| 공개 훈련 링크 | `src/app/p/[token]/`, `src/app/t/[token]/` | - | `src/server/lib/trainingLink.ts` |
+| 이미지 업로드 | - | `src/app/api/uploads/` | 저장 위치: `public/uploads`(로컬 생성) |
 
-## 5. 장점과 향후 발전 방향
-- 타입 공유 구조는 프런트와 서버 간 계약을 명확히 하므로, 기능 확장 시 안정적인 유지보수를 지원한다.
-- Next.js 기반 앱 라우터와 API 라우트는 관리 콘솔과 API를 단일 코드베이스에서 운영할 수 있어 배포·운영 효율을 높인다.
-- Drizzle + Zod 조합은 스키마 기반 검증을 강화할 수 있어 규정된 데이터 품질을 확보하기 좋다.
-- SMTP/템플릿 관리가 이미 모듈화되어 있어 향후 멀티 테넌트, 전송 정책, 발송 로그/감사 추적 확장이 수월하다.
-- 향후 발전 제안:
-  - 프로젝트/훈련 대상/훈련 페이지까지 DB 영속화 범위를 확대해 운영 신뢰성을 높인다.
-  - 예약 발송, 대량 발송을 위해 큐(BullMQ 등) 및 백그라운드 워커를 추가한다.
-  - 클릭/열람/제출 이벤트를 더 정교하게 수집해 리포팅 대시보드(시계열·부서별 비교)를 고도화한다.
-  - 보안 관점에서 입력 정제 범위를 확대하고, 발송 도메인/링크 검증 규칙을 체계화한다.
-  - 테스트 범위를 API 통합 테스트와 시나리오 테스트까지 확대해 회귀 위험을 줄인다.
+## 6. `shared/` 구조(공유 타입/스키마)
+- `shared/schema.ts`: Drizzle 스키마와 Zod 기반 입력 스키마를 정의한다.
+- `shared/sanitizeConfig.ts`: HTML 정제 규칙을 공통으로 유지해 입력 안전성을 확보한다.
+
+## 7. 설정/메타 파일 설명(왜 필요하고, 언제 쓰는가)
+### 환경 변수
+- `.env`: 실행 환경별 비밀값/설정을 저장한다. 로컬 개발 또는 배포 시점에 필요하다.
+- `.env.example`: `.env` 작성 가이드로, 신규 환경 세팅 시 복사해 사용한다.
+- 사용 예: `DATABASE_URL`(DB 연결), `SMTP_SECRET`(암호화 키), `APP_URL`(메일 링크 생성), `SMTP_TEST_ALLOWED_DOMAINS`(테스트 제한).
+
+### 빌드/런타임 설정
+- `package.json`: 실행 스크립트와 의존성 정의.
+- `package-lock.json`: 의존성 버전 고정을 위해 자동 생성된다.
+- `tsconfig.json`: TypeScript 컴파일 설정.
+- `next.config.mjs`: Next.js 빌드/라우팅 설정.
+- `tailwind.config.ts`, `tailwind.config.js`: Tailwind 설정(환경/도구 호환 목적).
+- `postcss.config.js`: PostCSS 플러그인 설정.
+- `drizzle.config.ts`: Drizzle Kit 설정(DB 스키마 반영용).
+- `vitest.config.ts`: 테스트 러너 설정.
+- `next-env.d.ts`: Next.js 타입을 TS에 반영하기 위한 자동 생성 파일.
+- `tsconfig.tsbuildinfo`: TS 증분 빌드 캐시 파일.
+
+### 문서/정책
+- `README.md`: DB/SMTP 등 실행 방법과 운영 체크리스트.
+- `AGENTS.md`: 저장소 작업 규칙 및 커뮤니케이션 지침.
+- `design_guidelines.md`: 디자인/레이아웃 기준.
+
+### 개발 보조 파일
+- `docker-compose.yml`: 로컬 DB 등 외부 서비스 실행용.
+- `components.json`: UI 컴포넌트 생성/관리 도구 설정.
+- `check.log`: 타입체크/검사 결과 로그 기록 용도.
+- `dev.db`: 로컬 개발용 DB 산출물(커밋 대상 아님).
+- `*:Zone.Identifier`: Windows 다운로드 메타데이터 파일로, 소스가 아니다.
+
+### 버전 관리 예외
+- `.gitignore`: 빌드 산출물(`.next`, `dist`), 의존성(`node_modules`), 비밀값(`.env`), 업로드 파일(`public/uploads`) 등을 커밋에서 제외한다.
+
+## 8. 개발/운영 사용법 요약
+- 개발 서버: `npm run dev`
+- 빌드: `npm run build`
+- 프로덕션 실행: `npm run start`
+- 타입 체크: `npm run check`
+- DB 스키마 반영: `npm run db:push`
+
+## 9. 한눈에 보는 폴더 트리(핵심만)
+```
+.
+├─ src/
+│  ├─ app/            # 화면/라우트(Next App Router)
+│  ├─ features/       # 화면 단위 기능
+│  ├─ components/     # 공용 컴포넌트
+│  ├─ hooks/          # 커스텀 훅
+│  ├─ lib/            # 유틸/클라이언트
+│  ├─ server/         # 서버 전용 로직
+│  └─ types/          # 타입 정의
+├─ shared/            # 공용 스키마/타입
+├─ docs/              # 문서
+├─ scripts/           # 보조 스크립트
+├─ attached_assets/   # 참고 자산
+└─ (기타 로컬/빌드 폴더: .next, node_modules, .tmp, .local 등)
+```
