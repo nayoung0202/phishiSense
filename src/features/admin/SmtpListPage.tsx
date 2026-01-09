@@ -85,7 +85,6 @@ export default function SmtpListPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">SMTP 설정 목록</h1>
-          <p className="text-sm text-muted-foreground">등록된 SMTP 설정을 확인하고 신규 등록 또는 수정을 진행하세요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => router.push("/admin/smtp/new")}>SMTP 등록</Button>
