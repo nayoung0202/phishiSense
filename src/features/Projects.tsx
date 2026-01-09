@@ -54,7 +54,6 @@ import {
 } from "recharts";
 import {
   CalendarRange,
-  Copy,
   Kanban,
   LayoutList,
   Plus,
@@ -611,35 +610,6 @@ export default function Projects() {
     queryClient.invalidateQueries({ queryKey: ["projects-quarter-stats"] });
     queryClient.invalidateQueries({ queryKey: ["projects-calendar"] });
   };
-
-  const copyMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const res = await apiRequest("POST", "/api/projects/copy", { ids });
-      const contentType = res.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("application/json")) {
-        const fallback = await res.text();
-        throw new Error(
-          fallback || "서버가 올바른 JSON 응답을 반환하지 않았습니다.",
-        );
-      }
-      return (await res.json()) as Project[];
-    },
-    onSuccess: (copiedProjects) => {
-      invalidateProjectData();
-      setSelectedProjects([]);
-      toast({
-        title: "프로젝트 복사 완료",
-        description: `${copiedProjects.length}개의 프로젝트가 복제되었습니다.`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "복사 실패",
-        description: error.message ?? "프로젝트 복사에 실패했습니다.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -1651,12 +1621,6 @@ export default function Projects() {
             disabled={deleteMutation.isPending}
           >
             삭제
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => copyMutation.mutate(selectedProjects)}>
-            <Copy className="mr-2 h-4 w-4" /> 복사
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setSelectedProjects([])}>
-            선택 해제
           </Button>
         </div>
       ) : null}
