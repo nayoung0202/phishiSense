@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -138,7 +138,7 @@ export default function Targets() {
     fileInputRef.current?.click();
   };
 
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
