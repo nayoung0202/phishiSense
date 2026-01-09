@@ -176,7 +176,6 @@ export default function Targets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold mb-2">훈련 대상 관리</h1>
-          <p className="text-muted-foreground">훈련 대상자를 등록하고 관리하세요</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
