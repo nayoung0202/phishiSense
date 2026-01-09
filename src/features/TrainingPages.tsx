@@ -59,7 +59,6 @@ export default function TrainingPages() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold mb-2">훈련 안내 페이지 관리</h1>
-          <p className="text-muted-foreground">훈련 완료 후 표시될 안내 페이지를 관리하세요</p>
         </div>
         <Link href="/training-pages/new">
           <Button data-testid="button-new-page">
