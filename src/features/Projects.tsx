@@ -55,7 +55,6 @@ import {
 import {
   CalendarRange,
   Copy,
-  FileText,
   Kanban,
   LayoutList,
   Plus,
@@ -386,6 +385,7 @@ export default function Projects() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [reportProject, setReportProject] = useState<Project | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
   const [dayModalContent, setDayModalContent] = useState<{
     date: string;
@@ -642,11 +642,21 @@ export default function Projects() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/projects/${id}`);
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => apiRequest("DELETE", `/api/projects/${id}`)));
+      return ids;
     },
-    onSuccess: () => {
+    onSuccess: (ids) => {
       invalidateProjectData();
+      setSelectedProjects([]);
+      toast({
+        title: "프로젝트 삭제 완료",
+        description: `${ids.length}개 프로젝트가 삭제되었습니다.`,
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "프로젝트 삭제에 실패했습니다.";
+      toast({ title: "삭제 실패", description: message, variant: "destructive" });
     },
   });
 
@@ -717,6 +727,14 @@ export default function Projects() {
     projects.filter((project) => selectedProjects.includes(project.id)),
   [projects, selectedProjects]);
 
+  const canCompare = selectedProjectDetails.length >= 2;
+
+  useEffect(() => {
+    if (isCompareOpen && !canCompare) {
+      setIsCompareOpen(false);
+    }
+  }, [canCompare, isCompareOpen]);
+
   const comparisonData = useMemo(() =>
     selectedProjectDetails.map((project) => {
       const start = toDate(project.startDate);
@@ -759,6 +777,24 @@ export default function Projects() {
   const handleReportDialogChange = (open: boolean) => {
     setIsReportOpen(open);
     if (!open) setReportProject(null);
+  };
+
+  const handleCompareDialogChange = (open: boolean) => {
+    setIsCompareOpen(open);
+  };
+
+  const handleCompareOpen = () => {
+    if (!canCompare) return;
+    setIsCompareOpen(true);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedProjects.length === 0) return;
+    const confirmMessage = selectedProjects.length === 1
+      ? "선택한 프로젝트를 삭제하시겠습니까?"
+      : `선택한 ${selectedProjects.length}개 프로젝트를 삭제하시겠습니까?`;
+    if (!confirm(confirmMessage)) return;
+    deleteMutation.mutate(selectedProjects);
   };
 
   const openReport = (project: Project) => {
@@ -972,17 +1008,6 @@ export default function Projects() {
                       </Link>
                       <Button variant="ghost" size="sm" onClick={() => openReport(project)}>
                         보고서
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          if (confirm("정말 삭제하시겠습니까?")) {
-                            deleteMutation.mutate(project.id);
-                          }
-                        }}
-                      >
-                        삭제
                       </Button>
                     </div>
                   </TableCell>
@@ -1443,13 +1468,13 @@ export default function Projects() {
   );
 
   const comparisonDialog = (
-    <Dialog open={selectedProjectDetails.length >= 2} onOpenChange={(open) => !open && setSelectedProjects([])}>
+    <Dialog open={isCompareOpen} onOpenChange={handleCompareDialogChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>비교 보고서 미리보기</DialogTitle>
           <DialogDescription>선택된 프로젝트의 주요 지표를 비교합니다.</DialogDescription>
         </DialogHeader>
-        {selectedProjectDetails.length >= 2 ? (
+        {canCompare ? (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
               {selectedProjectDetails.length}개 프로젝트 비교 중
@@ -1608,9 +1633,25 @@ export default function Projects() {
 
       {renderQuarterHighlights()}
 
-      {viewMode === "list" && selectedProjects.length > 1 ? (
+      {viewMode === "list" && selectedProjects.length > 0 ? (
         <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-4 py-3 text-sm">
           <span>{selectedProjects.length}개 프로젝트 선택됨</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCompareOpen}
+            disabled={!canCompare}
+          >
+            비교 미리보기
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={deleteMutation.isPending}
+          >
+            삭제
+          </Button>
           <Button variant="outline" size="sm" onClick={() => copyMutation.mutate(selectedProjects)}>
             <Copy className="mr-2 h-4 w-4" /> 복사
           </Button>
