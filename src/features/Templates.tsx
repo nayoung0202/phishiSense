@@ -153,7 +153,6 @@ export default function Templates() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold mb-2">템플릿 관리</h1>
-          <p className="text-muted-foreground">메일 템플릿을 관리하고 훈련에 활용하세요</p>
         </div>
         <Link href="/templates/new">
           <Button data-testid="button-new-template">

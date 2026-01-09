@@ -357,14 +357,11 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold mb-2">대시보드</h1>
-          <p className="text-muted-foreground">
-            월별 모의훈련 지표를 확인하고 추세를 비교하세요
-          </p>
         </div>
         <Link href="/projects/new">
           <Button data-testid="button-new-project">
             <Plus className="mr-2 h-4 w-4" />
-            신규 프로젝트
+            새 프로젝트
           </Button>
         </Link>
       </div>

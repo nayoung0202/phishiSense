@@ -1497,9 +1497,6 @@ export default function Projects() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold">프로젝트 관리</h1>
-          <p className="text-muted-foreground">
-            연도/분기별 프로젝트를 조회하고 리스트·보드·캘린더 보기로 상황을 파악하세요.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {viewModeOptions.map((option) => {
