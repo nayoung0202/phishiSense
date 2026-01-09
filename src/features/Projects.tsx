@@ -1602,7 +1602,7 @@ export default function Projects() {
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          힌트: <code>2025:q2 영업</code>처럼 입력하면 해당 연도·분기의 특정 키워드만 조회됩니다.
+          예시: <code>2025:q2 영업</code>처럼 입력하면 해당 연도·분기의 특정 키워드만 조회됩니다.
         </p>
       </Card>
 
