@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "suneditor/dist/css/suneditor.min.css";
 import "./globals.css";
 import { AppProviders } from "@/components/AppProviders";
 import { AppShell } from "@/components/AppShell";
