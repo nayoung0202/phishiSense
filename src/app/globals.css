@@ -21,6 +21,39 @@
   height: auto;
 }
 
+.sun-editor {
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.sun-editor .se-toolbar {
+  background-color: hsl(var(--muted));
+  outline-color: hsl(var(--border));
+}
+
+.sun-editor .se-wrapper,
+.sun-editor .se-wrapper .se-wrapper-inner {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.sun-editor .se-wrapper .se-placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.sun-editor .se-btn,
+.sun-editor .se-btn-list,
+.sun-editor button {
+  color: hsl(var(--foreground));
+}
+
+.sun-editor .se-btn:disabled,
+.sun-editor .se-btn-list:disabled,
+.sun-editor button:disabled {
+  color: hsl(var(--muted-foreground));
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
