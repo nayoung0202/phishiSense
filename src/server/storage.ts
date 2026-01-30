@@ -257,6 +257,13 @@ export class MemStorage implements IStorage {
       metrics: { openRate: number; clickRate: number; submitRate: number };
       target: { start: number; step: number };
     };
+    type ProjectMetricOverride = {
+      targetCount: number;
+      openCount: number;
+      clickCount: number;
+      submitCount: number;
+      status?: Project["status"];
+    };
 
     const monthlyThemePool: Array<Pick<MonthlySetting, "campaignName" | "focusDescription">> = [
       {
@@ -323,12 +330,34 @@ export class MemStorage implements IStorage {
         };
       });
 
+    const projectMetricOverrides: Record<string, ProjectMetricOverride[]> = {
+      "2026-01": [
+        { targetCount: 210, openCount: 165, clickCount: 38, submitCount: 11, status: "완료" },
+        { targetCount: 184, openCount: 132, clickCount: 26, submitCount: 7, status: "완료" },
+        { targetCount: 196, openCount: 153, clickCount: 29, submitCount: 9, status: "완료" },
+        { targetCount: 172, openCount: 118, clickCount: 21, submitCount: 6, status: "완료" },
+      ],
+      "2026-02": [
+        { targetCount: 230, openCount: 177, clickCount: 41, submitCount: 13, status: "완료" },
+        { targetCount: 205, openCount: 144, clickCount: 24, submitCount: 5, status: "완료" },
+        { targetCount: 192, openCount: 150, clickCount: 36, submitCount: 12, status: "완료" },
+        { targetCount: 168, openCount: 115, clickCount: 19, submitCount: 4, status: "완료" },
+      ],
+      "2026-03": [
+        { targetCount: 248, openCount: 188, clickCount: 46, submitCount: 14, status: "완료" },
+        { targetCount: 214, openCount: 158, clickCount: 28, submitCount: 6, status: "완료" },
+        { targetCount: 186, openCount: 137, clickCount: 33, submitCount: 10, status: "완료" },
+        { targetCount: 160, openCount: 121, clickCount: 22, submitCount: 5, status: "완료" },
+      ],
+    };
+
     const monthlySettings: MonthlySetting[] = [
       ...buildMonthlySettings(2024, [11, 12]),
       ...buildMonthlySettings(
         2025,
         Array.from({ length: 12 }, (_, index) => index + 1),
       ),
+      ...buildMonthlySettings(2026, [1, 2, 3]),
     ];
 
     const msPerDay = 24 * 60 * 60 * 1000;
@@ -337,7 +366,9 @@ export class MemStorage implements IStorage {
     monthlySettings.forEach((setting) => {
       const lastDay = new Date(setting.year, setting.month, 0).getDate();
       const monthLabel = `${setting.year}년 ${pad(setting.month)}월`;
-      const monthlyProjectCount = getRandomProjectCount(2, 5);
+      const overrideKey = `${setting.year}-${pad(setting.month)}`;
+      const overrides = projectMetricOverrides[overrideKey];
+      const monthlyProjectCount = overrides?.length ?? getRandomProjectCount(2, 5);
       for (let i = 0; i < monthlyProjectCount; i++) {
         const departmentInfo = departmentPool[(i + setting.month) % departmentPool.length];
         const baseDay = daySlots[i] ?? daySlots[daySlots.length - 1];
@@ -349,26 +380,30 @@ export class MemStorage implements IStorage {
         const endDate = new Date(
           `${setting.year}-${pad(setting.month)}-${pad(endDay)}T18:00:00+09:00`,
         );
-        const targetCount = setting.target.start + i * setting.target.step;
-        const status = setting.statusCycle[i % setting.statusCycle.length];
+        const override = overrides?.[i];
+        const targetCount = override?.targetCount ?? setting.target.start + i * setting.target.step;
+        const status = override?.status ?? setting.statusCycle[i % setting.statusCycle.length];
         const planned = status === "예약";
         const openCount = planned
           ? null
-          : Math.min(
+          : override?.openCount ??
+            Math.min(
               targetCount,
               Math.max(0, Math.round(targetCount * setting.metrics.openRate) - (i % 3)),
             );
         const clickCount =
           planned || openCount === null
             ? null
-            : Math.min(
+            : override?.clickCount ??
+              Math.min(
                 openCount,
                 Math.max(0, Math.round(openCount * setting.metrics.clickRate) - (i % 2)),
               );
         const submitCount =
           planned || clickCount === null
             ? null
-            : Math.min(
+            : override?.submitCount ??
+              Math.min(
                 clickCount,
                 Math.max(0, Math.round(clickCount * setting.metrics.submitRate)),
               );
@@ -995,6 +1030,27 @@ export class DbStorage implements IStorage {
       fiscalQuarter,
       weekOfYear,
     };
+  }
+
+  private async syncScheduledProjects(projects: Project[]): Promise<Project[]> {
+    const now = new Date();
+    const toStart = projects.filter((project) => shouldStartScheduledProject(project, now));
+    if (toStart.length === 0) return projects;
+
+    const updated = await Promise.all(
+      toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    );
+    const updatedMap = new Map<string, Project>();
+    updated.forEach((project) => {
+      if (project) updatedMap.set(project.id, project);
+    });
+
+    return projects.map((project) => updatedMap.get(project.id) ?? project);
+  }
+
+  private async startScheduledProject(project: Project): Promise<Project> {
+    const updated = await updateProjectById(project.id, { status: "진행중" });
+    return updated ?? { ...project, status: "진행중" };
   }
 
   private async generateTrainingLinkToken() {
