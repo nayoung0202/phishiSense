@@ -332,23 +332,16 @@ export class MemStorage implements IStorage {
 
     const projectMetricOverrides: Record<string, ProjectMetricOverride[]> = {
       "2026-01": [
-        { targetCount: 210, openCount: 165, clickCount: 38, submitCount: 11, status: "완료" },
-        { targetCount: 184, openCount: 132, clickCount: 26, submitCount: 7, status: "완료" },
-        { targetCount: 196, openCount: 153, clickCount: 29, submitCount: 9, status: "완료" },
-        { targetCount: 172, openCount: 118, clickCount: 21, submitCount: 6, status: "완료" },
+        { targetCount: 220, openCount: 119, clickCount: 15, submitCount: 4, status: "완료" },
+        { targetCount: 210, openCount: 124, clickCount: 19, submitCount: 6, status: "완료" },
+        { targetCount: 200, openCount: 126, clickCount: 22, submitCount: 8, status: "완료" },
+        { targetCount: 190, openCount: 129, clickCount: 25, submitCount: 10, status: "완료" },
+        { targetCount: 180, openCount: 130, clickCount: 27, submitCount: 11, status: "완료" },
+        { targetCount: 170, openCount: 131, clickCount: 29, submitCount: 12, status: "완료" },
+        { targetCount: 160, openCount: 132, clickCount: 32, submitCount: 13, status: "완료" },
       ],
-      "2026-02": [
-        { targetCount: 230, openCount: 177, clickCount: 41, submitCount: 13, status: "완료" },
-        { targetCount: 205, openCount: 144, clickCount: 24, submitCount: 5, status: "완료" },
-        { targetCount: 192, openCount: 150, clickCount: 36, submitCount: 12, status: "완료" },
-        { targetCount: 168, openCount: 115, clickCount: 19, submitCount: 4, status: "완료" },
-      ],
-      "2026-03": [
-        { targetCount: 248, openCount: 188, clickCount: 46, submitCount: 14, status: "완료" },
-        { targetCount: 214, openCount: 158, clickCount: 28, submitCount: 6, status: "완료" },
-        { targetCount: 186, openCount: 137, clickCount: 33, submitCount: 10, status: "완료" },
-        { targetCount: 160, openCount: 121, clickCount: 22, submitCount: 5, status: "완료" },
-      ],
+      "2026-02": [],
+      "2026-03": [],
     };
 
     const monthlySettings: MonthlySetting[] = [
