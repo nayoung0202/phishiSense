@@ -160,8 +160,8 @@ type QuarterGroup = {
 type MonthOption = {
   value: string;
   label: string;
-  month: number;
-  quarter: Quarter;
+  month?: number;
+  quarter?: Quarter;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -231,6 +231,7 @@ const quarterStartMonth: Record<Quarter, string> = {
   Q3: "7",
   Q4: "10",
 };
+const QUARTER_ALL_VALUE = "all";
 const MONTH_CARD_HEIGHT = 420;
 const WEEK_CARD_HEIGHT = 280;
 
@@ -403,11 +404,14 @@ export default function Projects() {
   const searchMeta = useMemo(() => parseSearchTerm(searchTerm), [searchTerm]);
   const handleQuarterChange = useCallback((quarter: Quarter) => {
     setSelectedQuarter(quarter);
-    setSelectedMonth(quarterStartMonth[quarter]);
+    setSelectedMonth((prev) =>
+      prev === QUARTER_ALL_VALUE ? QUARTER_ALL_VALUE : quarterStartMonth[quarter],
+    );
   }, []);
 
   const handleMonthChange = useCallback((value: string) => {
     setSelectedMonth(value);
+    if (value === QUARTER_ALL_VALUE) return;
     const monthNumber = Number(value);
     if (Number.isNaN(monthNumber)) return;
     const derivedQuarter = numberToQuarter[Math.ceil(monthNumber / 3)];
@@ -529,8 +533,17 @@ export default function Projects() {
         quarter,
       });
     });
-    return Array.from(map.values()).sort((a, b) => a.month - b.month);
-  }, [quarterProjects]);
+    const monthList = Array.from(map.values()).sort((a, b) => (a.month ?? 0) - (b.month ?? 0));
+    if (monthList.length === 0) return monthList;
+    return [
+      {
+        value: QUARTER_ALL_VALUE,
+        label: `${selectedYear}년 ${quarterNumber}분기 전체`,
+        quarter: selectedQuarter,
+      },
+      ...monthList,
+    ];
+  }, [quarterProjects, quarterNumber, selectedQuarter, selectedYear]);
 
   useEffect(() => {
     if (monthOptions.length === 0) {
@@ -538,7 +551,10 @@ export default function Projects() {
       return;
     }
     if (!monthOptions.some((option) => option.value === selectedMonth)) {
-      setSelectedMonth(monthOptions[0].value);
+      const fallback =
+        monthOptions.find((option) => option.value !== QUARTER_ALL_VALUE)?.value ??
+        monthOptions[0].value;
+      setSelectedMonth(fallback);
     }
   }, [monthOptions, selectedMonth, selectedQuarter]);
 
