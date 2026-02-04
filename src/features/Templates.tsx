@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Mail, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
@@ -123,6 +123,13 @@ export default function Templates() {
                   checked={previewTheme === "dark"}
                   onCheckedChange={(checked) => setPreviewTheme(checked ? "dark" : "light")}
                   aria-label="미리보기 테마 전환"
+                  thumbIcon={
+                    previewTheme === "dark" ? (
+                      <Moon className="h-3 w-3" />
+                    ) : (
+                      <Sun className="h-3 w-3" />
+                    )
+                  }
                 />
                 <span className={previewTheme === "dark" ? "text-foreground font-semibold" : ""}>다크</span>
               </div>
