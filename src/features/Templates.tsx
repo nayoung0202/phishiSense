@@ -8,8 +8,6 @@ import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -19,9 +17,7 @@ import { type Template } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
-import { TemplatePreviewFrame } from "@/components/template-preview-frame";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { extractBodyHtml } from "@/lib/html";
 import { SafeText } from "@/components/security/SafeText";
 
 export default function Templates() {
@@ -104,49 +100,41 @@ export default function Templates() {
         <DialogContent className="max-w-3xl" data-testid="dialog-template-preview">
           <DialogHeader>
             <DialogTitle>{previewTemplate?.name ?? "템플릿 미리보기"}</DialogTitle>
-            <DialogDescription>
-              {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
-            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <Tabs defaultValue="body" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="body">메일 본문</TabsTrigger>
-                <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
-              </TabsList>
-              <TabsContent value="body" className="mt-4">
-                <ScrollArea className="h-[420px] rounded-md border bg-white">
-                  {previewTemplate ? (
-                    previewBody.trim().length > 0 ? (
-                      <TemplatePreviewFrame html={previewBody} />
-                    ) : (
-                      <p className="p-4 text-sm text-muted-foreground">메일 본문이 없습니다.</p>
-                    )
-                  ) : (
-                    <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="malicious" className="mt-4">
-                <ScrollArea className="h-[420px] rounded-md border bg-white">
-                  {previewTemplate ? (
-                    previewMalicious.trim().length > 0 ? (
-                      <TemplatePreviewFrame html={previewMalicious} />
-                    ) : (
-                      <p className="p-4 text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
-                    )
-                  ) : (
-                    <p className="p-4 text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
+              </p>
+              {previewTemplate ? (
+                previewBody.trim().length > 0 ? (
+                  <div
+                    className="prose dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">메일 본문이 없습니다.</p>
+                )
+              ) : (
+                <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">악성 메일 본문</p>
+              {previewTemplate ? (
+                previewMalicious.trim().length > 0 ? (
+                  <div
+                    className="prose dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
+                )
+              ) : (
+                <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+              )}
+            </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClosePreview}>
-              닫기
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       <div className="p-6 space-y-6">
