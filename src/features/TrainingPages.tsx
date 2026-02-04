@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Edit, Trash2, FileText, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, FileText, Eye, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { type TrainingPage } from "@shared/schema";
 import { format } from "date-fns";
@@ -147,6 +147,13 @@ export default function TrainingPages() {
                                   checked={previewTheme === "dark"}
                                   onCheckedChange={(checked) => setPreviewTheme(checked ? "dark" : "light")}
                                   aria-label="미리보기 테마 전환"
+                                  thumbIcon={
+                                    previewTheme === "dark" ? (
+                                      <Moon className="h-3 w-3" />
+                                    ) : (
+                                      <Sun className="h-3 w-3" />
+                                    )
+                                  }
                                 />
                                 <span className={previewTheme === "dark" ? "text-foreground font-semibold" : ""}>다크</span>
                               </div>
