@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import { extractBodyHtml } from "@/lib/html";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
 
 export default function Templates() {
@@ -101,39 +102,44 @@ export default function Templates() {
           <DialogHeader>
             <DialogTitle>{previewTemplate?.name ?? "템플릿 미리보기"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
-              </p>
-              {previewTemplate ? (
-                previewBody.trim().length > 0 ? (
-                  <div
-                    className="prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
-                  />
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
+            </p>
+            <Tabs defaultValue="body" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="body">메일 본문</TabsTrigger>
+                <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
+              </TabsList>
+              <TabsContent value="body">
+                {previewTemplate ? (
+                  previewBody.trim().length > 0 ? (
+                    <div
+                      className="prose dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">메일 본문이 없습니다.</p>
+                  )
                 ) : (
-                  <p className="text-sm text-muted-foreground">메일 본문이 없습니다.</p>
-                )
-              ) : (
-                <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">악성 메일 본문</p>
-              {previewTemplate ? (
-                previewMalicious.trim().length > 0 ? (
-                  <div
-                    className="prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
-                  />
+                  <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+                )}
+              </TabsContent>
+              <TabsContent value="malicious">
+                {previewTemplate ? (
+                  previewMalicious.trim().length > 0 ? (
+                    <div
+                      className="prose dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
+                  )
                 ) : (
-                  <p className="text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
-                )
-              ) : (
-                <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-              )}
-            </div>
+                  <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </DialogContent>
       </Dialog>
