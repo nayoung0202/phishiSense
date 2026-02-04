@@ -20,11 +20,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SafeText } from "@/components/security/SafeText";
 
 export default function TrainingPages() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
 
   const { data: pages = [], isLoading } = useQuery<TrainingPage[]>({
     queryKey: ["/api/training-pages"],
@@ -53,6 +55,19 @@ export default function TrainingPages() {
   const formatDate = (date: Date | string) => {
     return format(new Date(date), 'PPp', { locale: ko });
   };
+
+  const handlePreviewThemeChange = (value: string) => {
+    if (value === "light" || value === "dark") {
+      setPreviewTheme(value);
+    }
+  };
+
+  const previewSurfaceClass =
+    previewTheme === "dark"
+      ? "rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
+      : "rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  const previewProseClass =
+    previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
 
   return (
     <div className="p-6 space-y-6">
@@ -128,14 +143,29 @@ export default function TrainingPages() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl">
                           <DialogHeader>
-                            <DialogTitle>
-                              <SafeText value={page.name} fallback="-" />
-                            </DialogTitle>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <DialogTitle>
+                                <SafeText value={page.name} fallback="-" />
+                              </DialogTitle>
+                              <ToggleGroup
+                                type="single"
+                                value={previewTheme}
+                                onValueChange={handlePreviewThemeChange}
+                                variant="outline"
+                                size="sm"
+                                aria-label="미리보기 테마 선택"
+                              >
+                                <ToggleGroupItem value="light">라이트</ToggleGroupItem>
+                                <ToggleGroupItem value="dark">다크</ToggleGroupItem>
+                              </ToggleGroup>
+                            </div>
                           </DialogHeader>
-                          <div 
-                            className="prose dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: extractBodyHtml(page.content) }}
-                          />
+                          <div className={previewSurfaceClass}>
+                            <div
+                              className={previewProseClass}
+                              dangerouslySetInnerHTML={{ __html: extractBodyHtml(page.content) }}
+                            />
+                          </div>
                         </DialogContent>
                       </Dialog>
                       <Link href={`/training-pages/${page.id}/edit`}>

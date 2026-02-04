@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import { extractBodyHtml } from "@/lib/html";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
 
@@ -26,6 +27,7 @@ export default function Templates() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
+  const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
 
   const getSnippet = (html: string, size = 80) => {
     const plain = html
@@ -80,12 +82,26 @@ export default function Templates() {
     setPreviewTemplate(null);
   };
 
+  const handlePreviewThemeChange = (value: string) => {
+    if (value === "light" || value === "dark") {
+      setPreviewTheme(value);
+    }
+  };
+
   const formatDate = (date: Date | string) => {
     return format(new Date(date), 'PPp', { locale: ko });
   };
 
   const previewBody = previewTemplate?.body ?? "";
   const previewMalicious = previewTemplate?.maliciousPageContent ?? "";
+  const previewSurfaceClass =
+    previewTheme === "dark"
+      ? "rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
+      : "rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  const previewProseClass =
+    previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
+  const previewMutedClass =
+    previewTheme === "dark" ? "text-slate-300" : "text-slate-600";
   return (
     <>
       <Dialog
@@ -103,41 +119,58 @@ export default function Templates() {
             <DialogTitle>{previewTemplate?.name ?? "템플릿 미리보기"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
+              </p>
+              <ToggleGroup
+                type="single"
+                value={previewTheme}
+                onValueChange={handlePreviewThemeChange}
+                variant="outline"
+                size="sm"
+                aria-label="미리보기 테마 선택"
+              >
+                <ToggleGroupItem value="light">라이트</ToggleGroupItem>
+                <ToggleGroupItem value="dark">다크</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
             <Tabs defaultValue="body" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="body">메일 본문</TabsTrigger>
                 <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
               </TabsList>
               <TabsContent value="body">
-                {previewTemplate ? (
-                  previewBody.trim().length > 0 ? (
-                    <div
-                      className="prose dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
-                    />
+                <div className={previewSurfaceClass}>
+                  {previewTemplate ? (
+                    previewBody.trim().length > 0 ? (
+                      <div
+                        className={previewProseClass}
+                        dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
+                      />
+                    ) : (
+                      <p className={`text-sm ${previewMutedClass}`}>메일 본문이 없습니다.</p>
+                    )
                   ) : (
-                    <p className="text-sm text-muted-foreground">메일 본문이 없습니다.</p>
-                  )
-                ) : (
-                  <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-                )}
+                    <p className={`text-sm ${previewMutedClass}`}>미리볼 템플릿을 선택하세요.</p>
+                  )}
+                </div>
               </TabsContent>
               <TabsContent value="malicious">
-                {previewTemplate ? (
-                  previewMalicious.trim().length > 0 ? (
-                    <div
-                      className="prose dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
-                    />
+                <div className={previewSurfaceClass}>
+                  {previewTemplate ? (
+                    previewMalicious.trim().length > 0 ? (
+                      <div
+                        className={previewProseClass}
+                        dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
+                      />
+                    ) : (
+                      <p className={`text-sm ${previewMutedClass}`}>악성 메일 본문이 없습니다.</p>
+                    )
                   ) : (
-                    <p className="text-sm text-muted-foreground">악성 메일 본문이 없습니다.</p>
-                  )
-                ) : (
-                  <p className="text-sm text-muted-foreground">미리볼 템플릿을 선택하세요.</p>
-                )}
+                    <p className={`text-sm ${previewMutedClass}`}>미리볼 템플릿을 선택하세요.</p>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </div>
