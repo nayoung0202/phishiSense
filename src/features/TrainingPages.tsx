@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Edit, Trash2, FileText, Eye, Sun, Moon } from "lucide-react";
+import { Plus, Search, Edit, Trash2, FileText, Eye } from "lucide-react";
 import Link from "next/link";
 import { type TrainingPage } from "@shared/schema";
 import { format } from "date-fns";
@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import { SafeText } from "@/components/security/SafeText";
 
 export default function TrainingPages() {
@@ -54,12 +54,6 @@ export default function TrainingPages() {
 
   const formatDate = (date: Date | string) => {
     return format(new Date(date), 'PPp', { locale: ko });
-  };
-
-  const handlePreviewThemeChange = (value: string) => {
-    if (value === "light" || value === "dark") {
-      setPreviewTheme(value);
-    }
   };
 
   const previewSurfaceClass =
@@ -147,23 +141,15 @@ export default function TrainingPages() {
                               <DialogTitle>
                                 <SafeText value={page.name} fallback="-" />
                               </DialogTitle>
-                              <ToggleGroup
-                                type="single"
-                                value={previewTheme}
-                                onValueChange={handlePreviewThemeChange}
-                                variant="outline"
-                                size="sm"
-                                aria-label="미리보기 테마 선택"
-                              >
-                                <ToggleGroupItem value="light" aria-label="라이트 모드" title="라이트 모드">
-                                  <Sun />
-                                  <span className="sr-only">라이트 모드</span>
-                                </ToggleGroupItem>
-                                <ToggleGroupItem value="dark" aria-label="다크 모드" title="다크 모드">
-                                  <Moon />
-                                  <span className="sr-only">다크 모드</span>
-                                </ToggleGroupItem>
-                              </ToggleGroup>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <span className={previewTheme === "light" ? "text-foreground font-semibold" : ""}>라이트</span>
+                                <Switch
+                                  checked={previewTheme === "dark"}
+                                  onCheckedChange={(checked) => setPreviewTheme(checked ? "dark" : "light")}
+                                  aria-label="미리보기 테마 전환"
+                                />
+                                <span className={previewTheme === "dark" ? "text-foreground font-semibold" : ""}>다크</span>
+                              </div>
                             </div>
                           </DialogHeader>
                           <div className={previewSurfaceClass}>
