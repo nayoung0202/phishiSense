@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Mail, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
@@ -131,8 +131,14 @@ export default function Templates() {
                 size="sm"
                 aria-label="미리보기 테마 선택"
               >
-                <ToggleGroupItem value="light">라이트</ToggleGroupItem>
-                <ToggleGroupItem value="dark">다크</ToggleGroupItem>
+                <ToggleGroupItem value="light" aria-label="라이트 모드" title="라이트 모드">
+                  <Sun />
+                  <span className="sr-only">라이트 모드</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dark" aria-label="다크 모드" title="다크 모드">
+                  <Moon />
+                  <span className="sr-only">다크 모드</span>
+                </ToggleGroupItem>
               </ToggleGroup>
             </div>
             <Tabs defaultValue="body" className="w-full">
