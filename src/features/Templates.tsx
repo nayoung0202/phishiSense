@@ -11,14 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Eye } from "lucide-react";
 import Link from "next/link";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import { extractBodyHtml } from "@/lib/html";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
 
@@ -82,12 +82,6 @@ export default function Templates() {
     setPreviewTemplate(null);
   };
 
-  const handlePreviewThemeChange = (value: string) => {
-    if (value === "light" || value === "dark") {
-      setPreviewTheme(value);
-    }
-  };
-
   const formatDate = (date: Date | string) => {
     return format(new Date(date), 'PPp', { locale: ko });
   };
@@ -123,23 +117,15 @@ export default function Templates() {
               <p className="text-sm text-muted-foreground">
                 {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
               </p>
-              <ToggleGroup
-                type="single"
-                value={previewTheme}
-                onValueChange={handlePreviewThemeChange}
-                variant="outline"
-                size="sm"
-                aria-label="미리보기 테마 선택"
-              >
-                <ToggleGroupItem value="light" aria-label="라이트 모드" title="라이트 모드">
-                  <Sun />
-                  <span className="sr-only">라이트 모드</span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="dark" aria-label="다크 모드" title="다크 모드">
-                  <Moon />
-                  <span className="sr-only">다크 모드</span>
-                </ToggleGroupItem>
-              </ToggleGroup>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className={previewTheme === "light" ? "text-foreground font-semibold" : ""}>라이트</span>
+                <Switch
+                  checked={previewTheme === "dark"}
+                  onCheckedChange={(checked) => setPreviewTheme(checked ? "dark" : "light")}
+                  aria-label="미리보기 테마 전환"
+                />
+                <span className={previewTheme === "dark" ? "text-foreground font-semibold" : ""}>다크</span>
+              </div>
             </div>
             <Tabs defaultValue="body" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
