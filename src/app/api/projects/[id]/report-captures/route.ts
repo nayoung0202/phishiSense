@@ -50,10 +50,10 @@ const resolveExtension = (mime: string) => (mime === "image/png" ? "png" : "jpg"
 
 export async function POST(
   request: Request,
-  context: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "프로젝트 ID가 없습니다." }, { status: 400 });
     }
