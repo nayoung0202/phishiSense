@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
+import { format } from "date-fns";
 import { storage } from "@/server/storage";
 import { fileExists, resolveStoragePath } from "@/server/services/reportStorage";
 
 export const runtime = "nodejs";
+
+const COMPANY_NAME_ENV = "REPORT_COMPANY_NAME";
+
+const sanitizeFilename = (value: string) =>
+  value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").trim();
 
 export async function GET(
   _request: Request,
@@ -25,7 +31,12 @@ export async function GET(
   }
 
   const buffer = await fs.readFile(filePath);
-  const filename = `report-${id}.docx`;
+  const companyName = (process.env[COMPANY_NAME_ENV] ?? "").trim();
+  const project = await storage.getProject(instance.projectId);
+  const projectName = project?.name ?? "project";
+  const date = instance.completedAt ? new Date(instance.completedAt) : new Date();
+  const formatted = format(date, "yyyyMMdd");
+  const filename = `${sanitizeFilename(companyName || "company")}_${sanitizeFilename(projectName)}_보고서_${formatted}.docx`;
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

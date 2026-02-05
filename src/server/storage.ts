@@ -697,6 +697,10 @@ export class MemStorage implements IStorage {
       openCount: project.openCount ?? null,
       clickCount: project.clickCount ?? null,
       submitCount: project.submitCount ?? null,
+      reportCaptureInboxFileKey: project.reportCaptureInboxFileKey ?? null,
+      reportCaptureEmailFileKey: project.reportCaptureEmailFileKey ?? null,
+      reportCaptureMaliciousFileKey: project.reportCaptureMaliciousFileKey ?? null,
+      reportCaptureTrainingFileKey: project.reportCaptureTrainingFileKey ?? null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -1394,6 +1398,10 @@ export class DbStorage implements IStorage {
       openCount: project.openCount ?? null,
       clickCount: project.clickCount ?? null,
       submitCount: project.submitCount ?? null,
+      reportCaptureInboxFileKey: project.reportCaptureInboxFileKey ?? null,
+      reportCaptureEmailFileKey: project.reportCaptureEmailFileKey ?? null,
+      reportCaptureMaliciousFileKey: project.reportCaptureMaliciousFileKey ?? null,
+      reportCaptureTrainingFileKey: project.reportCaptureTrainingFileKey ?? null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -1476,6 +1484,22 @@ export class DbStorage implements IStorage {
         project.clickCount !== undefined ? project.clickCount ?? null : existing.clickCount ?? null,
       submitCount:
         project.submitCount !== undefined ? project.submitCount ?? null : existing.submitCount ?? null,
+      reportCaptureInboxFileKey:
+        project.reportCaptureInboxFileKey !== undefined
+          ? project.reportCaptureInboxFileKey ?? null
+          : existing.reportCaptureInboxFileKey ?? null,
+      reportCaptureEmailFileKey:
+        project.reportCaptureEmailFileKey !== undefined
+          ? project.reportCaptureEmailFileKey ?? null
+          : existing.reportCaptureEmailFileKey ?? null,
+      reportCaptureMaliciousFileKey:
+        project.reportCaptureMaliciousFileKey !== undefined
+          ? project.reportCaptureMaliciousFileKey ?? null
+          : existing.reportCaptureMaliciousFileKey ?? null,
+      reportCaptureTrainingFileKey:
+        project.reportCaptureTrainingFileKey !== undefined
+          ? project.reportCaptureTrainingFileKey ?? null
+          : existing.reportCaptureTrainingFileKey ?? null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -1502,6 +1526,10 @@ export class DbStorage implements IStorage {
       openCount: nextProject.openCount ?? null,
       clickCount: nextProject.clickCount ?? null,
       submitCount: nextProject.submitCount ?? null,
+      reportCaptureInboxFileKey: nextProject.reportCaptureInboxFileKey ?? null,
+      reportCaptureEmailFileKey: nextProject.reportCaptureEmailFileKey ?? null,
+      reportCaptureMaliciousFileKey: nextProject.reportCaptureMaliciousFileKey ?? null,
+      reportCaptureTrainingFileKey: nextProject.reportCaptureTrainingFileKey ?? null,
       fiscalYear: nextProject.fiscalYear ?? null,
       fiscalQuarter: nextProject.fiscalQuarter ?? null,
       weekOfYear: nextProject.weekOfYear ?? [],

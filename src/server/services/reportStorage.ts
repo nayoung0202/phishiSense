@@ -13,6 +13,20 @@ export function buildReportFileKey(instanceId: string) {
   return path.posix.join("reports", "generated", `${instanceId}.docx`);
 }
 
+export function buildReportCaptureFileKey(
+  projectId: string,
+  captureKey: string,
+  extension: string,
+) {
+  const normalizedExt = extension.replace(/^\./, "");
+  return path.posix.join(
+    "reports",
+    "captures",
+    projectId,
+    `${captureKey}.${normalizedExt}`,
+  );
+}
+
 export function resolveStoragePath(fileKey: string) {
   const normalizedKey = fileKey.replace(/^\/+/, "");
   const fullPath = path.join(REPORT_STORAGE_ROOT, normalizedKey);
