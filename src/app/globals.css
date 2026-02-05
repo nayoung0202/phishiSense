@@ -71,6 +71,32 @@
   color: hsl(var(--foreground));
 }
 
+.sun-editor-editable a,
+.sun-editor-editable a:visited,
+.sun-editor-editable a:active {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.sun-editor-editable a:hover,
+.sun-editor-editable a:focus {
+  color: hsl(var(--sidebar-ring));
+  text-decoration: underline;
+}
+
+.editor-scrollbar a,
+.editor-scrollbar a:visited,
+.editor-scrollbar a:active {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.editor-scrollbar a:hover,
+.editor-scrollbar a:focus {
+  color: hsl(var(--sidebar-ring));
+  text-decoration: underline;
+}
+
 /* SunEditor 다크모드 보정 */
 .dark .sun-editor {
   border-color: hsl(var(--border));
