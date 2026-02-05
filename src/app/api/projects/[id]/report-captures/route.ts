@@ -13,15 +13,17 @@ export const runtime = "nodejs";
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/png", "image/jpeg"]);
 
+type CaptureUpdate = Pick<
+  InsertProject,
+  | "reportCaptureInboxFileKey"
+  | "reportCaptureEmailFileKey"
+  | "reportCaptureMaliciousFileKey"
+  | "reportCaptureTrainingFileKey"
+>;
+
 const CAPTURE_FIELDS: Array<{
   formKey: string;
-  projectKey: keyof Pick<
-    InsertProject,
-    | "reportCaptureInboxFileKey"
-    | "reportCaptureEmailFileKey"
-    | "reportCaptureMaliciousFileKey"
-    | "reportCaptureTrainingFileKey"
-  >;
+  projectKey: keyof CaptureUpdate;
   label: string;
 }> = [
   {
@@ -64,7 +66,7 @@ export async function POST(
     }
 
     const formData = await request.formData();
-    const updates: Partial<InsertProject> = {};
+    const updates: Partial<CaptureUpdate> = {};
     const uploaded: string[] = [];
 
     for (const field of CAPTURE_FIELDS) {
@@ -92,7 +94,7 @@ export async function POST(
       const outputPath = resolveStoragePath(fileKey);
       await ensureDirectoryForFile(outputPath);
       await fs.writeFile(outputPath, Buffer.from(await file.arrayBuffer()));
-      updates[field.projectKey] = fileKey as InsertProject[keyof InsertProject];
+      updates[field.projectKey] = fileKey;
       uploaded.push(field.label);
     }
 
