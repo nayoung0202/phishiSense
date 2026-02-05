@@ -20,6 +20,12 @@ const DEFAULT_TEMPLATE_PATH =
   path.join(process.cwd(), "attached_assets", "default_report_template.docx");
 const COMPANY_NAME_ENV = "REPORT_COMPANY_NAME";
 const COMPANY_LOGO_ENV = "REPORT_COMPANY_LOGO_PATH";
+const CONFIDENTIAL_LOGO_ENV = "REPORT_CONFIDENTIAL_LOGO_PATH";
+const DEFAULT_CONFIDENTIAL_LOGO_PATH = path.join(
+  process.cwd(),
+  "attached_assets",
+  "confidential_logo.png",
+);
 
 const formatDate = (value?: Date | string | null, pattern = "yyyy-MM-dd") => {
   if (!value) return "";
@@ -173,7 +179,16 @@ const resolveCompanyConfig = async () => {
   if (!(await fileExists(logoPath))) {
     throw new Error("회사 로고 파일을 찾을 수 없습니다.");
   }
-  return { companyName, logoPath };
+  const confidentialRaw = (process.env[CONFIDENTIAL_LOGO_ENV] ?? "").trim();
+  const confidentialPath = confidentialRaw
+    ? path.isAbsolute(confidentialRaw)
+      ? confidentialRaw
+      : path.join(process.cwd(), confidentialRaw)
+    : DEFAULT_CONFIDENTIAL_LOGO_PATH;
+  if (!(await fileExists(confidentialPath))) {
+    throw new Error("대외비 로고 파일을 찾을 수 없습니다.");
+  }
+  return { companyName, logoPath, confidentialPath };
 };
 
 const resolveReportYear = (project: Project) =>
@@ -194,7 +209,7 @@ export async function generateProjectReport(
     throw new Error("프로젝트 정보를 찾을 수 없습니다.");
   }
 
-  const { companyName, logoPath } = await resolveCompanyConfig();
+  const { companyName, logoPath, confidentialPath } = await resolveCompanyConfig();
   const template = await resolveTemplate(options?.templateId ?? null);
   const templatePath = resolveStoragePath(template.fileKey);
   if (!(await fileExists(templatePath))) {
@@ -261,20 +276,46 @@ export async function generateProjectReport(
   const clickMissing = Math.max(targetCount - clickCount, 0);
   const submitMissing = Math.max(targetCount - submitCount, 0);
 
+  const projectTargets = await storage.getProjectTargets(project.id);
+  const detailRows = await Promise.all(
+    projectTargets.map(async (target) => {
+      const detail = await storage.getTarget(target.targetId);
+      const opened = target.status === "opened" || target.status === "clicked" || target.status === "submitted";
+      const clicked = target.status === "clicked" || target.status === "submitted";
+      const submitted = target.status === "submitted";
+      return {
+        name: detail?.name ?? "-",
+        email: detail?.email ?? "-",
+        opened: opened ? "O" : "X",
+        clicked: clicked ? "O" : "X",
+        submitted: submitted ? "O" : "X",
+      };
+    }),
+  );
+
   try {
     await runPythonRenderer({
       template_path: templatePath,
       output_path: outputPath,
-      data: buildReportData(project, {
-        companyName,
-        reportYear: resolveReportYear(project),
-        reportQuarter: resolveReportQuarter(project),
-        reportMonth: formatDate(project.endDate, "yyyy.MM"),
-        reportDate: formatDateDot(new Date()),
-        scenarioTitle: templateRecord?.name ?? project.name ?? "",
-        emailSubject: templateRecord?.subject ?? project.name ?? "",
-      }),
+      data: {
+        ...buildReportData(project, {
+          companyName,
+          reportYear: resolveReportYear(project),
+          reportQuarter: resolveReportQuarter(project),
+          reportMonth: formatDate(project.endDate, "yyyy.MM"),
+          reportDate: formatDateDot(new Date()),
+          scenarioTitle: templateRecord?.name ?? project.name ?? "",
+          emailSubject: templateRecord?.subject ?? project.name ?? "",
+        }),
+        detail_rows: detailRows,
+      },
       images: [
+        {
+          key: "confidential_logo",
+          path: confidentialPath,
+          width_cm: 6.54,
+          height_cm: 2,
+        },
         {
           key: "company_logo",
           path: logoPath,
