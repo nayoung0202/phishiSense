@@ -13,9 +13,9 @@ const sanitizeFilename = (value: string) =>
 
 export async function GET(
   _request: Request,
-  context: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
   if (!id) {
     return NextResponse.json({ error: "보고서 ID가 없습니다." }, { status: 400 });
   }
