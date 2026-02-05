@@ -71,6 +71,80 @@
   color: hsl(var(--foreground));
 }
 
+/* SunEditor 다크모드 보정 */
+.dark .sun-editor {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.dark .sun-editor .se-toolbar,
+.dark .sun-editor .se-toolbar-more-layer,
+.dark .sun-editor .se-resizing-bar {
+  background-color: hsl(var(--muted));
+  border-color: hsl(var(--border));
+  outline-color: hsl(var(--border));
+}
+
+.dark .sun-editor .se-btn,
+.dark .sun-editor .se-btn-list,
+.dark .sun-editor button {
+  color: hsl(var(--foreground));
+}
+
+.dark .sun-editor .se-btn:enabled:hover,
+.dark .sun-editor .se-btn:enabled:focus,
+.dark .sun-editor .se-btn:enabled.on,
+.dark .sun-editor .se-btn:enabled.active,
+.dark .sun-editor .se-btn-list:hover,
+.dark .sun-editor .se-btn-list:focus {
+  background-color: hsl(var(--accent));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+
+.dark .sun-editor .se-list-layer,
+.dark .sun-editor .se-dialog,
+.dark .sun-editor .se-dialog .se-dialog-inner,
+.dark .sun-editor .se-dialog .se-dialog-header,
+.dark .sun-editor .se-dialog .se-dialog-content,
+.dark .sun-editor .se-dialog .se-dialog-footer {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border-color: hsl(var(--border));
+}
+
+.dark .sun-editor input,
+.dark .sun-editor select,
+.dark .sun-editor textarea {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+.dark .sun-editor input:focus,
+.dark .sun-editor select:focus,
+.dark .sun-editor textarea:focus {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 0.2rem hsl(var(--ring) / 0.35);
+}
+
+.dark .sun-editor .se-wrapper,
+.dark .sun-editor .se-wrapper .se-wrapper-inner,
+.dark .sun-editor-editable {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.dark .sun-editor-editable a {
+  color: hsl(var(--primary));
+}
+
+.dark .sun-editor .se-resizing-bar .se-char-counter-wrapper,
+.dark .sun-editor .se-resizing-bar .se-navigation {
+  color: hsl(var(--muted-foreground));
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
