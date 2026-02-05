@@ -24,20 +24,35 @@ const formatDate = (value?: Date | string | null) => {
   return format(new Date(value), "yyyy-MM-dd");
 };
 
+const formatPercent = (count: number, total: number) => {
+  if (!total || total <= 0) return "0%";
+  const percent = (count / total) * 100;
+  return `${percent.toFixed(1)}%`;
+};
+
 const buildReportData = (project: Project) => {
+  const targetCount = Math.max(0, project.targetCount ?? 0);
+  const openCount = Math.max(0, project.openCount ?? 0);
+  const clickCount = Math.max(0, project.clickCount ?? 0);
+  const submitCount = Math.max(0, project.submitCount ?? 0);
+
   return {
     project_name: project.name ?? "",
+    period_start: formatDate(project.startDate),
+    period_end: formatDate(project.endDate),
+    owner_name: project.fromName ?? project.fromEmail ?? "",
     department: project.department ?? "",
     description: project.description ?? "",
-    start_date: formatDate(project.startDate),
-    end_date: formatDate(project.endDate),
-    status: project.status ?? "",
-    target_count: project.targetCount ?? 0,
-    open_count: project.openCount ?? 0,
-    click_count: project.clickCount ?? 0,
-    submit_count: project.submitCount ?? 0,
-    fiscal_year: project.fiscalYear ?? "",
-    fiscal_quarter: project.fiscalQuarter ?? "",
+    target_count: targetCount,
+    open_count: openCount,
+    open_rate: formatPercent(openCount, targetCount),
+    click_count: clickCount,
+    click_rate: formatPercent(clickCount, targetCount),
+    submit_count: submitCount,
+    submit_rate: formatPercent(submitCount, targetCount),
+    summary: project.description ?? "",
+    recommendation: "",
+    next_steps: "",
   };
 };
 
@@ -141,11 +156,35 @@ export async function generateProjectReport(
   const outputPath = resolveStoragePath(reportFileKey);
   await ensureDirectoryForFile(outputPath);
 
+  const targetCount = Math.max(0, project.targetCount ?? 0);
+  const openCount = Math.max(0, project.openCount ?? 0);
+  const clickCount = Math.max(0, project.clickCount ?? 0);
+  const openMissing = Math.max(targetCount - openCount, 0);
+  const clickMissing = Math.max(targetCount - clickCount, 0);
+
   try {
     await runPythonRenderer({
       template_path: templatePath,
       output_path: outputPath,
       data: buildReportData(project),
+      charts: [
+        {
+          key: "open_donut_chart",
+          labels: ["메일 열람", "메일 미열람"],
+          values: [openCount, openMissing],
+          width_cm: 13.5,
+          height_cm: 5,
+          colors: ["#4EC3E0", "#CBD5F5"],
+        },
+        {
+          key: "click_donut_chart",
+          labels: ["링크 클릭", "링크 미클릭"],
+          values: [clickCount, clickMissing],
+          width_cm: 13.5,
+          height_cm: 5,
+          colors: ["#7C9CF5", "#D1D5DB"],
+        },
+      ],
     });
 
     await storage.updateReportInstance(reportInstance.id, {
