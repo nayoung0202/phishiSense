@@ -385,6 +385,7 @@ export default function Projects() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [reportProject, setReportProject] = useState<Project | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isReportGenerating, setIsReportGenerating] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
   const [dayModalContent, setDayModalContent] = useState<{
@@ -788,12 +789,42 @@ export default function Projects() {
     setIsReportOpen(true);
   };
 
-  const downloadReport = () => {
-    if (!reportProject) return;
-    toast({
-      title: "보고서 기능 준비 중",
-      description: "후속 단계에서 Word 다운로드가 제공될 예정입니다.",
-    });
+  const downloadReport = async () => {
+    if (!reportProject || isReportGenerating) return;
+    setIsReportGenerating(true);
+    try {
+      const res = await fetch("/api/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: reportProject.id }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || "보고서 생성에 실패했습니다.");
+      }
+
+      const payload = (await res.json()) as { downloadUrl?: string };
+      if (!payload.downloadUrl) {
+        throw new Error("보고서 다운로드 주소를 찾지 못했습니다.");
+      }
+
+      window.location.href = payload.downloadUrl;
+      toast({
+        title: "보고서 생성 완료",
+        description: "보고서를 다운로드합니다.",
+      });
+      setIsReportOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "보고서 생성에 실패했습니다.";
+      toast({
+        title: "보고서 생성 실패",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsReportGenerating(false);
+    }
   };
 
   const yearQuarterPrefill = `?year=${selectedYear}&quarter=${quarterNumber}`;
@@ -1447,7 +1478,9 @@ export default function Projects() {
           <Button variant="outline" onClick={() => handleReportDialogChange(false)}>
             닫기
           </Button>
-          <Button onClick={downloadReport}>보고서 생성</Button>
+          <Button onClick={downloadReport} disabled={isReportGenerating}>
+            {isReportGenerating ? "생성 중..." : "보고서 생성"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
