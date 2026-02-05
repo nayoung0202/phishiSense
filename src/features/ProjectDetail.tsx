@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +34,7 @@ const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [isReportGenerating, setIsReportGenerating] = useState(false);
 
   const fetchProject = async (): Promise<Project> => {
     if (!projectId) {
@@ -74,6 +76,33 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       });
     },
   });
+
+  const handleGenerateReport = async () => {
+    if (!project || isReportGenerating) return;
+    setIsReportGenerating(true);
+    try {
+      const res = await fetch("/api/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || "보고서 생성에 실패했습니다.");
+      }
+      const payload = (await res.json()) as { downloadUrl?: string };
+      if (!payload.downloadUrl) {
+        throw new Error("보고서 다운로드 주소를 찾지 못했습니다.");
+      }
+      window.location.href = payload.downloadUrl;
+      toast({ title: "보고서 생성 완료", description: "보고서를 다운로드합니다." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "보고서 생성에 실패했습니다.";
+      toast({ title: "보고서 생성 실패", description: message, variant: "destructive" });
+    } finally {
+      setIsReportGenerating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -182,9 +211,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
               {startProjectMutation.isPending ? "시작 중" : "지금 시작"}
             </Button>
           ) : null}
-          <Button data-testid="button-generate-report">
+          <Button
+            data-testid="button-generate-report"
+            onClick={handleGenerateReport}
+            disabled={isReportGenerating}
+          >
             <FileText className="w-4 h-4 mr-2" />
-            보고서 생성
+            {isReportGenerating ? "생성 중..." : "보고서 생성"}
           </Button>
         </div>
       </div>

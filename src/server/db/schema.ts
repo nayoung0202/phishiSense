@@ -6,11 +6,22 @@ import {
   targets,
   trainingPages,
   projectTargets,
+  reportTemplates,
+  reportInstances,
 } from "@shared/schema";
 
 const timestampColumn = (column: string) => timestamp(column);
 
-export { users, projects, templates, targets, trainingPages, projectTargets };
+export {
+  users,
+  projects,
+  templates,
+  targets,
+  trainingPages,
+  projectTargets,
+  reportTemplates,
+  reportInstances,
+};
 
 export const smtpAccountsTable = pgTable("smtp_accounts", {
   id: text("id").primaryKey(),
