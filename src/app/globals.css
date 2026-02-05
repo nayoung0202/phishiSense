@@ -54,6 +54,23 @@
   color: hsl(var(--muted-foreground));
 }
 
+.sun-editor .se-select-list,
+.sun-editor .se-selector-table {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+.sun-editor .se-select-list .se-select-item {
+  color: hsl(var(--foreground));
+}
+
+.sun-editor .se-select-list.__se_select-menu-mouse-move .se-select-item:hover,
+.sun-editor .se-select-list:not(.__se_select-menu-mouse-move) .se-select-item.active {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
