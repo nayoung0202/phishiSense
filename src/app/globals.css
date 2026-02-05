@@ -147,6 +147,27 @@
   color: hsl(var(--popover-foreground));
 }
 
+.dark .sun-editor .se-dialog-tabs {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.dark .sun-editor .se-dialog-tabs button {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border-right: 1px solid hsl(var(--border));
+}
+
+.dark .sun-editor .se-dialog-tabs button:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+.dark .sun-editor .se-dialog-tabs button.active {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border-bottom: 0;
+}
+
 .dark .sun-editor input,
 .dark .sun-editor select,
 .dark .sun-editor textarea {
