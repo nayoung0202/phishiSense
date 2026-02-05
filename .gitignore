@@ -9,3 +9,5 @@ vite.config.ts.*
 *.tar.gz
 dev.db
 *.sqlite
+public/uploads
+storage/reports
