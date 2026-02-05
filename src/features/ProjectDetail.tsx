@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
 import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play } from "lucide-react";
 import { type Project } from "@shared/schema";
 import { format } from "date-fns";
@@ -79,6 +80,11 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 
   const handleGenerateReport = async () => {
     if (!project || isReportGenerating) return;
+    if (!hasAllReportCaptures(project)) {
+      const missing = getMissingReportCaptures(project).map((field) => field.label);
+      alert(`보고서 캡처 이미지가 누락되었습니다: ${missing.join(", ")}`);
+      return;
+    }
     setIsReportGenerating(true);
     try {
       const res = await fetch("/api/reports/generate", {

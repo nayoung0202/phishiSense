@@ -18,11 +18,15 @@ const PYTHON_SCRIPT = path.join(process.cwd(), "scripts", "report", "generate_re
 const DEFAULT_TEMPLATE_PATH =
   process.env.REPORT_DEFAULT_TEMPLATE_PATH ??
   path.join(process.cwd(), "attached_assets", "default_report_template.docx");
+const COMPANY_NAME_ENV = "REPORT_COMPANY_NAME";
+const COMPANY_LOGO_ENV = "REPORT_COMPANY_LOGO_PATH";
 
-const formatDate = (value?: Date | string | null) => {
+const formatDate = (value?: Date | string | null, pattern = "yyyy-MM-dd") => {
   if (!value) return "";
-  return format(new Date(value), "yyyy-MM-dd");
+  return format(new Date(value), pattern);
 };
+
+const formatDateDot = (value?: Date | string | null) => formatDate(value, "yyyy.MM.dd");
 
 const formatPercent = (count: number, total: number) => {
   if (!total || total <= 0) return "0%";
@@ -30,16 +34,37 @@ const formatPercent = (count: number, total: number) => {
   return `${percent.toFixed(1)}%`;
 };
 
-const buildReportData = (project: Project) => {
+const buildReportData = (
+  project: Project,
+  options: {
+    companyName: string;
+    reportYear: number;
+    reportQuarter: number;
+    reportMonth: string;
+    reportDate: string;
+    scenarioTitle: string;
+    emailSubject: string;
+  },
+) => {
   const targetCount = Math.max(0, project.targetCount ?? 0);
   const openCount = Math.max(0, project.openCount ?? 0);
   const clickCount = Math.max(0, project.clickCount ?? 0);
   const submitCount = Math.max(0, project.submitCount ?? 0);
+  const openLabel = `${openCount}명 (${formatPercent(openCount, targetCount)})`;
+  const clickLabel = `${clickCount}명 (${formatPercent(clickCount, targetCount)})`;
+  const submitLabel = `${submitCount}명 (${formatPercent(submitCount, targetCount)})`;
 
   return {
+    company_name: options.companyName,
     project_name: project.name ?? "",
     period_start: formatDate(project.startDate),
     period_end: formatDate(project.endDate),
+    period_start_dot: formatDateDot(project.startDate),
+    period_end_dot: formatDateDot(project.endDate),
+    report_year: options.reportYear,
+    report_quarter: options.reportQuarter,
+    report_month: options.reportMonth,
+    report_date: options.reportDate,
     owner_name: project.fromName ?? project.fromEmail ?? "",
     department: project.department ?? "",
     description: project.description ?? "",
@@ -50,6 +75,12 @@ const buildReportData = (project: Project) => {
     click_rate: formatPercent(clickCount, targetCount),
     submit_count: submitCount,
     submit_rate: formatPercent(submitCount, targetCount),
+    target_count_label: `${targetCount}명`,
+    open_count_label: openLabel,
+    click_count_label: clickLabel,
+    submit_count_label: submitLabel,
+    scenario_title: options.scenarioTitle,
+    email_subject: options.emailSubject,
     summary: project.description ?? "",
     recommendation: "",
     next_steps: "",
@@ -129,6 +160,31 @@ const resolveTemplate = async (templateId?: string | null) => {
   throw new Error("활성화된 보고서 템플릿이 없습니다.");
 };
 
+const resolveCompanyConfig = async () => {
+  const companyName = (process.env[COMPANY_NAME_ENV] ?? "").trim();
+  if (!companyName) {
+    throw new Error(`회사명이 설정되지 않았습니다. ${COMPANY_NAME_ENV}을 설정하세요.`);
+  }
+  const logoRaw = (process.env[COMPANY_LOGO_ENV] ?? "").trim();
+  if (!logoRaw) {
+    throw new Error(`회사 로고가 설정되지 않았습니다. ${COMPANY_LOGO_ENV}을 설정하세요.`);
+  }
+  const logoPath = path.isAbsolute(logoRaw) ? logoRaw : path.join(process.cwd(), logoRaw);
+  if (!(await fileExists(logoPath))) {
+    throw new Error("회사 로고 파일을 찾을 수 없습니다.");
+  }
+  return { companyName, logoPath };
+};
+
+const resolveReportYear = (project: Project) =>
+  project.fiscalYear ?? new Date(project.startDate).getFullYear();
+
+const resolveReportQuarter = (project: Project) => {
+  if (project.fiscalQuarter) return project.fiscalQuarter;
+  const start = new Date(project.startDate);
+  return Math.floor(start.getMonth() / 3) + 1;
+};
+
 export async function generateProjectReport(
   projectId: string,
   options?: { templateId?: string | null },
@@ -138,11 +194,52 @@ export async function generateProjectReport(
     throw new Error("프로젝트 정보를 찾을 수 없습니다.");
   }
 
+  const { companyName, logoPath } = await resolveCompanyConfig();
   const template = await resolveTemplate(options?.templateId ?? null);
   const templatePath = resolveStoragePath(template.fileKey);
   if (!(await fileExists(templatePath))) {
     throw new Error("보고서 템플릿 파일이 존재하지 않습니다.");
   }
+
+  const captureDefinitions = [
+    {
+      key: "capture_inbox",
+      label: "메일 수신함",
+      fileKey: project.reportCaptureInboxFileKey,
+    },
+    {
+      key: "capture_email_body",
+      label: "메일 본문",
+      fileKey: project.reportCaptureEmailFileKey,
+    },
+    {
+      key: "capture_malicious_page",
+      label: "악성 페이지",
+      fileKey: project.reportCaptureMaliciousFileKey,
+    },
+    {
+      key: "capture_training_page",
+      label: "훈련 안내 페이지",
+      fileKey: project.reportCaptureTrainingFileKey,
+    },
+  ];
+
+  const captureImages = await Promise.all(
+    captureDefinitions.map(async (capture) => {
+      if (!capture.fileKey) {
+        throw new Error(`보고서 캡처 이미지(${capture.label})가 없습니다.`);
+      }
+      const capturePath = resolveStoragePath(capture.fileKey);
+      if (!(await fileExists(capturePath))) {
+        throw new Error(`보고서 캡처 이미지(${capture.label}) 파일을 찾을 수 없습니다.`);
+      }
+      return { key: capture.key, path: capturePath };
+    }),
+  );
+
+  const templateRecord = project.templateId
+    ? await storage.getTemplate(project.templateId)
+    : undefined;
 
   const reportInstance = await storage.createReportInstance({
     projectId: project.id,
@@ -159,15 +256,47 @@ export async function generateProjectReport(
   const targetCount = Math.max(0, project.targetCount ?? 0);
   const openCount = Math.max(0, project.openCount ?? 0);
   const clickCount = Math.max(0, project.clickCount ?? 0);
+  const submitCount = Math.max(0, project.submitCount ?? 0);
   const openMissing = Math.max(targetCount - openCount, 0);
   const clickMissing = Math.max(targetCount - clickCount, 0);
+  const submitMissing = Math.max(targetCount - submitCount, 0);
 
   try {
     await runPythonRenderer({
       template_path: templatePath,
       output_path: outputPath,
-      data: buildReportData(project),
+      data: buildReportData(project, {
+        companyName,
+        reportYear: resolveReportYear(project),
+        reportQuarter: resolveReportQuarter(project),
+        reportMonth: formatDate(project.endDate, "yyyy.MM"),
+        reportDate: formatDateDot(new Date()),
+        scenarioTitle: templateRecord?.name ?? project.name ?? "",
+        emailSubject: templateRecord?.subject ?? project.name ?? "",
+      }),
+      images: [
+        {
+          key: "company_logo",
+          path: logoPath,
+          width_cm: 6.54,
+          height_cm: 2,
+        },
+        ...captureImages.map((capture) => ({
+          key: capture.key,
+          path: capture.path,
+          width_cm: 16.5,
+        })),
+      ],
       charts: [
+        {
+          key: "summary_bar_chart",
+          type: "bar",
+          labels: ["메일 발송", "메일 열람", "링크 클릭", "개인정보 입력"],
+          values: [targetCount, openCount, clickCount, submitCount],
+          width_cm: 13.5,
+          height_cm: 5,
+          colors: ["#4EC3E0", "#7C9CF5", "#F59E0B", "#F97316"],
+        },
         {
           key: "open_donut_chart",
           labels: ["메일 열람", "메일 미열람"],
@@ -183,6 +312,14 @@ export async function generateProjectReport(
           width_cm: 13.5,
           height_cm: 5,
           colors: ["#7C9CF5", "#D1D5DB"],
+        },
+        {
+          key: "submit_donut_chart",
+          labels: ["개인정보 입력", "개인정보 미입력"],
+          values: [submitCount, submitMissing],
+          width_cm: 13.5,
+          height_cm: 5,
+          colors: ["#F59E0B", "#FDE68A"],
         },
       ],
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DragEvent } from "react";
+import type { ChangeEvent, DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -71,6 +72,12 @@ import {
 } from "date-fns";
 import type { Project } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  getMissingReportCaptures,
+  hasAllReportCaptures,
+  reportCaptureFields,
+  type ReportCaptureKey,
+} from "@/lib/reportCaptures";
 import { useToast } from "@/hooks/use-toast";
 
 /* -------------------------------------------------------------------------- */
@@ -386,6 +393,13 @@ export default function Projects() {
   const [reportProject, setReportProject] = useState<Project | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [isCaptureUploading, setIsCaptureUploading] = useState(false);
+  const [captureFiles, setCaptureFiles] = useState<Record<ReportCaptureKey, File | null>>({
+    capture_inbox: null,
+    capture_email_body: null,
+    capture_malicious_page: null,
+    capture_training_page: null,
+  });
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
   const [dayModalContent, setDayModalContent] = useState<{
@@ -766,6 +780,27 @@ export default function Projects() {
     if (!open) setReportProject(null);
   };
 
+  const resetCaptureFiles = useCallback(() => {
+    setCaptureFiles({
+      capture_inbox: null,
+      capture_email_body: null,
+      capture_malicious_page: null,
+      capture_training_page: null,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isReportOpen) {
+      resetCaptureFiles();
+    }
+  }, [isReportOpen, resetCaptureFiles]);
+
+  useEffect(() => {
+    if (isReportOpen) {
+      resetCaptureFiles();
+    }
+  }, [isReportOpen, reportProject?.id, resetCaptureFiles]);
+
   const handleCompareDialogChange = (open: boolean) => {
     setIsCompareOpen(open);
   };
@@ -789,8 +824,70 @@ export default function Projects() {
     setIsReportOpen(true);
   };
 
+  const handleCaptureFileChange =
+    (key: ReportCaptureKey) => (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] ?? null;
+      setCaptureFiles((prev) => ({ ...prev, [key]: file }));
+    };
+
+  const uploadReportCaptures = async () => {
+    if (!reportProject || isCaptureUploading) return;
+    const selected = reportCaptureFields.filter((field) => captureFiles[field.key]);
+    if (selected.length === 0) {
+      alert("업로드할 캡처 이미지가 없습니다.");
+      return;
+    }
+    setIsCaptureUploading(true);
+    try {
+      const formData = new FormData();
+      selected.forEach((field) => {
+        const file = captureFiles[field.key];
+        if (file) {
+          formData.append(field.key, file);
+        }
+      });
+
+      const res = await fetch(`/api/projects/${reportProject.id}/report-captures`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.error || "캡처 업로드에 실패했습니다.");
+      }
+
+      const updated = payload.project as Project | undefined;
+      if (updated) {
+        setReportProject(updated);
+      }
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast({
+        title: "캡처 업로드 완료",
+        description: Array.isArray(payload.uploaded)
+          ? `${payload.uploaded.join(", ")} 업로드됨`
+          : "캡처 이미지를 저장했습니다.",
+      });
+      resetCaptureFiles();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "캡처 업로드에 실패했습니다.";
+      toast({
+        title: "캡처 업로드 실패",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCaptureUploading(false);
+    }
+  };
+
   const downloadReport = async () => {
     if (!reportProject || isReportGenerating) return;
+    if (!hasAllReportCaptures(reportProject)) {
+      const missing = getMissingReportCaptures(reportProject).map((field) => field.label);
+      alert(`보고서 캡처 이미지가 누락되었습니다: ${missing.join(", ")}`);
+      return;
+    }
     setIsReportGenerating(true);
     try {
       const res = await fetch("/api/reports/generate", {
@@ -1473,6 +1570,53 @@ export default function Projects() {
           ) : (
             <p>선택된 프로젝트가 없습니다.</p>
           )}
+        </div>
+        <div className="space-y-3 rounded-lg border border-muted p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">보고서 캡처 업로드</p>
+              <p className="text-xs text-muted-foreground">
+                PNG/JPG, 5MB 이하 · 가로 16.5cm 고정(세로 비율 유지)
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={uploadReportCaptures}
+              disabled={!reportProject || isCaptureUploading}
+            >
+              {isCaptureUploading ? "업로드 중..." : "캡처 업로드"}
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {reportCaptureFields.map((field) => {
+              const file = captureFiles[field.key];
+              const uploaded = reportProject?.[field.projectField];
+              const status = file
+                ? `선택됨: ${file.name}`
+                : uploaded
+                  ? "업로드 완료"
+                  : "미업로드";
+              return (
+                <div key={field.key} className="space-y-1">
+                  <Label className="text-xs font-semibold">{field.label}</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      onChange={handleCaptureFileChange(field.key)}
+                      disabled={!reportProject || isCaptureUploading}
+                    />
+                    <span className="text-xs text-muted-foreground">{status}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{field.description}</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            4개 캡처가 모두 업로드되어야 보고서 생성이 가능합니다.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => handleReportDialogChange(false)}>
