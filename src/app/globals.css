@@ -140,12 +140,43 @@
   border-color: hsl(var(--border));
 }
 
+.dark .sun-editor .se-dialog label,
+.dark .sun-editor .se-dialog .se-dialog-header .se-modal-title,
+.dark .sun-editor .se-dialog .se-dialog-form,
+.dark .sun-editor .se-dialog .se-dialog-form-label {
+  color: hsl(var(--popover-foreground));
+}
+
 .dark .sun-editor input,
 .dark .sun-editor select,
 .dark .sun-editor textarea {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   border-color: hsl(var(--border));
+}
+
+.dark .sun-editor input::placeholder,
+.dark .sun-editor textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .sun-editor .se-btn-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.dark .sun-editor .se-btn-primary:focus,
+.dark .sun-editor .se-btn-primary:hover {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.dark .sun-editor .se-btn-primary:active {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
 }
 
 .dark .sun-editor input:focus,
