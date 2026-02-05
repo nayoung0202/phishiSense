@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -33,9 +34,31 @@ def main():
             import matplotlib
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
+            from matplotlib import font_manager as font_manager
         except Exception as exc:
             print(f"matplotlib 모듈 로드 실패: {exc}", file=sys.stderr)
             sys.exit(1)
+
+        def configure_font():
+            font_path = os.environ.get("REPORT_MPL_FONT_PATH")
+            if font_path and Path(font_path).exists():
+                try:
+                    font_manager.fontManager.addfont(font_path)
+                    font_name = font_manager.FontProperties(fname=font_path).get_name()
+                    plt.rcParams["font.family"] = font_name
+                    plt.rcParams["axes.unicode_minus"] = False
+                    return
+                except Exception:
+                    pass
+            candidates = ["NanumGothic", "Noto Sans CJK KR", "Malgun Gothic", "AppleGothic"]
+            available = {font.name for font in font_manager.fontManager.ttflist}
+            for name in candidates:
+                if name in available:
+                    plt.rcParams["font.family"] = name
+                    plt.rcParams["axes.unicode_minus"] = False
+                    break
+
+        configure_font()
 
     try:
         template = DocxTemplate(template_path)
