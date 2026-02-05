@@ -11,6 +11,10 @@ import {
   type InsertTrainingPage,
   type ProjectTarget,
   type InsertProjectTarget,
+  type ReportTemplate,
+  type InsertReportTemplate,
+  type ReportInstance,
+  type InsertReportInstance,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
@@ -54,6 +58,19 @@ import {
   createProjectTargetRecord,
   updateProjectTargetById,
 } from "./dao/projectTargetDao";
+import {
+  listReportTemplates,
+  getReportTemplateById,
+  getActiveReportTemplate as getActiveReportTemplateRecord,
+  createReportTemplate as createReportTemplateRecord,
+  setActiveReportTemplate as setActiveReportTemplateRecord,
+} from "./dao/reportTemplateDao";
+import {
+  listReportInstancesByProject,
+  getReportInstanceById,
+  createReportInstance as createReportInstanceRecord,
+  updateReportInstance as updateReportInstanceRecord,
+} from "./dao/reportInstanceDao";
 import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
 import { seedTemplates } from "./seed/seedTemplates";
 
@@ -97,6 +114,25 @@ export interface IStorage {
   getProjectTargets(projectId: string): Promise<ProjectTarget[]>;
   createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget>;
   updateProjectTarget(id: string, projectTarget: Partial<InsertProjectTarget>): Promise<ProjectTarget | undefined>;
+
+  // Report Templates
+  getReportTemplates(): Promise<ReportTemplate[]>;
+  getReportTemplate(id: string): Promise<ReportTemplate | undefined>;
+  getActiveReportTemplate(): Promise<ReportTemplate | undefined>;
+  createReportTemplate(
+    template: InsertReportTemplate,
+    options?: { activate?: boolean; id?: string },
+  ): Promise<ReportTemplate>;
+  setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined>;
+
+  // Report Instances
+  getReportInstances(projectId: string): Promise<ReportInstance[]>;
+  getReportInstance(id: string): Promise<ReportInstance | undefined>;
+  createReportInstance(instance: InsertReportInstance): Promise<ReportInstance>;
+  updateReportInstance(
+    id: string,
+    instance: Partial<InsertReportInstance> & { completedAt?: Date | null },
+  ): Promise<ReportInstance | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -105,6 +141,8 @@ export class MemStorage implements IStorage {
   private templates: Map<string, Template>;
   private trainingPages: Map<string, TrainingPage>;
   private projectTargets: Map<string, ProjectTarget>;
+  private reportTemplates: Map<string, ReportTemplate>;
+  private reportInstances: Map<string, ReportInstance>;
 
   constructor() {
     this.users = new Map();
@@ -112,6 +150,8 @@ export class MemStorage implements IStorage {
     this.templates = new Map();
     this.trainingPages = new Map();
     this.projectTargets = new Map();
+    this.reportTemplates = new Map();
+    this.reportInstances = new Map();
 
     this.seedTemplates();
     void this.seedTargets();
@@ -973,6 +1013,104 @@ export class MemStorage implements IStorage {
     this.projectTargets.set(id, updated);
     return updated;
   }
+
+  // Report Templates
+  async getReportTemplates(): Promise<ReportTemplate[]> {
+    return Array.from(this.reportTemplates.values()).sort(
+      (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
+    );
+  }
+
+  async getReportTemplate(id: string): Promise<ReportTemplate | undefined> {
+    return this.reportTemplates.get(id);
+  }
+
+  async getActiveReportTemplate(): Promise<ReportTemplate | undefined> {
+    return Array.from(this.reportTemplates.values()).find((template) => template.isActive) ?? undefined;
+  }
+
+  async createReportTemplate(
+    template: InsertReportTemplate,
+    options?: { activate?: boolean; id?: string },
+  ): Promise<ReportTemplate> {
+    const id = options?.id ?? randomUUID();
+    const now = new Date();
+    if (options?.activate) {
+      this.reportTemplates.forEach((value, key) => {
+        this.reportTemplates.set(key, { ...value, isActive: false, updatedAt: now });
+      });
+    }
+    const newTemplate: ReportTemplate = {
+      id,
+      name: template.name,
+      version: template.version,
+      fileKey: template.fileKey,
+      isActive: options?.activate ?? false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.reportTemplates.set(id, newTemplate);
+    return newTemplate;
+  }
+
+  async setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined> {
+    const existing = this.reportTemplates.get(id);
+    if (!existing) return undefined;
+    const now = new Date();
+    this.reportTemplates.forEach((value, key) => {
+      this.reportTemplates.set(key, { ...value, isActive: false, updatedAt: now });
+    });
+    const updated: ReportTemplate = { ...existing, isActive: true, updatedAt: now };
+    this.reportTemplates.set(id, updated);
+    return updated;
+  }
+
+  // Report Instances
+  async getReportInstances(projectId: string): Promise<ReportInstance[]> {
+    return Array.from(this.reportInstances.values())
+      .filter((instance) => instance.projectId === projectId)
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  }
+
+  async getReportInstance(id: string): Promise<ReportInstance | undefined> {
+    return this.reportInstances.get(id);
+  }
+
+  async createReportInstance(instance: InsertReportInstance): Promise<ReportInstance> {
+    const id = randomUUID();
+    const now = new Date();
+    const newInstance: ReportInstance = {
+      id,
+      projectId: instance.projectId,
+      templateId: instance.templateId,
+      status: instance.status,
+      fileKey: instance.fileKey ?? null,
+      errorMessage: instance.errorMessage ?? null,
+      createdAt: now,
+      completedAt: null,
+    };
+    this.reportInstances.set(id, newInstance);
+    return newInstance;
+  }
+
+  async updateReportInstance(
+    id: string,
+    instance: Partial<InsertReportInstance> & { completedAt?: Date | null },
+  ): Promise<ReportInstance | undefined> {
+    const existing = this.reportInstances.get(id);
+    if (!existing) return undefined;
+    const updated: ReportInstance = {
+      ...existing,
+      ...instance,
+      fileKey: instance.fileKey !== undefined ? instance.fileKey ?? null : existing.fileKey,
+      errorMessage:
+        instance.errorMessage !== undefined ? instance.errorMessage ?? null : existing.errorMessage,
+      completedAt:
+        instance.completedAt !== undefined ? instance.completedAt ?? null : existing.completedAt,
+    };
+    this.reportInstances.set(id, updated);
+    return updated;
+  }
 }
 
 export class DbStorage implements IStorage {
@@ -1605,6 +1743,50 @@ export class DbStorage implements IStorage {
 
   async updateProjectTarget(id: string, projectTarget: Partial<InsertProjectTarget>): Promise<ProjectTarget | undefined> {
     return updateProjectTargetById(id, projectTarget);
+  }
+
+  // Report Templates
+  async getReportTemplates(): Promise<ReportTemplate[]> {
+    return listReportTemplates();
+  }
+
+  async getReportTemplate(id: string): Promise<ReportTemplate | undefined> {
+    return getReportTemplateById(id);
+  }
+
+  async getActiveReportTemplate(): Promise<ReportTemplate | undefined> {
+    return getActiveReportTemplateRecord();
+  }
+
+  async createReportTemplate(
+    template: InsertReportTemplate,
+    options?: { activate?: boolean; id?: string },
+  ): Promise<ReportTemplate> {
+    return createReportTemplateRecord(template, options);
+  }
+
+  async setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined> {
+    return setActiveReportTemplateRecord(id);
+  }
+
+  // Report Instances
+  async getReportInstances(projectId: string): Promise<ReportInstance[]> {
+    return listReportInstancesByProject(projectId);
+  }
+
+  async getReportInstance(id: string): Promise<ReportInstance | undefined> {
+    return getReportInstanceById(id);
+  }
+
+  async createReportInstance(instance: InsertReportInstance): Promise<ReportInstance> {
+    return createReportInstanceRecord(instance);
+  }
+
+  async updateReportInstance(
+    id: string,
+    instance: Partial<InsertReportInstance> & { completedAt?: Date | null },
+  ): Promise<ReportInstance | undefined> {
+    return updateReportInstanceRecord(id, instance);
   }
 }
 
