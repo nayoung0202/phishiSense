@@ -24,6 +24,7 @@ import {
   SANITIZE_ALLOWED_ATTRIBUTES,
   SANITIZE_ALLOWED_TAGS,
 } from "@shared/sanitizeConfig";
+import { ko as sunEditorKo } from "suneditor/src/lang";
 
 const SunEditor = dynamic(() => import("suneditor-react"), { ssr: false });
 
@@ -245,14 +246,33 @@ export function RichHtmlEditor({
     ];
   }, [enableImageUpload]);
 
+  const editorLang = useMemo(() => {
+    return {
+      ...sunEditorKo,
+      dialogBox: {
+        ...sunEditorKo.dialogBox,
+        linkBox: {
+          ...sunEditorKo.dialogBox.linkBox,
+          title: "링크 삽입",
+          url: "링크 주소",
+          text: "표시할 텍스트",
+          newWindowCheck: "새 창에서 열기",
+          downloadLinkCheck: "다운로드 링크",
+        },
+        submitButton: "확인",
+      },
+    };
+  }, []);
+
   const editorOptions = useMemo<SunEditorOptions>(() => {
     return {
       buttonList: toolbarButtons,
       addTagsWhitelist: TAGS_WHITELIST,
       pasteTagsWhitelist: TAGS_WHITELIST,
       attributesWhitelist: ATTRIBUTES_WHITELIST,
+      lang: editorLang,
     };
-  }, [toolbarButtons]);
+  }, [editorLang, toolbarButtons]);
 
   const handleEditorInstance = useCallback((instance: SunEditorCore) => {
     editorRef.current = instance;
