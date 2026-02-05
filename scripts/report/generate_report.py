@@ -41,24 +41,45 @@ def main():
 
         def configure_font():
             font_path = os.environ.get("REPORT_MPL_FONT_PATH")
-            if font_path and Path(font_path).exists():
+            if font_path:
+                font_file = Path(font_path)
+                if not font_file.is_absolute():
+                    font_file = Path.cwd() / font_file
+                if not font_file.exists():
+                    raise RuntimeError("REPORT_MPL_FONT_PATH에 지정한 폰트 파일을 찾을 수 없습니다.")
                 try:
-                    font_manager.fontManager.addfont(font_path)
-                    font_name = font_manager.FontProperties(fname=font_path).get_name()
+                    font_manager.fontManager.addfont(str(font_file))
+                    font_name = font_manager.FontProperties(fname=str(font_file)).get_name()
                     plt.rcParams["font.family"] = font_name
                     plt.rcParams["axes.unicode_minus"] = False
-                    return
-                except Exception:
-                    pass
-            candidates = ["NanumGothic", "Noto Sans CJK KR", "Malgun Gothic", "AppleGothic"]
+                    return True
+                except Exception as exc:
+                    raise RuntimeError(f"REPORT_MPL_FONT_PATH 폰트 로드 실패: {exc}")
+            candidates = [
+                "Noto Sans CJK KR",
+                "Noto Sans KR",
+                "NanumGothic",
+                "NanumBarunGothic",
+                "Malgun Gothic",
+                "AppleGothic",
+            ]
             available = {font.name for font in font_manager.fontManager.ttflist}
             for name in candidates:
                 if name in available:
                     plt.rcParams["font.family"] = name
                     plt.rcParams["axes.unicode_minus"] = False
-                    break
+                    return True
+            return False
 
-        configure_font()
+        font_ready = configure_font()
+
+        def requires_unicode(label_list):
+            for label in label_list:
+                if not isinstance(label, str):
+                    continue
+                if any(ord(ch) > 127 for ch in label):
+                    return True
+            return False
 
     try:
         template = DocxTemplate(template_path)
@@ -88,6 +109,12 @@ def main():
 
             if not key or not isinstance(values, list) or len(values) == 0:
                 continue
+
+            if not font_ready and requires_unicode(labels):
+                raise RuntimeError(
+                    "한글 폰트를 찾을 수 없습니다. "
+                    "REPORT_MPL_FONT_PATH를 지정하거나 시스템에 한글 폰트를 설치하세요.",
+                )
 
             safe_values = [max(float(v), 0) for v in values]
             if chart_type != "bar" and sum(safe_values) <= 0:
