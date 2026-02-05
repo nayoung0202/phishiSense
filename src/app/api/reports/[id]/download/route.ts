@@ -11,6 +11,12 @@ const COMPANY_NAME_ENV = "REPORT_COMPANY_NAME";
 const sanitizeFilename = (value: string) =>
   value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").trim();
 
+const toAsciiFilename = (value: string) =>
+  sanitizeFilename(value)
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -36,11 +42,18 @@ export async function GET(
   const projectName = project?.name ?? "project";
   const date = instance.completedAt ? new Date(instance.completedAt) : new Date();
   const formatted = format(date, "yyyyMMdd");
-  const filename = `${sanitizeFilename(companyName || "company")}_${sanitizeFilename(projectName)}_보고서_${formatted}.docx`;
+  const rawCompany = companyName || "company";
+  const rawProject = projectName || "project";
+  const rawFilename = `${rawCompany}_${rawProject}_보고서_${formatted}.docx`;
+  const asciiFilename = toAsciiFilename(
+    `${rawCompany}_${rawProject}_report_${formatted}.docx`,
+  ) || `report-${id}.docx`;
+  const encodedFilename = encodeURIComponent(rawFilename);
+  const contentDisposition = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`;
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename=\"${filename}\"`,
+      "Content-Disposition": contentDisposition,
     },
   });
 }
