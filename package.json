@@ -9,6 +9,7 @@
     "start": "next start",
     "check": "tsc",
     "test": "vitest",
+    "worker:send": "tsx src/server/worker/send-worker.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
@@ -79,6 +80,8 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
     "@types/node": "20.16.11",
     "@types/nodemailer": "^7.0.2",
     "@types/pg": "^8.16.0",
@@ -89,9 +92,12 @@
     "baseline-browser-mapping": "^2.9.11",
     "drizzle-kit": "^0.31.4",
     "i": "^0.3.7",
+    "jsdom": "^24.0.0",
+    "msw": "^2.6.0",
     "npm": "^11.7.0",
     "postcss": "8.4.47",
     "tailwindcss": "^3.4.18",
+    "tsx": "^4.20.5",
     "typescript": "5.6.3",
     "vitest": "^1.6.0"
   }

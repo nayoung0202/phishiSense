@@ -258,6 +258,7 @@ type CreateProjectRequest = {
   endDate: string;
   status: string;
   targetCount: number;
+  targetIds: string[];
 };
 
 export default function ProjectCreate() {
@@ -826,6 +827,7 @@ export default function ProjectCreate() {
         endDate: endDateIso,
         status,
         targetCount: values.targetIds.length,
+        targetIds: values.targetIds,
       };
     },
     [],

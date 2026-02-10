@@ -313,8 +313,8 @@ export async function generateProjectReport(
         {
           key: "confidential_logo",
           path: confidentialPath,
-          width_cm: 6.54,
-          height_cm: 2,
+          width_cm: 4.05,
+          height_cm: 1.59,
         },
         {
           key: "company_logo",

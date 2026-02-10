@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../../../shared/schema";
-import { shouldStartScheduledProject } from "./projectsShared";
+import { shouldCompleteProject, shouldStartScheduledProject } from "./projectsShared";
 
 const baseProject: Project = {
   id: "project-1",
@@ -63,5 +63,27 @@ describe("shouldStartScheduledProject", () => {
     });
 
     expect(shouldStartScheduledProject(project, now)).toBe(false);
+  });
+});
+
+describe("shouldCompleteProject", () => {
+  it("종료 시간이 지났고 완료 상태가 아니면 true를 반환한다", () => {
+    const now = new Date("2025-01-03T09:00:00Z");
+    const project = buildProject({
+      status: "진행중",
+      endDate: new Date("2025-01-03T08:00:00Z"),
+    });
+
+    expect(shouldCompleteProject(project, now)).toBe(true);
+  });
+
+  it("임시 상태면 false를 반환한다", () => {
+    const now = new Date("2025-01-03T09:00:00Z");
+    const project = buildProject({
+      status: "임시",
+      endDate: new Date("2025-01-03T08:00:00Z"),
+    });
+
+    expect(shouldCompleteProject(project, now)).toBe(false);
   });
 });
