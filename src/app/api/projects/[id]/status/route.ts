@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { storage } from "@/server/storage";
+import { enqueueSendJobForProject } from "@/server/services/sendJobs";
 
 const statusSchema = z.object({
   to: z.enum(["SCHEDULED", "RUNNING"]),
@@ -27,6 +28,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     });
     if (!updated) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    if (to === "RUNNING") {
+      await enqueueSendJobForProject(id);
     }
     return NextResponse.json({ id: updated.id, status: updated.status });
   } catch (error) {

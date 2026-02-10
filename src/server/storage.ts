@@ -15,13 +15,16 @@ import {
   type InsertReportTemplate,
   type ReportInstance,
   type InsertReportInstance,
+  type SendJob,
+  type InsertSendJob,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
 import { normalizePlainText } from "./lib/validation/text";
 import { generateTrainingLinkToken } from "./lib/trainingLink";
 import { sanitizeHtml } from "./utils/sanitizeHtml";
-import { shouldStartScheduledProject } from "./services/projectsShared";
+import { shouldCompleteProject, shouldStartScheduledProject } from "./services/projectsShared";
+import { enqueueSendJobForProjectCore } from "./services/sendJobsCore";
 import {
   listTemplates,
   getTemplateById,
@@ -55,8 +58,10 @@ import {
 } from "./dao/trainingPageDao";
 import {
   listProjectTargets as listProjectTargetsRecord,
+  getProjectTargetByTrackingToken as getProjectTargetByTrackingTokenRecord,
   createProjectTargetRecord,
   updateProjectTargetById,
+  deleteProjectTargetsByIds,
 } from "./dao/projectTargetDao";
 import {
   listReportTemplates,
@@ -71,8 +76,19 @@ import {
   createReportInstance as createReportInstanceRecord,
   updateReportInstance as updateReportInstanceRecord,
 } from "./dao/reportInstanceDao";
+import {
+  createSendJobRecord,
+  findActiveSendJobByProjectId,
+  getSendJobById,
+  updateSendJobById,
+} from "./dao/sendJobDao";
 import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
 import { seedTemplates } from "./seed/seedTemplates";
+
+type SendJobUpdate = Partial<InsertSendJob> & {
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+};
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -112,8 +128,16 @@ export interface IStorage {
   
   // Project Targets
   getProjectTargets(projectId: string): Promise<ProjectTarget[]>;
+  getProjectTargetByTrackingToken(trackingToken: string): Promise<ProjectTarget | undefined>;
   createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget>;
   updateProjectTarget(id: string, projectTarget: Partial<InsertProjectTarget>): Promise<ProjectTarget | undefined>;
+  deleteProjectTargetsByIds(ids: string[]): Promise<number>;
+
+  // Send Jobs
+  findActiveSendJobByProjectId(projectId: string): Promise<SendJob | undefined>;
+  getSendJob(id: string): Promise<SendJob | undefined>;
+  createSendJob(job: InsertSendJob): Promise<SendJob>;
+  updateSendJob(id: string, job: SendJobUpdate): Promise<SendJob | undefined>;
 
   // Report Templates
   getReportTemplates(): Promise<ReportTemplate[]>;
@@ -143,6 +167,7 @@ export class MemStorage implements IStorage {
   private projectTargets: Map<string, ProjectTarget>;
   private reportTemplates: Map<string, ReportTemplate>;
   private reportInstances: Map<string, ReportInstance>;
+  private sendJobs: Map<string, SendJob>;
 
   constructor() {
     this.users = new Map();
@@ -152,6 +177,7 @@ export class MemStorage implements IStorage {
     this.projectTargets = new Map();
     this.reportTemplates = new Map();
     this.reportInstances = new Map();
+    this.sendJobs = new Map();
 
     this.seedTemplates();
     void this.seedTargets();
@@ -197,23 +223,40 @@ export class MemStorage implements IStorage {
 
   private async syncScheduledProjects(projects: Project[]): Promise<Project[]> {
     const now = new Date();
-    const toStart = projects.filter((project) => shouldStartScheduledProject(project, now));
-    if (toStart.length === 0) return projects;
-
-    const updated = await Promise.all(
-      toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    const toComplete = projects.filter((project) => shouldCompleteProject(project, now));
+    const toCompleteIds = new Set(toComplete.map((project) => project.id));
+    const toStart = projects.filter(
+      (project) => !toCompleteIds.has(project.id) && shouldStartScheduledProject(project, now),
     );
+    if (toComplete.length === 0 && toStart.length === 0) return projects;
+
+    const updated = await Promise.all([
+      ...toComplete.map((project) => updateProjectById(project.id, { status: "완료" })),
+      ...toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    ]);
     const updatedMap = new Map<string, Project>();
     updated.forEach((project) => {
       if (project) updatedMap.set(project.id, project);
     });
+
+    if (toStart.length > 0) {
+      await Promise.all(
+        toStart.map((project) => enqueueSendJobForProjectCore(this, project.id)),
+      );
+    }
 
     return projects.map((project) => updatedMap.get(project.id) ?? project);
   }
 
   private async startScheduledProject(project: Project): Promise<Project> {
     const updated = await updateProjectById(project.id, { status: "진행중" });
+    await enqueueSendJobForProjectCore(this, project.id);
     return updated ?? { ...project, status: "진행중" };
+  }
+
+  private async completeProject(project: Project): Promise<Project> {
+    const updated = await updateProjectById(project.id, { status: "완료" });
+    return updated ?? { ...project, status: "완료" };
   }
 
   private createTrainingLinkToken() {
@@ -621,10 +664,24 @@ export class MemStorage implements IStorage {
   // Projects
   async getProjects(): Promise<Project[]> {
     const now = new Date();
+    const startedProjectIds: string[] = [];
     for (const [id, project] of this.projects.entries()) {
+      if (shouldCompleteProject(project, now)) {
+        this.projects.set(id, { ...project, status: "완료" });
+        continue;
+      }
       if (shouldStartScheduledProject(project, now)) {
         this.projects.set(id, { ...project, status: "진행중" });
+        startedProjectIds.push(id);
       }
+    }
+
+    if (startedProjectIds.length > 0) {
+      await Promise.all(
+        startedProjectIds.map((projectId) =>
+          enqueueSendJobForProjectCore(this, projectId),
+        ),
+      );
     }
 
     return Array.from(this.projects.values()).sort((a, b) =>
@@ -635,9 +692,15 @@ export class MemStorage implements IStorage {
   async getProject(id: string): Promise<Project | undefined> {
     const project = this.projects.get(id);
     if (!project) return undefined;
+    if (shouldCompleteProject(project, new Date())) {
+      const updated = { ...project, status: "완료" };
+      this.projects.set(id, updated);
+      return updated;
+    }
     if (shouldStartScheduledProject(project, new Date())) {
       const updated = { ...project, status: "진행중" };
       this.projects.set(id, updated);
+      await enqueueSendJobForProjectCore(this, id);
       return updated;
     }
     return project;
@@ -650,9 +713,15 @@ export class MemStorage implements IStorage {
       (project) => project.trainingLinkToken === normalized,
     );
     if (!project) return undefined;
+    if (shouldCompleteProject(project, new Date())) {
+      const updated = { ...project, status: "완료" };
+      this.projects.set(project.id, updated);
+      return updated;
+    }
     if (shouldStartScheduledProject(project, new Date())) {
       const updated = { ...project, status: "진행중" };
       this.projects.set(project.id, updated);
+      await enqueueSendJobForProjectCore(this, project.id);
       return updated;
     }
     return project;
@@ -819,6 +888,25 @@ export class MemStorage implements IStorage {
         weekOfYear: temporal.weekOfYear,
       };
       this.projects.set(newId, copy);
+      const originalTargets = Array.from(this.projectTargets.values()).filter(
+        (target) => target.projectId === project.id,
+      );
+      originalTargets.forEach((target) => {
+        const newTargetId = randomUUID();
+        this.projectTargets.set(newTargetId, {
+          id: newTargetId,
+          projectId: newId,
+          targetId: target.targetId,
+          trackingToken: randomUUID(),
+          status: "sent",
+          sendStatus: "pending",
+          sentAt: null,
+          sendError: null,
+          openedAt: null,
+          clickedAt: null,
+          submittedAt: null,
+        });
+      });
       copies.push(copy);
     }
 
@@ -999,13 +1087,26 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getProjectTargetByTrackingToken(trackingToken: string): Promise<ProjectTarget | undefined> {
+    const normalized = trackingToken.trim();
+    if (!normalized) return undefined;
+    return Array.from(this.projectTargets.values()).find(
+      (pt) => pt.trackingToken === normalized,
+    );
+  }
+
   async createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget> {
     const id = randomUUID();
+    const trackingToken = projectTarget.trackingToken ?? randomUUID();
     const newProjectTarget: ProjectTarget = { 
       id,
       projectId: projectTarget.projectId,
       targetId: projectTarget.targetId,
+      trackingToken,
       status: projectTarget.status ?? null,
+      sendStatus: projectTarget.sendStatus ?? "pending",
+      sentAt: projectTarget.sentAt ?? null,
+      sendError: projectTarget.sendError ?? null,
       openedAt: projectTarget.openedAt ?? null,
       clickedAt: projectTarget.clickedAt ?? null,
       submittedAt: projectTarget.submittedAt ?? null,
@@ -1019,6 +1120,69 @@ export class MemStorage implements IStorage {
     if (!existing) return undefined;
     const updated = { ...existing, ...projectTarget };
     this.projectTargets.set(id, updated);
+    return updated;
+  }
+
+  async deleteProjectTargetsByIds(ids: string[]): Promise<number> {
+    let removed = 0;
+    ids.forEach((id) => {
+      if (this.projectTargets.delete(id)) {
+        removed += 1;
+      }
+    });
+    return removed;
+  }
+
+  // Send Jobs
+  async findActiveSendJobByProjectId(projectId: string): Promise<SendJob | undefined> {
+    return Array.from(this.sendJobs.values())
+      .filter((job) => job.projectId === projectId)
+      .filter((job) => job.status === "queued" || job.status === "running")
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))[0];
+  }
+
+  async getSendJob(id: string): Promise<SendJob | undefined> {
+    return this.sendJobs.get(id);
+  }
+
+  async createSendJob(job: InsertSendJob): Promise<SendJob> {
+    const id = randomUUID();
+    const now = new Date();
+    const newJob: SendJob = {
+      id,
+      projectId: job.projectId,
+      status: job.status ?? "queued",
+      createdAt: now,
+      startedAt: null,
+      finishedAt: null,
+      attempts: job.attempts ?? 0,
+      lastError: job.lastError ?? null,
+      totalCount: job.totalCount ?? 0,
+      successCount: job.successCount ?? 0,
+      failCount: job.failCount ?? 0,
+    };
+    this.sendJobs.set(id, newJob);
+    return newJob;
+  }
+
+  async updateSendJob(id: string, job: SendJobUpdate): Promise<SendJob | undefined> {
+    const existing = this.sendJobs.get(id);
+    if (!existing) return undefined;
+    const resolveField = <T>(value: T | undefined, fallback: T) =>
+      value === undefined ? fallback : value;
+    const updated: SendJob = {
+      ...existing,
+      ...job,
+      status: resolveField(job.status, existing.status),
+      attempts: resolveField(job.attempts, existing.attempts),
+      totalCount: resolveField(job.totalCount, existing.totalCount),
+      successCount: resolveField(job.successCount, existing.successCount),
+      failCount: resolveField(job.failCount, existing.failCount),
+      lastError: resolveField(job.lastError, existing.lastError),
+      startedAt: resolveField(job.startedAt, existing.startedAt ?? null),
+      finishedAt: resolveField(job.finishedAt, existing.finishedAt ?? null),
+    };
+    this.sendJobs.set(id, updated);
     return updated;
   }
 
@@ -1173,23 +1337,40 @@ export class DbStorage implements IStorage {
 
   private async syncScheduledProjects(projects: Project[]): Promise<Project[]> {
     const now = new Date();
-    const toStart = projects.filter((project) => shouldStartScheduledProject(project, now));
-    if (toStart.length === 0) return projects;
-
-    const updated = await Promise.all(
-      toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    const toComplete = projects.filter((project) => shouldCompleteProject(project, now));
+    const toCompleteIds = new Set(toComplete.map((project) => project.id));
+    const toStart = projects.filter(
+      (project) => !toCompleteIds.has(project.id) && shouldStartScheduledProject(project, now),
     );
+    if (toComplete.length === 0 && toStart.length === 0) return projects;
+
+    const updated = await Promise.all([
+      ...toComplete.map((project) => updateProjectById(project.id, { status: "완료" })),
+      ...toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
+    ]);
     const updatedMap = new Map<string, Project>();
     updated.forEach((project) => {
       if (project) updatedMap.set(project.id, project);
     });
+
+    if (toStart.length > 0) {
+      await Promise.all(
+        toStart.map((project) => enqueueSendJobForProjectCore(this, project.id)),
+      );
+    }
 
     return projects.map((project) => updatedMap.get(project.id) ?? project);
   }
 
   private async startScheduledProject(project: Project): Promise<Project> {
     const updated = await updateProjectById(project.id, { status: "진행중" });
+    await enqueueSendJobForProjectCore(this, project.id);
     return updated ?? { ...project, status: "진행중" };
+  }
+
+  private async completeProject(project: Project): Promise<Project> {
+    const updated = await updateProjectById(project.id, { status: "완료" });
+    return updated ?? { ...project, status: "완료" };
   }
 
   private async generateTrainingLinkToken() {
@@ -1352,6 +1533,9 @@ export class DbStorage implements IStorage {
   async getProject(id: string): Promise<Project | undefined> {
     const project = await getProjectById(id);
     if (!project) return undefined;
+    if (shouldCompleteProject(project, new Date())) {
+      return this.completeProject(project);
+    }
     if (shouldStartScheduledProject(project, new Date())) {
       return this.startScheduledProject(project);
     }
@@ -1363,6 +1547,9 @@ export class DbStorage implements IStorage {
     if (!normalized) return undefined;
     const project = await getProjectByTrainingLinkTokenRecord(normalized);
     if (!project) return undefined;
+    if (shouldCompleteProject(project, new Date())) {
+      return this.completeProject(project);
+    }
     if (shouldStartScheduledProject(project, new Date())) {
       return this.startScheduledProject(project);
     }
@@ -1603,6 +1790,26 @@ export class DbStorage implements IStorage {
         createdAt: now,
       };
       const created = await createProjectRecord(copyPayload);
+      const originalTargets = await listProjectTargetsRecord(project.id);
+      if (originalTargets.length > 0) {
+        await Promise.all(
+          originalTargets.map((target) =>
+            createProjectTargetRecord({
+              id: randomUUID(),
+              projectId: created.id,
+              targetId: target.targetId,
+              trackingToken: randomUUID(),
+              status: "sent",
+              sendStatus: "pending",
+              sentAt: null,
+              sendError: null,
+              openedAt: null,
+              clickedAt: null,
+              submittedAt: null,
+            }),
+          ),
+        );
+      }
       copies.push(created);
     }
 
@@ -1760,12 +1967,22 @@ export class DbStorage implements IStorage {
     return listProjectTargetsRecord(projectId);
   }
 
+  async getProjectTargetByTrackingToken(trackingToken: string): Promise<ProjectTarget | undefined> {
+    const normalized = trackingToken.trim();
+    if (!normalized) return undefined;
+    return getProjectTargetByTrackingTokenRecord(normalized);
+  }
+
   async createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget> {
     const newProjectTarget = {
       id: randomUUID(),
       projectId: projectTarget.projectId,
       targetId: projectTarget.targetId,
+      trackingToken: projectTarget.trackingToken ?? randomUUID(),
       status: projectTarget.status ?? null,
+      sendStatus: projectTarget.sendStatus ?? "pending",
+      sentAt: projectTarget.sentAt ?? null,
+      sendError: projectTarget.sendError ?? null,
       openedAt: projectTarget.openedAt ?? null,
       clickedAt: projectTarget.clickedAt ?? null,
       submittedAt: projectTarget.submittedAt ?? null,
@@ -1775,6 +1992,27 @@ export class DbStorage implements IStorage {
 
   async updateProjectTarget(id: string, projectTarget: Partial<InsertProjectTarget>): Promise<ProjectTarget | undefined> {
     return updateProjectTargetById(id, projectTarget);
+  }
+
+  async deleteProjectTargetsByIds(ids: string[]): Promise<number> {
+    return deleteProjectTargetsByIds(ids);
+  }
+
+  // Send Jobs
+  async findActiveSendJobByProjectId(projectId: string): Promise<SendJob | undefined> {
+    return findActiveSendJobByProjectId(projectId);
+  }
+
+  async getSendJob(id: string): Promise<SendJob | undefined> {
+    return getSendJobById(id);
+  }
+
+  async createSendJob(job: InsertSendJob): Promise<SendJob> {
+    return createSendJobRecord(job);
+  }
+
+  async updateSendJob(id: string, job: SendJobUpdate): Promise<SendJob | undefined> {
+    return updateSendJobById(id, job);
   }
 
   // Report Templates

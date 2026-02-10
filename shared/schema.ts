@@ -82,10 +82,28 @@ export const projectTargets = pgTable("project_targets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull(),
   targetId: varchar("target_id").notNull(),
+  trackingToken: text("tracking_token").unique(),
   status: text("status").default("sent"), // sent, opened, clicked, submitted, no_response
+  sendStatus: text("send_status").default("pending"), // pending, sent, failed
+  sentAt: timestamp("sent_at"),
+  sendError: text("send_error"),
   openedAt: timestamp("opened_at"),
   clickedAt: timestamp("clicked_at"),
   submittedAt: timestamp("submitted_at"),
+});
+
+export const sendJobs = pgTable("send_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  status: text("status").notNull(), // queued, running, done, failed
+  createdAt: timestamp("created_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+  attempts: integer("attempts").default(0),
+  lastError: text("last_error"),
+  totalCount: integer("total_count").default(0),
+  successCount: integer("success_count").default(0),
+  failCount: integer("fail_count").default(0),
 });
 
 export const reportTemplates = pgTable("report_templates", {
@@ -143,6 +161,13 @@ export const insertProjectTargetSchema = createInsertSchema(projectTargets).omit
   id: true,
 });
 
+export const insertSendJobSchema = createInsertSchema(sendJobs).omit({
+  id: true,
+  createdAt: true,
+  startedAt: true,
+  finishedAt: true,
+});
+
 export const insertReportTemplateSchema = createInsertSchema(reportTemplates).omit({
   id: true,
   createdAt: true,
@@ -171,3 +196,5 @@ export type InsertReportTemplate = z.infer<typeof insertReportTemplateSchema>;
 export type ReportTemplate = typeof reportTemplates.$inferSelect;
 export type InsertReportInstance = z.infer<typeof insertReportInstanceSchema>;
 export type ReportInstance = typeof reportInstances.$inferSelect;
+export type InsertSendJob = z.infer<typeof insertSendJobSchema>;
+export type SendJob = typeof sendJobs.$inferSelect;

@@ -6,21 +6,39 @@ const DEFAULT_APP_URL = "http://localhost:3000";
 const normalizeAppUrl = (value: string) => value.replace(/\/+$/, "");
 
 export const getAppBaseUrl = () => {
-  const raw = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? DEFAULT_APP_URL;
+  const raw =
+    process.env.APP_BASE_URL ??
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    DEFAULT_APP_URL;
   const trimmed = typeof raw === "string" ? raw.trim() : "";
   return normalizeAppUrl(trimmed.length > 0 ? trimmed : DEFAULT_APP_URL);
 };
 
-export const buildTrainingLinkUrl = (token: string) =>
+export const buildLandingUrl = (token: string) =>
+  `${getAppBaseUrl()}/p/${encodeURIComponent(token)}`;
+
+export const buildSubmitUrl = (token: string) =>
   `${getAppBaseUrl()}/t/${encodeURIComponent(token)}`;
 
+export const buildOpenPixelUrl = (token: string) =>
+  `${getAppBaseUrl()}/o/${encodeURIComponent(token)}.gif`;
+
+export const buildTrainingLinkUrl = (token: string) =>
+  buildSubmitUrl(token);
+
 export const buildPhishingLinkUrl = (token: string) =>
-  `${getAppBaseUrl()}/p/${encodeURIComponent(token)}`;
+  buildLandingUrl(token);
 
 export const generateTrainingLinkToken = () => randomBytes(16).toString("hex");
 
 const placeholderDetector = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/;
 const placeholderReplacer = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/g;
+const phishPlaceholderDetector = /\{\{\s*(?:PHISH_LINK|PHISH_URL)\s*\}\}/;
+const phishPlaceholderReplacer = /\{\{\s*(?:PHISH_LINK|PHISH_URL)\s*\}\}/g;
+const landingPlaceholderReplacer = /\{\{\s*LANDING_URL\s*\}\}/g;
+const submitPlaceholderReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/g;
+const openPixelPlaceholderReplacer = /\{\{\s*OPEN_PIXEL_URL\s*\}\}/g;
 const anchorHrefMatcher = /<a\b([^>]*?)\bhref=(["'])(.*?)\2([^>]*)>/i;
 const anchorHrefFinder = /<a\b[^>]*\bhref=(["'])(.*?)\1/gi;
 const buttonOpenTagMatcher = /<button\b([^>]*)>/i;
@@ -96,4 +114,38 @@ export const injectTrainingLink = (
 
   const separator = htmlBody.endsWith("\n") ? "\n" : "\n\n";
   return `${htmlBody}${separator}${linkBlock}`;
+};
+
+export const injectPhishingLink = (htmlBody: string, phishingUrl: string) => {
+  if (phishPlaceholderDetector.test(htmlBody)) {
+    return htmlBody.replace(phishPlaceholderReplacer, phishingUrl);
+  }
+
+  return injectTrainingLink(htmlBody, phishingUrl);
+};
+
+type InjectLinksOptions = {
+  landingUrl: string;
+  submitUrl: string;
+  openPixelUrl?: string | null;
+};
+
+export const injectLinks = (
+  htmlBody: string,
+  { landingUrl, submitUrl, openPixelUrl }: InjectLinksOptions,
+) => {
+  let output = htmlBody;
+
+  output = output.replace(landingPlaceholderReplacer, landingUrl);
+  output = output.replace(submitPlaceholderReplacer, submitUrl);
+  output = output.replace(phishPlaceholderReplacer, landingUrl);
+  output = output.replace(placeholderReplacer, submitUrl);
+
+  if (openPixelUrl) {
+    output = output.replace(openPixelPlaceholderReplacer, openPixelUrl);
+  } else {
+    output = output.replace(openPixelPlaceholderReplacer, "");
+  }
+
+  return output;
 };
