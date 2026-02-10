@@ -3,9 +3,10 @@ import nodemailer from "nodemailer";
 import { z, ZodError } from "zod";
 import { storage } from "@/server/storage";
 import {
-  buildPhishingLinkUrl,
-  generateTrainingLinkToken,
-  injectTrainingLink,
+  buildLandingUrl,
+  buildOpenPixelUrl,
+  buildSubmitUrl,
+  injectLinks,
 } from "@/server/lib/trainingLink";
 import {
   NODEMAILER_VERSION,
@@ -149,21 +150,31 @@ export async function POST(request: NextRequest) {
 
     let htmlBody = template.body ?? "";
     if (project) {
-      const currentToken =
-        typeof project.trainingLinkToken === "string" ? project.trainingLinkToken.trim() : "";
-      let trainingLinkToken = currentToken;
-      if (!trainingLinkToken) {
-        let candidate = generateTrainingLinkToken();
-        while (await storage.getProjectByTrainingLinkToken(candidate)) {
-          candidate = generateTrainingLinkToken();
-        }
-        const updated = await storage.updateProject(project.id, {
-          trainingLinkToken: candidate,
+      const recipientEmail = payload.recipient.trim();
+      let target = await storage.findTargetByEmail(recipientEmail);
+      if (!target) {
+        const nameCandidate = recipientEmail.split("@")[0] ?? "테스트";
+        target = await storage.createTarget({
+          name: nameCandidate || "테스트",
+          email: recipientEmail,
+          department: null,
+          tags: [],
+          status: "active",
         });
-        trainingLinkToken = updated?.trainingLinkToken ?? candidate;
       }
-      const phishingLinkUrl = buildPhishingLinkUrl(trainingLinkToken);
-      htmlBody = injectTrainingLink(htmlBody, phishingLinkUrl);
+
+      const projectTarget = await storage.createProjectTarget({
+        projectId: project.id,
+        targetId: target.id,
+        status: "test",
+        sendStatus: "sent",
+        sentAt: new Date(),
+      });
+      const trackingToken = projectTarget.trackingToken ?? "";
+      const landingUrl = buildLandingUrl(trackingToken);
+      const submitUrl = buildSubmitUrl(trackingToken);
+      const openPixelUrl = buildOpenPixelUrl(trackingToken);
+      htmlBody = injectLinks(htmlBody, { landingUrl, submitUrl, openPixelUrl });
     }
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
