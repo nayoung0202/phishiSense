@@ -44,6 +44,12 @@ export const shouldStartScheduledProject = (project: Project, now = new Date()) 
   return startDate.getTime() <= now.getTime();
 };
 
+export const shouldCompleteProject = (project: Project, now = new Date()) => {
+  if (project.status === "완료" || project.status === "임시") return false;
+  const endDate = normalizeProjectDate(project.endDate);
+  return endDate.getTime() <= now.getTime();
+};
+
 export const projectOverlaps = (project: Project, rangeStart: Date, rangeEnd: Date) => {
   const projectStart = normalizeProjectDate(project.startDate);
   const projectEnd = normalizeProjectDate(project.endDate);
@@ -71,6 +77,7 @@ const projectCreateBaseSchema = insertProjectSchema.omit({
 export const projectCreateSchema = projectCreateBaseSchema.extend({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
+  targetIds: z.array(z.string().trim().min(1)).default([]),
 });
 
 export type PreviewDepartmentSlice = {

@@ -5,7 +5,32 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7049684b-6f1d-4088-9f69-45101254beb0" name="변경" comment="">
+      <change afterPath="$PROJECT_DIR$/attached_assets/EVRIZ_2025년 01월 계정 보안 재인증 점검 1차_보고서_20260206_확인용.docx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/attached_assets/confidential_logo.png" beforeDir="false" afterPath="$PROJECT_DIR$/attached_assets/confidential_logo.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/attached_assets/default_report_template.docx" beforeDir="false" afterPath="$PROJECT_DIR$/attached_assets/default_report_template.docx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/status/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/status/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/projects/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/api/projects/test-send/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/test-send/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/p/[token]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/p/[token]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/t/[token]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/t/[token]/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/ProjectCreate.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/ProjectCreate.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/features/ProjectDetail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/ProjectDetail.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/dao/projectTargetDao.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/dao/projectTargetDao.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/db/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/db/schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/lib/trainingLink.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/lib/trainingLink.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/seed/defaultTemplates.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/seed/defaultTemplates.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/services/projectsShared.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/services/projectsShared.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/services/projectsShared.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/services/projectsShared.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/services/reportGenerator.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/services/reportGenerator.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/storage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/tsconfig.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,6 +67,11 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="\\wsl.localhost\Ubuntu-22.04\home\ny\PhishSenseDashboard\PhishSenseDashboard\attached_assets" />
+    </key>
+  </component>
   <component name="RunManager" selected="JavaScript 디버그.Next.js: 클라이언트 측에서 디버그">
     <configuration name="Next.js: 클라이언트 측에서 디버그" type="JavascriptDebugType" uri="http://localhost:3000/">
       <method v="2" />
@@ -105,6 +135,9 @@
       <workItem from="1769059597326" duration="2140000" />
       <workItem from="1769405991663" duration="1620000" />
       <workItem from="1769648755959" duration="34728000" />
+      <workItem from="1770338726020" duration="11350000" />
+      <workItem from="1770613351648" duration="15440000" />
+      <workItem from="1770687643044" duration="2101000" />
     </task>
     <servers />
   </component>

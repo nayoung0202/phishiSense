@@ -6,6 +6,7 @@ import {
   targets,
   trainingPages,
   projectTargets,
+  sendJobs,
   reportTemplates,
   reportInstances,
 } from "@shared/schema";
@@ -19,6 +20,7 @@ export {
   targets,
   trainingPages,
   projectTargets,
+  sendJobs,
   reportTemplates,
   reportInstances,
 };

@@ -8,6 +8,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/StatCard";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -15,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SafeText } from "@/components/security/SafeText";
 import { useToast } from "@/hooks/use-toast";
 import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
 import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play } from "lucide-react";
@@ -32,10 +40,33 @@ const statusConfig: Record<string, { className: string }> = {
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
 
+type ActionLogEvent = {
+  type: "OPEN" | "CLICK" | "SUBMIT";
+  label: string;
+  at: string;
+};
+
+type ActionLogItem = {
+  projectTargetId: string;
+  targetId: string;
+  name: string;
+  email: string;
+  department: string | null;
+  status: string;
+  statusCode: string;
+  trackingToken: string | null;
+  events: ActionLogEvent[];
+};
+
+type ActionLogResponse = {
+  items: ActionLogItem[];
+};
+
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<ActionLogItem | null>(null);
 
   const fetchProject = async (): Promise<Project> => {
     if (!projectId) {
@@ -54,6 +85,38 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     enabled: Boolean(projectId),
     queryFn: fetchProject,
   });
+
+  const fetchActionLogs = async (): Promise<ActionLogResponse> => {
+    const res = await apiRequest("GET", `/api/projects/${projectId}/action-logs`);
+    return (await res.json()) as ActionLogResponse;
+  };
+
+  const {
+    data: actionLogs,
+    isLoading: isActionLogsLoading,
+  } = useQuery<ActionLogResponse>({
+    queryKey: ["/api/projects", projectId, "action-logs"],
+    enabled: Boolean(projectId),
+    queryFn: fetchActionLogs,
+  });
+
+  const actionLogItems = Array.isArray(actionLogs?.items) ? actionLogs.items : [];
+  const timelineItems = actionLogItems
+    .flatMap((item) => {
+      const events = Array.isArray(item.events) ? item.events : [];
+      return events.map((event) => ({
+        ...event,
+        targetName: item.name,
+      }));
+    })
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, 6);
+
+  const formatEventTime = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return format(parsed, "yyyy-MM-dd HH:mm");
+  };
 
   const startProjectMutation = useMutation({
     mutationFn: async (target: Project) => {
@@ -169,20 +232,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { name: '인사부', value: 20 },
     { name: '기타', value: 20 },
   ];
-
-  // Mock target data
-  const mockTargets = [
-    { id: '1', name: '김철수', email: 'kim@company.com', department: '영업부', status: '클릭' },
-    { id: '2', name: '이영희', email: 'lee@company.com', department: '개발부', status: '열람' },
-    { id: '3', name: '박민수', email: 'park@company.com', department: '인사부', status: '제출' },
-  ];
-
-  const mockTimeline = [
-    { time: '2024-01-15 09:30', user: '김철수', action: '메일 열람' },
-    { time: '2024-01-15 10:15', user: '이영희', action: '링크 클릭' },
-    { time: '2024-01-15 11:00', user: '박민수', action: '정보 제출' },
-  ];
-
   const handleStartProject = () => {
     if (project.status !== "예약") return;
     if (!confirm(`"${project.name}" 프로젝트를 지금 시작하시겠습니까?`)) return;
@@ -313,21 +362,46 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockTargets.map((target) => (
-                <TableRow key={target.id}>
-                  <TableCell className="font-medium">{target.name}</TableCell>
-                  <TableCell>{target.email}</TableCell>
-                  <TableCell>{target.department}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{target.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" data-testid={`button-view-log-${target.id}`}>
-                      상세 로그
-                    </Button>
+              {isActionLogsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    로딩 중...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : actionLogItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    대상자가 없습니다
+                  </TableCell>
+                </TableRow>
+              ) : (
+                actionLogItems.map((item) => (
+                  <TableRow key={item.projectTargetId}>
+                    <TableCell className="font-medium">
+                      <SafeText value={item.name} fallback="-" />
+                    </TableCell>
+                    <TableCell>
+                      <SafeText value={item.email} fallback="-" />
+                    </TableCell>
+                    <TableCell>
+                      <SafeText value={item.department ?? ""} fallback="-" />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{item.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedLog(item)}
+                        data-testid={`button-view-log-${item.targetId}`}
+                      >
+                        상세 로그
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -336,19 +410,71 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">이벤트 타임라인</h2>
         <div className="space-y-4">
-          {mockTimeline.map((event, index) => (
-            <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
-              <div className="p-2 rounded-md bg-primary/10">
-                <Clock className="w-4 h-4 text-primary" />
+          {isActionLogsLoading ? (
+            <div className="text-sm text-muted-foreground">로딩 중...</div>
+          ) : timelineItems.length === 0 ? (
+            <div className="text-sm text-muted-foreground">이벤트가 없습니다.</div>
+          ) : (
+            timelineItems.map((event, index) => (
+              <div key={`${event.type}-${event.at}-${index}`} className="flex items-start gap-4 pb-4 border-b last:border-0">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Clock className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{event.targetName} - {event.label}</p>
+                  <p className="text-sm text-muted-foreground">{formatEventTime(event.at)}</p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-medium">{event.user} - {event.action}</p>
-                <p className="text-sm text-muted-foreground">{event.time}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Card>
+
+      <Dialog
+        open={Boolean(selectedLog)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLog(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>상세 로그</DialogTitle>
+            <DialogDescription>대상자별 이벤트 타임라인</DialogDescription>
+          </DialogHeader>
+          {selectedLog ? (
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">
+                  <SafeText value={selectedLog.name} fallback="-" />
+                </p>
+                <p className="text-muted-foreground">
+                  <SafeText value={selectedLog.email} fallback="-" />
+                </p>
+              </div>
+              <div className="space-y-3">
+                {selectedLog.events.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">이벤트가 없습니다.</p>
+                ) : (
+                  selectedLog.events.map((event, index) => (
+                    <div
+                      key={`${selectedLog.projectTargetId}-${event.type}-${index}`}
+                      className="flex items-start gap-3 pb-3 border-b last:border-0"
+                    >
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <Clock className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{event.label}</p>
+                        <p className="text-sm text-muted-foreground">{formatEventTime(event.at)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

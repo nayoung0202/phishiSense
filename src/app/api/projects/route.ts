@@ -8,6 +8,7 @@ import {
   normalizeStringArray,
   validateProjectPayload,
 } from "@/server/services/projectsShared";
+import { enqueueSendJobForProject } from "@/server/services/sendJobs";
 import type { InsertProject } from "@shared/schema";
 import { ZodError } from "zod";
 
@@ -72,7 +73,8 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const validated = projectCreateSchema.parse(payload);
-    const issues = validateProjectPayload(validated as InsertProject);
+    const { targetIds, ...projectPayload } = validated;
+    const issues = validateProjectPayload(projectPayload as InsertProject);
     if (issues.length > 0) {
       return NextResponse.json(
         {
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { departmentTags, notificationEmails, ...projectRest } = validated;
+    const { departmentTags, notificationEmails, ...projectRest } = projectPayload;
     const sanitized: InsertProject = {
       ...projectRest,
       departmentTags: normalizeStringArray(departmentTags),
@@ -91,6 +93,24 @@ export async function POST(request: NextRequest) {
     };
 
     const project = await storage.createProject(sanitized);
+    const uniqueTargetIds = Array.from(
+      new Set((targetIds ?? []).map((id) => id.trim()).filter(Boolean)),
+    );
+    if (uniqueTargetIds.length > 0) {
+      await Promise.all(
+        uniqueTargetIds.map((targetId) =>
+          storage.createProjectTarget({
+            projectId: project.id,
+            targetId,
+            status: "sent",
+          }),
+        ),
+      );
+    }
+
+    if (project.status === "진행중") {
+      await enqueueSendJobForProject(project.id);
+    }
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
