@@ -83,7 +83,7 @@
 ### 환경 변수
 - `.env`: 실행 환경별 비밀값/설정을 저장한다. 로컬 개발 또는 배포 시점에 필요하다.
 - `.env.example`: `.env` 작성 가이드로, 신규 환경 세팅 시 복사해 사용한다.
-- 사용 예: `DATABASE_URL`(DB 연결), `SMTP_SECRET`(암호화 키), `APP_URL`(메일 링크 생성), `SMTP_TEST_ALLOWED_DOMAINS`(테스트 제한).
+- 사용 예: `DATABASE_URL`(DB 연결), `SEED_DEFAULTS`(개발용 시드 토글), `SMTP_SECRET`(암호화 키), `APP_URL`(메일 링크 생성), `SMTP_TEST_ALLOWED_DOMAINS`(테스트 제한).
 
 ### 빌드/런타임 설정
 - `package.json`: 실행 스크립트와 의존성 정의.
@@ -118,6 +118,10 @@
 - 프로덕션 실행: `npm run start`
 - 타입 체크: `npm run check`
 - DB 스키마 반영: `npm run db:push`
+- 로컬 DB 실행: `docker-compose up -d db`
+- 로컬 DB 연결: `.env`에 `DATABASE_URL` 지정
+- 기본 시드 필요 시: `SEED_DEFAULTS=true`로 실행
+- CI 환경: 테스트 전용 `DATABASE_URL`을 사용하고 기본 시드는 비활성화 유지
 
 ## 9. 한눈에 보는 폴더 트리(핵심만)
 ```

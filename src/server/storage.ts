@@ -25,6 +25,7 @@ import { generateTrainingLinkToken } from "./lib/trainingLink";
 import { sanitizeHtml } from "./utils/sanitizeHtml";
 import { shouldCompleteProject, shouldStartScheduledProject } from "./services/projectsShared";
 import { enqueueSendJobForProjectCore } from "./services/sendJobsCore";
+import { formatSendValidationError, validateProjectForSend } from "./services/templateSendValidation";
 import {
   listTemplates,
   getTemplateById,
@@ -34,6 +35,7 @@ import {
 } from "./dao/templateDao";
 import {
   listTargets,
+  hasTargets,
   getTargetById,
   findTargetByEmail as findTargetByEmailRecord,
   createTarget as createTargetRecord,
@@ -90,6 +92,10 @@ type SendJobUpdate = Partial<InsertSendJob> & {
   finishedAt?: Date | null;
 };
 
+type ProjectUpdate = Partial<InsertProject> & {
+  sendValidationError?: string | null;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -100,7 +106,7 @@ export interface IStorage {
   getProject(id: string): Promise<Project | undefined>;
   getProjectByTrainingLinkToken(token: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
-  updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined>;
+  updateProject(id: string, project: ProjectUpdate): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
   copyProjects(ids: string[]): Promise<Project[]>;
   
@@ -229,33 +235,56 @@ export class MemStorage implements IStorage {
       (project) => !toCompleteIds.has(project.id) && shouldStartScheduledProject(project, now),
     );
     if (toComplete.length === 0 && toStart.length === 0) return projects;
-
-    const updated = await Promise.all([
-      ...toComplete.map((project) => updateProjectById(project.id, { status: "완료" })),
-      ...toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
-    ]);
+    const completed = await Promise.all(
+      toComplete.map((project) => this.updateProject(project.id, { status: "완료" })),
+    );
+    const started = await Promise.all(
+      toStart.map(async (project) => {
+        const validation = await validateProjectForSend(this, project);
+        if (!validation.ok) {
+          const message = formatSendValidationError(validation.issues);
+          return this.updateProject(project.id, {
+            status: "예약",
+            sendValidationError: message,
+          });
+        }
+        const updated = await this.updateProject(project.id, {
+          status: "진행중",
+          sendValidationError: null,
+        });
+        await enqueueSendJobForProjectCore(this, project.id);
+        return updated;
+      }),
+    );
+    const updated = [...completed, ...started];
     const updatedMap = new Map<string, Project>();
     updated.forEach((project) => {
       if (project) updatedMap.set(project.id, project);
     });
 
-    if (toStart.length > 0) {
-      await Promise.all(
-        toStart.map((project) => enqueueSendJobForProjectCore(this, project.id)),
-      );
-    }
-
     return projects.map((project) => updatedMap.get(project.id) ?? project);
   }
 
   private async startScheduledProject(project: Project): Promise<Project> {
-    const updated = await updateProjectById(project.id, { status: "진행중" });
+    const validation = await validateProjectForSend(this, project);
+    if (!validation.ok) {
+      const message = formatSendValidationError(validation.issues);
+      const updated = await this.updateProject(project.id, {
+        status: "예약",
+        sendValidationError: message,
+      });
+      return updated ?? { ...project, status: "예약", sendValidationError: message };
+    }
+    const updated = await this.updateProject(project.id, {
+      status: "진행중",
+      sendValidationError: null,
+    });
     await enqueueSendJobForProjectCore(this, project.id);
-    return updated ?? { ...project, status: "진행중" };
+    return updated ?? { ...project, status: "진행중", sendValidationError: null };
   }
 
   private async completeProject(project: Project): Promise<Project> {
-    const updated = await updateProjectById(project.id, { status: "완료" });
+    const updated = await this.updateProject(project.id, { status: "완료" });
     return updated ?? { ...project, status: "완료" };
   }
 
@@ -510,6 +539,7 @@ export class MemStorage implements IStorage {
           reportCaptureEmailFileKey: null,
           reportCaptureMaliciousFileKey: null,
           reportCaptureTrainingFileKey: null,
+          sendValidationError: null,
           fiscalYear: null,
           fiscalQuarter: null,
           weekOfYear: [],
@@ -620,6 +650,8 @@ export class MemStorage implements IStorage {
   }
 
   private async seedTargets() {
+    if (process.env.NODE_ENV === "production") return;
+    if (await hasTargets()) return;
     const targetsToSeed: InsertTarget[] = [];
 
     for (let i = 1; i <= 10; i++) {
@@ -640,7 +672,13 @@ export class MemStorage implements IStorage {
     for (const target of targetsToSeed) {
       const existing = await findTargetByEmailRecord(target.email);
       if (existing) continue;
-      await this.createTarget(target);
+      try {
+        await this.createTarget(target);
+      } catch (error) {
+        const typed = error as { code?: string };
+        if (typed?.code === "23505") continue;
+        throw error;
+      }
     }
   }
 
@@ -774,6 +812,7 @@ export class MemStorage implements IStorage {
       reportCaptureEmailFileKey: project.reportCaptureEmailFileKey ?? null,
       reportCaptureMaliciousFileKey: project.reportCaptureMaliciousFileKey ?? null,
       reportCaptureTrainingFileKey: project.reportCaptureTrainingFileKey ?? null,
+      sendValidationError: null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -783,7 +822,7 @@ export class MemStorage implements IStorage {
     return newProject;
   }
 
-  async updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined> {
+  async updateProject(id: string, project: ProjectUpdate): Promise<Project | undefined> {
     const existing = this.projects.get(id);
     if (!existing) return undefined;
     const updatedStart = project.startDate
@@ -933,12 +972,18 @@ export class MemStorage implements IStorage {
   async createTemplate(template: InsertTemplate): Promise<Template> {
     const id = randomUUID();
     const now = new Date();
+    const autoInsertLandingKind =
+      template.autoInsertLandingKind === "button" ? "button" : "link";
     const newTemplate: Template = {
       id,
       name: template.name,
       subject: template.subject,
       body: sanitizeHtml(template.body ?? ""),
       maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
+      autoInsertLandingEnabled: template.autoInsertLandingEnabled ?? true,
+      autoInsertLandingLabel: (template.autoInsertLandingLabel ?? "문서 확인하기").trim(),
+      autoInsertLandingKind,
+      autoInsertLandingNewTab: template.autoInsertLandingNewTab ?? true,
       createdAt: now,
       updatedAt: now,
     };
@@ -949,6 +994,12 @@ export class MemStorage implements IStorage {
   async updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined> {
     const existing = this.templates.get(id);
     if (!existing) return undefined;
+    const autoInsertLandingKind =
+      template.autoInsertLandingKind === "button"
+        ? "button"
+        : template.autoInsertLandingKind === "link"
+          ? "link"
+          : existing.autoInsertLandingKind;
     const updated: Template = {
       ...existing,
       name: template.name ?? existing.name,
@@ -961,6 +1012,15 @@ export class MemStorage implements IStorage {
         template.maliciousPageContent !== undefined
           ? sanitizeHtml(template.maliciousPageContent ?? "")
           : existing.maliciousPageContent,
+      autoInsertLandingEnabled:
+        template.autoInsertLandingEnabled ?? existing.autoInsertLandingEnabled,
+      autoInsertLandingLabel:
+        typeof template.autoInsertLandingLabel === "string"
+          ? template.autoInsertLandingLabel.trim()
+          : existing.autoInsertLandingLabel,
+      autoInsertLandingKind,
+      autoInsertLandingNewTab:
+        template.autoInsertLandingNewTab ?? existing.autoInsertLandingNewTab,
       updatedAt: new Date(),
     };
     this.templates.set(id, updated);
@@ -1288,14 +1348,18 @@ export class MemStorage implements IStorage {
 export class DbStorage implements IStorage {
   private users: Map<string, User>;
   private seedDefaultsPromise: Promise<void> | null;
+  private shouldSeedDefaults: boolean;
 
   constructor() {
     this.users = new Map();
     this.seedDefaultsPromise = null;
+    this.shouldSeedDefaults = process.env.SEED_DEFAULTS === "true";
 
-    void seedTemplates();
-    void this.seedTargets();
-    void this.seedDefaults();
+    if (this.shouldSeedDefaults) {
+      void seedTemplates();
+      void this.seedTargets();
+      void this.seedDefaults();
+    }
   }
 
   private parseDate(value: unknown, fallback?: Date): Date {
@@ -1343,33 +1407,56 @@ export class DbStorage implements IStorage {
       (project) => !toCompleteIds.has(project.id) && shouldStartScheduledProject(project, now),
     );
     if (toComplete.length === 0 && toStart.length === 0) return projects;
-
-    const updated = await Promise.all([
-      ...toComplete.map((project) => updateProjectById(project.id, { status: "완료" })),
-      ...toStart.map((project) => updateProjectById(project.id, { status: "진행중" })),
-    ]);
+    const completed = await Promise.all(
+      toComplete.map((project) => this.updateProject(project.id, { status: "완료" })),
+    );
+    const started = await Promise.all(
+      toStart.map(async (project) => {
+        const validation = await validateProjectForSend(this, project);
+        if (!validation.ok) {
+          const message = formatSendValidationError(validation.issues);
+          return this.updateProject(project.id, {
+            status: "예약",
+            sendValidationError: message,
+          });
+        }
+        const updated = await this.updateProject(project.id, {
+          status: "진행중",
+          sendValidationError: null,
+        });
+        await enqueueSendJobForProjectCore(this, project.id);
+        return updated;
+      }),
+    );
+    const updated = [...completed, ...started];
     const updatedMap = new Map<string, Project>();
     updated.forEach((project) => {
       if (project) updatedMap.set(project.id, project);
     });
 
-    if (toStart.length > 0) {
-      await Promise.all(
-        toStart.map((project) => enqueueSendJobForProjectCore(this, project.id)),
-      );
-    }
-
     return projects.map((project) => updatedMap.get(project.id) ?? project);
   }
 
   private async startScheduledProject(project: Project): Promise<Project> {
-    const updated = await updateProjectById(project.id, { status: "진행중" });
+    const validation = await validateProjectForSend(this, project);
+    if (!validation.ok) {
+      const message = formatSendValidationError(validation.issues);
+      const updated = await this.updateProject(project.id, {
+        status: "예약",
+        sendValidationError: message,
+      });
+      return updated ?? { ...project, status: "예약", sendValidationError: message };
+    }
+    const updated = await this.updateProject(project.id, {
+      status: "진행중",
+      sendValidationError: null,
+    });
     await enqueueSendJobForProjectCore(this, project.id);
-    return updated ?? { ...project, status: "진행중" };
+    return updated ?? { ...project, status: "진행중", sendValidationError: null };
   }
 
   private async completeProject(project: Project): Promise<Project> {
-    const updated = await updateProjectById(project.id, { status: "완료" });
+    const updated = await this.updateProject(project.id, { status: "완료" });
     return updated ?? { ...project, status: "완료" };
   }
 
@@ -1398,6 +1485,9 @@ export class DbStorage implements IStorage {
   }
 
   private async seedTargets() {
+    if (!this.shouldSeedDefaults) return;
+    if (process.env.NODE_ENV === "production") return;
+    if (await hasTargets()) return;
     const targetsToSeed: InsertTarget[] = [];
 
     for (let i = 1; i <= 10; i++) {
@@ -1423,6 +1513,7 @@ export class DbStorage implements IStorage {
   }
 
   async seedDefaults() {
+    if (!this.shouldSeedDefaults) return;
     if (this.seedDefaultsPromise) {
       await this.seedDefaultsPromise;
       return;
@@ -1522,7 +1613,11 @@ export class DbStorage implements IStorage {
   // Projects
   async getProjects(): Promise<Project[]> {
     const projects = await listProjects();
-    if (projects.length === 0 && process.env.NODE_ENV !== "production") {
+    if (
+      projects.length === 0 &&
+      this.shouldSeedDefaults &&
+      process.env.NODE_ENV !== "production"
+    ) {
       await this.seedDefaults();
       const seeded = await listProjects();
       return this.syncScheduledProjects(seeded);
@@ -1593,6 +1688,7 @@ export class DbStorage implements IStorage {
       reportCaptureEmailFileKey: project.reportCaptureEmailFileKey ?? null,
       reportCaptureMaliciousFileKey: project.reportCaptureMaliciousFileKey ?? null,
       reportCaptureTrainingFileKey: project.reportCaptureTrainingFileKey ?? null,
+      sendValidationError: null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -1601,7 +1697,7 @@ export class DbStorage implements IStorage {
     return createProjectRecord(newProject);
   }
 
-  async updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined> {
+  async updateProject(id: string, project: ProjectUpdate): Promise<Project | undefined> {
     const existing = await getProjectById(id);
     if (!existing) return undefined;
     const updatedStart = project.startDate
@@ -1691,6 +1787,10 @@ export class DbStorage implements IStorage {
         project.reportCaptureTrainingFileKey !== undefined
           ? project.reportCaptureTrainingFileKey ?? null
           : existing.reportCaptureTrainingFileKey ?? null,
+      sendValidationError:
+        project.sendValidationError !== undefined
+          ? project.sendValidationError ?? null
+          : existing.sendValidationError ?? null,
       fiscalYear: temporal.fiscalYear,
       fiscalQuarter: temporal.fiscalQuarter,
       weekOfYear: temporal.weekOfYear,
@@ -1721,6 +1821,7 @@ export class DbStorage implements IStorage {
       reportCaptureEmailFileKey: nextProject.reportCaptureEmailFileKey ?? null,
       reportCaptureMaliciousFileKey: nextProject.reportCaptureMaliciousFileKey ?? null,
       reportCaptureTrainingFileKey: nextProject.reportCaptureTrainingFileKey ?? null,
+      sendValidationError: nextProject.sendValidationError ?? null,
       fiscalYear: nextProject.fiscalYear ?? null,
       fiscalQuarter: nextProject.fiscalQuarter ?? null,
       weekOfYear: nextProject.weekOfYear ?? [],
@@ -1830,10 +1931,16 @@ export class DbStorage implements IStorage {
   }
 
   async createTemplate(template: InsertTemplate): Promise<Template> {
+    const autoInsertLandingKind =
+      template.autoInsertLandingKind === "button" ? "button" : "link";
     return createTemplateRecord({
       ...template,
       body: sanitizeHtml(template.body ?? ""),
       maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
+      autoInsertLandingEnabled: template.autoInsertLandingEnabled ?? true,
+      autoInsertLandingLabel: (template.autoInsertLandingLabel ?? "문서 확인하기").trim(),
+      autoInsertLandingKind,
+      autoInsertLandingNewTab: template.autoInsertLandingNewTab ?? true,
     });
   }
 
@@ -1844,6 +1951,13 @@ export class DbStorage implements IStorage {
     }
     if (template.maliciousPageContent !== undefined) {
       sanitizedPayload.maliciousPageContent = sanitizeHtml(template.maliciousPageContent ?? "");
+    }
+    if (template.autoInsertLandingLabel !== undefined) {
+      sanitizedPayload.autoInsertLandingLabel = template.autoInsertLandingLabel.trim();
+    }
+    if (template.autoInsertLandingKind !== undefined) {
+      sanitizedPayload.autoInsertLandingKind =
+        template.autoInsertLandingKind === "button" ? "button" : "link";
     }
     return updateTemplateById(id, sanitizedPayload);
   }
