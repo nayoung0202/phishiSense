@@ -3,8 +3,8 @@
 ## 범위
 - 스키마 정의 위치: `shared/schema.ts`, `src/server/db/schema.ts`
 - DB에는 전체 테이블이 생성됩니다.
-- 현재 앱 로직에서 실제로 영속 저장을 사용하는 테이블은 `templates`, `smtp_accounts`입니다.
-- 나머지 테이블(`projects`, `targets`, `training_pages`, `project_targets`, `users`)은 DB에 존재하지만 앱 동작은 메모리 스토리지를 따릅니다.
+- 현재 앱 로직은 주요 CRUD 테이블을 DB 영속 저장으로 사용합니다.
+- 기본 시드는 `SEED_DEFAULTS=true`일 때만 실행됩니다(개발용).
 
 ## 테이블 목록 요약
 | 테이블 | 용도 |

@@ -8,6 +8,11 @@ export async function listTargets(): Promise<Target[]> {
   return db.select().from(targets).orderBy(desc(targets.createdAt));
 }
 
+export async function hasTargets(): Promise<boolean> {
+  const rows = await db.select({ id: targets.id }).from(targets).limit(1);
+  return rows.length > 0;
+}
+
 export async function getTargetById(id: string): Promise<Target | undefined> {
   const rows = await db.select().from(targets).where(eq(targets.id, id)).limit(1);
   return rows[0];
