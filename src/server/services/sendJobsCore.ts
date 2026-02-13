@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { InsertProjectTarget, InsertSendJob, ProjectTarget, SendJob } from "@shared/schema";
+import { kickSendJobProcessor } from "./sendJobRunner";
 
 type SendJobStorage = {
   findActiveSendJobByProjectId(projectId: string): Promise<SendJob | undefined>;
@@ -49,6 +50,7 @@ export const enqueueSendJobForProjectCore = async (
     failCount: 0,
     attempts: 0,
   });
+  kickSendJobProcessor();
 
   return { job, created: true };
 };
