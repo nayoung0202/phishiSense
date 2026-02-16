@@ -42,6 +42,7 @@ export const projects = pgTable("projects", {
   reportCaptureEmailFileKey: text("report_capture_email_file_key"),
   reportCaptureMaliciousFileKey: text("report_capture_malicious_file_key"),
   reportCaptureTrainingFileKey: text("report_capture_training_file_key"),
+  sendValidationError: text("send_validation_error"),
   fiscalYear: integer("fiscal_year"),
   fiscalQuarter: integer("fiscal_quarter"),
   weekOfYear: integer("week_of_year").array(),
@@ -54,6 +55,10 @@ export const templates = pgTable("templates", {
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   maliciousPageContent: text("malicious_page_content").notNull(),
+  autoInsertLandingEnabled: boolean("auto_insert_landing_enabled").notNull().default(true),
+  autoInsertLandingLabel: text("auto_insert_landing_label").notNull().default("문서 확인하기"),
+  autoInsertLandingKind: text("auto_insert_landing_kind").notNull().default("link"),
+  autoInsertLandingNewTab: boolean("auto_insert_landing_new_tab").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -138,13 +143,21 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   fiscalYear: true,
   fiscalQuarter: true,
   weekOfYear: true,
+  sendValidationError: true,
 });
 
-export const insertTemplateSchema = createInsertSchema(templates).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertTemplateSchema = createInsertSchema(templates)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    autoInsertLandingEnabled: z.boolean().default(true),
+    autoInsertLandingLabel: z.string().trim().min(1, "링크 문구를 입력하세요.").default("문서 확인하기"),
+    autoInsertLandingKind: z.enum(["link", "button"]).default("link"),
+    autoInsertLandingNewTab: z.boolean().default(true),
+  });
 
 export const insertTargetSchema = createInsertSchema(targets).omit({
   id: true,

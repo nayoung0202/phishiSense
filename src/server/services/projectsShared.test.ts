@@ -23,6 +23,7 @@ const baseProject: Project = {
   openCount: 0,
   clickCount: 0,
   submitCount: 0,
+  sendValidationError: null,
   fiscalYear: null,
   fiscalQuarter: null,
   weekOfYear: [],

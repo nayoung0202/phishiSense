@@ -5,10 +5,7 @@ let projectTarget: any;
 
 const storageMock = {
   getProjectTargetByTrackingToken: vi.fn(),
-  getProjectByTrainingLinkToken: vi.fn(),
   getProject: vi.fn(),
-  getTemplate: vi.fn(),
-  getTrainingPage: vi.fn(),
   updateProjectTarget: vi.fn(),
   updateProject: vi.fn(),
 };
@@ -17,7 +14,7 @@ vi.mock("@/server/storage", () => ({
   storage: storageMock,
 }));
 
-import { GET } from "./route";
+import { POST } from "./route";
 
 beforeEach(() => {
   project = {
@@ -65,28 +62,6 @@ beforeEach(() => {
 
   storageMock.getProjectTargetByTrackingToken.mockResolvedValue(projectTarget);
   storageMock.getProject.mockResolvedValue(project);
-  storageMock.getTemplate.mockResolvedValue({
-    id: "template-1",
-    name: "템플릿",
-    subject: "테스트",
-    body: "<p>테스트</p>",
-    maliciousPageContent: "<p>악성 페이지</p>",
-    autoInsertLandingEnabled: true,
-    autoInsertLandingLabel: "문서 확인하기",
-    autoInsertLandingKind: "link",
-    autoInsertLandingNewTab: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-  storageMock.getTrainingPage.mockResolvedValue({
-    id: "page-1",
-    name: "페이지",
-    description: null,
-    content: "<p>훈련</p>",
-    status: "active",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
   storageMock.updateProjectTarget.mockImplementation(async (_id: string, payload: any) => {
     projectTarget = { ...projectTarget, ...payload };
     return projectTarget;
@@ -97,18 +72,39 @@ beforeEach(() => {
   });
 });
 
-describe("GET /p/[trackingToken]", () => {
-  it("중복 호출 시 카운트가 한번만 증가한다", async () => {
-    await GET(new Request("http://localhost/p/track-1"), {
+const buildRequest = () => {
+  const formData = new FormData();
+  formData.set("input", "test");
+  return new Request("http://localhost/p/track-1/submit", {
+    method: "POST",
+    body: formData,
+  });
+};
+
+describe("POST /p/[token]/submit", () => {
+  it("첫 제출에서만 카운트를 증가시킨다", async () => {
+    const response = await POST(buildRequest(), {
       params: Promise.resolve({ token: "track-1" }),
     });
 
-    await GET(new Request("http://localhost/p/track-1"), {
-      params: Promise.resolve({ token: "track-1" }),
-    });
-
+    expect(response.status).toBe(302);
+    expect(storageMock.updateProjectTarget).toHaveBeenCalledTimes(1);
     expect(storageMock.updateProject).toHaveBeenCalledTimes(1);
+    expect(project.submitCount).toBe(1);
     expect(project.openCount).toBe(1);
     expect(project.clickCount).toBe(1);
+  });
+
+  it("중복 제출은 카운트를 증가시키지 않는다", async () => {
+    await POST(buildRequest(), {
+      params: Promise.resolve({ token: "track-1" }),
+    });
+    await POST(buildRequest(), {
+      params: Promise.resolve({ token: "track-1" }),
+    });
+
+    expect(storageMock.updateProjectTarget).toHaveBeenCalledTimes(1);
+    expect(storageMock.updateProject).toHaveBeenCalledTimes(1);
+    expect(project.submitCount).toBe(1);
   });
 });

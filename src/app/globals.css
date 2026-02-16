@@ -11,6 +11,25 @@
   pointer-events: none;
 }
 
+/* 템플릿 미리보기(라이트 모드)에서 흰색 글씨가 사라지는 문제 보정 */
+.template-preview--light .text-white {
+  color: #0f172a !important;
+}
+
+.template-preview--light [style*="color:#fff"],
+.template-preview--light [style*="color: #fff"],
+.template-preview--light [style*="color:#ffffff"],
+.template-preview--light [style*="color: #ffffff"],
+.template-preview--light [style*="color:white"],
+.template-preview--light [style*="color: white"] {
+  color: #0f172a !important;
+}
+
+.template-preview--light a {
+  color: #0284c7 !important;
+  text-decoration: underline;
+}
+
 .editor-scrollbar a {
   color: hsl(var(--primary));
   text-decoration: underline;
@@ -483,23 +502,52 @@
   }
 }
 
-/* 전체 페이지 스크롤 및 둥근 스크롤바 */
-.fullpage-scroll {
-  height: 100%;
-  overflow-y: auto;
+/* 전체 페이지 및 공통 스크롤바 */
+.fullpage-scroll,
+.site-scrollbar {
   scroll-behavior: smooth;
   scrollbar-color: hsl(var(--primary) / 0.4) transparent;
 }
 
-.fullpage-scroll::-webkit-scrollbar {
-  width: 12px;
+.fullpage-scroll {
+  height: 100%;
+  overflow-y: auto;
 }
 
-.fullpage-scroll::-webkit-scrollbar-track {
+.fullpage-scroll::-webkit-scrollbar,
+.site-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.fullpage-scroll::-webkit-scrollbar-track,
+.site-scrollbar::-webkit-scrollbar-track {
   background-color: transparent;
 }
 
-.fullpage-scroll::-webkit-scrollbar-thumb {
+.fullpage-scroll::-webkit-scrollbar-thumb,
+.site-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--primary) / 0.5);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+/* 다크 모드에서 내부 스크롤바를 전체 페이지 스크롤바와 유사하게 맞춤 */
+.dark .editor-scrollbar {
+  scrollbar-color: hsl(var(--primary) / 0.5) transparent;
+}
+
+.dark .editor-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.dark .editor-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.dark .editor-scrollbar::-webkit-scrollbar-thumb {
   background-color: hsl(var(--primary) / 0.5);
   border: 3px solid transparent;
   border-radius: 999px;

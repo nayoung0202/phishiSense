@@ -21,6 +21,9 @@ export const buildLandingUrl = (token: string) =>
 export const buildSubmitUrl = (token: string) =>
   `${getAppBaseUrl()}/t/${encodeURIComponent(token)}`;
 
+export const buildSubmitFormUrl = (token: string) =>
+  `${getAppBaseUrl()}/p/${encodeURIComponent(token)}/submit`;
+
 export const buildOpenPixelUrl = (token: string) =>
   `${getAppBaseUrl()}/o/${encodeURIComponent(token)}.gif`;
 
@@ -32,8 +35,8 @@ export const buildPhishingLinkUrl = (token: string) =>
 
 export const generateTrainingLinkToken = () => randomBytes(16).toString("hex");
 
-const placeholderDetector = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/;
-const placeholderReplacer = /\{\{\s*(?:TRAINING_LINK|TRAINING_URL)\s*\}\}/g;
+const placeholderDetector = /\{\{\s*TRAINING_URL\s*\}\}/;
+const placeholderReplacer = /\{\{\s*TRAINING_URL\s*\}\}/g;
 const phishPlaceholderDetector = /\{\{\s*(?:PHISH_LINK|PHISH_URL)\s*\}\}/;
 const phishPlaceholderReplacer = /\{\{\s*(?:PHISH_LINK|PHISH_URL)\s*\}\}/g;
 const landingPlaceholderReplacer = /\{\{\s*LANDING_URL\s*\}\}/g;

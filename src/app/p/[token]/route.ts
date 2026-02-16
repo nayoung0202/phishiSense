@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/server/storage";
-import { buildTrainingLinkUrl, injectTrainingLink } from "@/server/lib/trainingLink";
+import {
+  buildSubmitFormUrl,
+  buildTrainingLinkUrl,
+  injectTrainingLink,
+} from "@/server/lib/trainingLink";
 
 type RouteContext = {
   params: Promise<{
     token: string;
   }>;
+};
+
+const trainingTokenMatcher = /\{\{\s*TRAINING_URL\s*\}\}/i;
+const trainingTokenReplacer = /\{\{\s*TRAINING_URL\s*\}\}/gi;
+const submitTokenMatcher = /\{\{\s*SUBMIT_URL\s*\}\}/i;
+const submitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
+const formTagMatcher = /<form\b/i;
+const securityHeaders = {
+  "Content-Security-Policy":
+    "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; font-src data: http: https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none';",
 };
 
 const buildHtmlResponse = (message: string, status: number) =>
@@ -15,6 +29,7 @@ const buildHtmlResponse = (message: string, status: number) =>
       status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
+        ...securityHeaders,
       },
     },
   );
@@ -44,14 +59,35 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const baseHtml = template.maliciousPageContent?.trim() || template.body || "";
+    const maliciousHtml = template.maliciousPageContent?.trim() ?? "";
+    const isFallback = maliciousHtml.length === 0;
+    const baseHtml = isFallback ? template.body || "" : maliciousHtml;
     const trainingUrl = buildTrainingLinkUrl(normalized);
-    const renderedHtml = injectTrainingLink(baseHtml, trainingUrl, {
-      replaceSingleAnchor: false,
-      replaceFirstAnchor: true,
-      replaceFirstButton: true,
-      appendType: "button",
-    });
+    const submitUrl = buildSubmitFormUrl(normalized);
+    const hasTrainingToken = trainingTokenMatcher.test(baseHtml);
+    const hasSubmitToken = submitTokenMatcher.test(baseHtml);
+    const hasFormTag = formTagMatcher.test(baseHtml);
+
+    let renderedHtml = baseHtml
+      .replace(trainingTokenReplacer, trainingUrl)
+      .replace(submitTokenReplacer, submitUrl);
+
+    if (!hasTrainingToken && !hasSubmitToken && !hasFormTag) {
+      renderedHtml = injectTrainingLink(renderedHtml, trainingUrl, {
+        replaceSingleAnchor: false,
+        replaceFirstAnchor: true,
+        replaceFirstButton: true,
+        appendType: "button",
+      });
+    }
+
+    if (isFallback) {
+      const isTest = projectTarget.status === "test";
+      const banner = isTest
+        ? "<div style=\"background:#fef3c7; color:#92400e; padding:12px 16px; border-radius:12px; margin-bottom:16px; font-size:13px; font-weight:600;\">악성 본문이 설정되지 않아 메일 본문을 임시로 표시합니다.</div>"
+        : "<div style=\"background:#f8fafc; color:#64748b; padding:8px 12px; border-radius:8px; margin-bottom:12px; font-size:12px;\">콘텐츠 미설정으로 임시 화면을 표시합니다.</div>";
+      renderedHtml = `${banner}${renderedHtml}`;
+    }
 
     if (projectTarget) {
       const now = new Date();
@@ -77,6 +113,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
+        ...securityHeaders,
       },
     });
     response.cookies.set("ps_flow_token", normalized, {

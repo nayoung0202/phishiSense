@@ -5,8 +5,6 @@ import { storage } from "@/server/storage";
 import {
   buildLandingUrl,
   buildOpenPixelUrl,
-  buildSubmitUrl,
-  injectLinks,
 } from "@/server/lib/trainingLink";
 import {
   NODEMAILER_VERSION,
@@ -14,6 +12,7 @@ import {
   findMissingSmtpKey,
   stripHtml,
 } from "@/server/services/projectsShared";
+import { buildMailHtml } from "@/server/services/templateSendValidation";
 
 const payloadSchema = z
   .object({
@@ -172,9 +171,8 @@ export async function POST(request: NextRequest) {
       });
       const trackingToken = projectTarget.trackingToken ?? "";
       const landingUrl = buildLandingUrl(trackingToken);
-      const submitUrl = buildSubmitUrl(trackingToken);
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      htmlBody = injectLinks(htmlBody, { landingUrl, submitUrl, openPixelUrl });
+      htmlBody = buildMailHtml(template, landingUrl, openPixelUrl).html;
     }
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;

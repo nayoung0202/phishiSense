@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/server/storage";
-import { buildPhishingLinkUrl } from "@/server/lib/trainingLink";
+import { buildPhishingLinkUrl, buildSubmitFormUrl } from "@/server/lib/trainingLink";
 
 type RouteContext = {
   params: Promise<{
     token: string;
   }>;
 };
+
+const securityHeaders = {
+  "Content-Security-Policy":
+    "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; font-src data: http: https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none';",
+};
+const submitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
 
 const buildHtmlResponse = (message: string, status: number) =>
   new NextResponse(
@@ -15,6 +21,7 @@ const buildHtmlResponse = (message: string, status: number) =>
       status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
+        ...securityHeaders,
       },
     },
   );
@@ -78,10 +85,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       }
     }
 
-    const response = new NextResponse(trainingPage.content, {
+    const submitUrl = buildSubmitFormUrl(normalized);
+    const renderedContent = (trainingPage.content ?? "").replace(submitTokenReplacer, submitUrl);
+    const response = new NextResponse(renderedContent, {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
+        ...securityHeaders,
       },
     });
     response.cookies.set("ps_flow_token", "", {
