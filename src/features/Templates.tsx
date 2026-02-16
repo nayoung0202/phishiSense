@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,13 @@ import { extractBodyHtml } from "@/lib/html";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
+import { buildMailHtml } from "@shared/templateMail";
+import { cn } from "@/lib/utils";
+import {
+  countTokenOccurrences,
+  MAIL_LANDING_TOKENS,
+  MALICIOUS_TRAINING_TOKENS,
+} from "@shared/templateTokens";
 
 export default function Templates() {
   const queryClient = useQueryClient();
@@ -28,6 +36,8 @@ export default function Templates() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
+  const mailPreviewRef = useRef<HTMLDivElement>(null);
+  const [mailPreviewHeight, setMailPreviewHeight] = useState<number | null>(null);
 
   const getSnippet = (html: string, size = 80) => {
     const plain = html
@@ -86,16 +96,47 @@ export default function Templates() {
     return format(new Date(date), 'PPp', { locale: ko });
   };
 
-  const previewBody = previewTemplate?.body ?? "";
-  const previewMalicious = previewTemplate?.maliciousPageContent ?? "";
+  const previewLandingUrl = "/example-domain?type=landing";
+  const previewOpenPixelUrl = "https://example.com/o/preview.gif";
+  const previewTrainingUrl = "/example-domain?type=training";
+  const previewSubmitUrl = "/example-domain?type=submit";
+  const previewTrainingTokenMatcher = /\{\{\s*TRAINING_URL\s*\}\}/i;
+  const previewTrainingTokenReplacer = /\{\{\s*TRAINING_URL\s*\}\}/gi;
+  const previewSubmitTokenMatcher = /\{\{\s*SUBMIT_URL\s*\}\}/i;
+  const previewSubmitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
+  const previewMailResult = previewTemplate
+    ? buildMailHtml(previewTemplate, previewLandingUrl, previewOpenPixelUrl)
+    : null;
+  const previewBody = previewMailResult?.html ?? "";
+  const previewMaliciousRaw = previewTemplate?.maliciousPageContent ?? "";
+  const previewMaliciousHasTrainingToken = previewTrainingTokenMatcher.test(previewMaliciousRaw);
+  const previewMaliciousHasSubmitToken = previewSubmitTokenMatcher.test(previewMaliciousRaw);
+  const previewMalicious = previewMaliciousRaw
+    .replace(previewTrainingTokenReplacer, previewTrainingUrl)
+    .replace(previewSubmitTokenReplacer, previewSubmitUrl);
   const previewSurfaceClass =
     previewTheme === "dark"
-      ? "rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
-      : "rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
+      : "site-scrollbar rounded-md border border-slate-200 bg-white p-4 text-slate-900";
   const previewProseClass =
     previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
+  const previewContentClass =
+    previewTheme === "light"
+      ? `${previewProseClass} template-preview--light`
+      : previewProseClass;
   const previewMutedClass =
     previewTheme === "dark" ? "text-slate-300" : "text-slate-600";
+
+  useEffect(() => {
+    if (!isPreviewOpen) return;
+    const frame = requestAnimationFrame(() => {
+      const height = mailPreviewRef.current?.getBoundingClientRect().height ?? 0;
+      if (height > 0) {
+        setMailPreviewHeight(height);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isPreviewOpen, previewTemplate, previewTheme, previewBody]);
   return (
     <>
       <Dialog
@@ -140,11 +181,11 @@ export default function Templates() {
                 <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
               </TabsList>
               <TabsContent value="body">
-                <div className={previewSurfaceClass}>
+                <div className={previewSurfaceClass} ref={mailPreviewRef}>
                   {previewTemplate ? (
                     previewBody.trim().length > 0 ? (
                       <div
-                        className={previewProseClass}
+                        className={previewContentClass}
                         dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
                       />
                     ) : (
@@ -156,11 +197,25 @@ export default function Templates() {
                 </div>
               </TabsContent>
               <TabsContent value="malicious">
+                {previewTemplate && (previewMaliciousHasTrainingToken || previewMaliciousHasSubmitToken) && (
+                  <p className={`mb-2 text-xs ${previewMutedClass}`}>
+                    훈련/제출 링크가 치환된 미리보기입니다.
+                  </p>
+                )}
                 <div className={previewSurfaceClass}>
                   {previewTemplate ? (
                     previewMalicious.trim().length > 0 ? (
                       <div
-                        className={previewProseClass}
+                        className={cn(
+                          previewContentClass,
+                          "site-scrollbar",
+                          mailPreviewHeight ? "overflow-y-auto" : "",
+                        )}
+                        style={
+                          mailPreviewHeight
+                            ? { maxHeight: `${mailPreviewHeight}px` }
+                            : undefined
+                        }
                         dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
                       />
                     ) : (
@@ -208,69 +263,106 @@ export default function Templates() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTemplates.map((template) => (
-              <Card key={template.id} className="p-6 hover-elevate" data-testid={`card-template-${template.id}`}>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-md bg-primary/10">
-                      <Mail className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold mb-1 truncate">
-                        <SafeText value={template.name} fallback="-" />
-                      </h3>
-                      <p className="text-sm text-muted-foreground truncate">
-                        <SafeText value={template.subject} fallback="-" />
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">메일 본문</p>
-                      <p>
-                        <SafeText value={getSnippet(template.body)} fallback="-" />
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">악성 메일 본문</p>
-                      <p>
-                        <SafeText value={getSnippet(template.maliciousPageContent)} fallback="-" />
-                      </p>
-                    </div>
-                  </div>
+            {filteredTemplates.map((template) => {
+              const landingTokenCount = countTokenOccurrences(
+                template.body ?? "",
+                MAIL_LANDING_TOKENS,
+              );
+              const trainingTokenCount = countTokenOccurrences(
+                template.maliciousPageContent ?? "",
+                MALICIOUS_TRAINING_TOKENS,
+              );
+              const mailStatus = landingTokenCount >= 1 ? "ok" : "missing";
+              const maliciousStatus = trainingTokenCount >= 1 ? "ok" : "missing";
+              const isInvalid = mailStatus !== "ok" || maliciousStatus !== "ok";
 
-                  <div className="pt-4 border-t border-border">
-                    <p className="text-xs text-muted-foreground mb-3">
-                      최근 수정: {formatDate(template.updatedAt!)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenPreview(template)}
-                        data-testid={`button-preview-${template.id}`}
+              return (
+                <Card key={template.id} className="p-6 hover-elevate" data-testid={`card-template-${template.id}`}>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-md bg-primary/10">
+                        <Mail className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold mb-1 truncate">
+                          <SafeText value={template.name} fallback="-" />
+                        </h3>
+                        <p className="text-sm text-muted-foreground truncate">
+                          <SafeText value={template.subject} fallback="-" />
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">메일 본문</p>
+                        <p>
+                          <SafeText value={getSnippet(template.body)} fallback="-" />
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">악성 메일 본문</p>
+                        <p>
+                          <SafeText value={getSnippet(template.maliciousPageContent)} fallback="-" />
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        className={
+                          mailStatus === "ok"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-red-100 text-red-700"
+                        }
                       >
-                        <Eye className="w-4 h-4 mr-2" />
-                        미리보기
-                      </Button>
-                      <Link href={`/templates/${template.id}/edit`}>
-                        <Button variant="outline" size="sm" data-testid={`button-edit-${template.id}`}>
-                          <Edit className="w-4 h-4" />
+                        메일: {mailStatus === "ok" ? "포함됨" : "누락"}
+                      </Badge>
+                      <Badge
+                        className={
+                          maliciousStatus === "ok"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-red-100 text-red-700"
+                        }
+                      >
+                        악성: {maliciousStatus === "ok" ? "포함됨" : "누락"}
+                      </Badge>
+                      {isInvalid && (
+                        <span className="text-xs text-muted-foreground">저장/발송 불가</span>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-border">
+                      <p className="text-xs text-muted-foreground mb-3">
+                        최근 수정: {formatDate(template.updatedAt!)}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenPreview(template)}
+                          data-testid={`button-preview-${template.id}`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          미리보기
                         </Button>
-                      </Link>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(template.id)}
-                        data-testid={`button-delete-${template.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                        <Link href={`/templates/${template.id}/edit`}>
+                          <Button variant="outline" size="sm" data-testid={`button-edit-${template.id}`}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(template.id)}
+                          data-testid={`button-delete-${template.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </Card>

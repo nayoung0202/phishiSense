@@ -37,6 +37,7 @@ const baseProject = {
   reportCaptureEmailFileKey: null,
   reportCaptureMaliciousFileKey: null,
   reportCaptureTrainingFileKey: null,
+  sendValidationError: null,
   fiscalYear: 2025,
   fiscalQuarter: 1,
   weekOfYear: [1],

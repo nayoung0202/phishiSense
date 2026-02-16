@@ -56,6 +56,19 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
       status: page.status || "active",
     } : undefined,
   });
+  const contentValue = form.watch("content") ?? "";
+  const previewSubmitUrl = "/example-domain?type=submit";
+  const previewSubmitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
+  const previewContentHtml = contentValue.replace(previewSubmitTokenReplacer, previewSubmitUrl);
+
+  const handleInsertSubmitUrl = () => {
+    const currentContent = form.getValues("content") ?? "";
+    const block =
+      '<form action="{{SUBMIT_URL}}" method="post"><button type="submit">제출하기</button></form>';
+    const separator = currentContent.endsWith("\n") ? "\n" : "\n\n";
+    const nextContent = currentContent ? `${currentContent}${separator}${block}` : block;
+    form.setValue("content", nextContent, { shouldDirty: true, shouldTouch: true });
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -152,6 +165,19 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>페이지 내용</FormLabel>
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleInsertSubmitUrl}
+                    >
+                      제출 URL 삽입
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      제출하기 버튼/폼에 사용합니다.
+                    </span>
+                  </div>
                   <FormControl>
                     <div data-testid="editor-content">
                       <RichTextEditor
@@ -159,6 +185,7 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
                         onChange={field.onChange}
                         onBlur={field.onBlur}
                         placeholder="안내 페이지에 표시할 내용을 입력하세요."
+                        previewHtml={previewContentHtml}
                       />
                     </div>
                   </FormControl>

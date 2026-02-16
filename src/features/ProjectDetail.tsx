@@ -25,7 +25,7 @@ import {
 import { SafeText } from "@/components/security/SafeText";
 import { useToast } from "@/hooks/use-toast";
 import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
-import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play } from "lucide-react";
+import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangle } from "lucide-react";
 import { type Project } from "@shared/schema";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -133,6 +133,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       });
     },
     onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       toast({
         title: "시작 실패",
         description: error.message ?? "프로젝트를 시작할 수 없습니다.",
@@ -276,6 +277,20 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           </Button>
         </div>
       </div>
+
+      {project.sendValidationError && (
+        <Card className="border-red-200 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-600" />
+            <div>
+              <p className="font-semibold text-red-700">발송 검증 실패</p>
+              <p className="mt-1 whitespace-pre-line text-sm text-red-700">
+                {project.sendValidationError}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
