@@ -8,10 +8,13 @@ import { storage } from "../storage";
 import {
   buildLandingUrl,
   buildOpenPixelUrl,
-  buildSubmitUrl,
-  injectLinks,
 } from "../lib/trainingLink";
 import { stripHtml } from "../services/projectsShared";
+import {
+  buildMailHtml,
+  formatSendValidationError,
+  validateTemplateForSend,
+} from "../services/templateSendValidation";
 
 const POLL_INTERVAL_MS = Number(process.env.SEND_WORKER_POLL_MS ?? 1500);
 const RATE_LIMIT_MIN_MS = Number(process.env.SEND_WORKER_DELAY_MIN_MS ?? 200);
@@ -170,10 +173,25 @@ const processJob = async (jobId: string) => {
     if (!templateId) {
       throw new Error("프로젝트에 템플릿이 연결되어 있지 않습니다.");
     }
-    const template = await storage.getTemplate(templateId);
+    const [template, trainingPage] = await Promise.all([
+      storage.getTemplate(templateId),
+      project.trainingPageId ? storage.getTrainingPage(project.trainingPageId) : Promise.resolve(null),
+    ]);
     if (!template) {
       throw new Error("템플릿을 찾을 수 없습니다.");
     }
+    const validation = validateTemplateForSend(template, trainingPage);
+    if (!validation.ok) {
+      const message = formatSendValidationError(validation.issues);
+      await storage.updateProject(project.id, { sendValidationError: message });
+      await storage.updateSendJob(jobId, {
+        status: "failed",
+        lastError: message,
+        finishedAt: new Date(),
+      });
+      return;
+    }
+    await storage.updateProject(project.id, { sendValidationError: null });
 
     const { fromName, fromEmail } = resolveFromInfo(project);
     const transporter = await getTransporter();
@@ -234,13 +252,8 @@ const processJob = async (jobId: string) => {
       }
 
       const landingUrl = buildLandingUrl(trackingToken);
-      const submitUrl = buildSubmitUrl(trackingToken);
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      const htmlBody = injectLinks(template.body ?? "", {
-        landingUrl,
-        submitUrl,
-        openPixelUrl,
-      });
+      const { html: htmlBody } = buildMailHtml(template, landingUrl, openPixelUrl);
       const plainText = stripHtml(htmlBody);
 
       try {

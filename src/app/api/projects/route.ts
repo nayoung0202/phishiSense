@@ -9,6 +9,7 @@ import {
   validateProjectPayload,
 } from "@/server/services/projectsShared";
 import { enqueueSendJobForProject } from "@/server/services/sendJobs";
+import { validateTemplateForSend } from "@/server/services/templateSendValidation";
 import type { InsertProject } from "@shared/schema";
 import { ZodError } from "zod";
 
@@ -91,6 +92,55 @@ export async function POST(request: NextRequest) {
       departmentTags: normalizeStringArray(departmentTags),
       notificationEmails: normalizeStringArray(notificationEmails),
     };
+
+    if (sanitized.status === "진행중") {
+      if (!sanitized.templateId) {
+        return NextResponse.json(
+          {
+            error: "send_validation_failed",
+            issues: [
+              {
+                code: "template_missing",
+                scope: "project",
+                message: "프로젝트에 템플릿이 연결되어 있지 않습니다.",
+              },
+            ],
+          },
+          { status: 422 },
+        );
+      }
+      const [template, trainingPage] = await Promise.all([
+        storage.getTemplate(sanitized.templateId),
+        sanitized.trainingPageId
+          ? storage.getTrainingPage(sanitized.trainingPageId)
+          : Promise.resolve(undefined),
+      ]);
+      if (!template) {
+        return NextResponse.json(
+          {
+            error: "send_validation_failed",
+            issues: [
+              {
+                code: "template_missing",
+                scope: "project",
+                message: "템플릿을 찾을 수 없습니다.",
+              },
+            ],
+          },
+          { status: 422 },
+        );
+      }
+      const validation = validateTemplateForSend(template, trainingPage);
+      if (!validation.ok) {
+        return NextResponse.json(
+          {
+            error: "send_validation_failed",
+            issues: validation.issues,
+          },
+          { status: 422 },
+        );
+      }
+    }
 
     const project = await storage.createProject(sanitized);
     const uniqueTargetIds = Array.from(
