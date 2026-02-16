@@ -21,6 +21,8 @@ export async function getTemplateById(id: string): Promise<Template | undefined>
 export async function createTemplate(payload: InsertTemplate): Promise<Template> {
   const now = new Date();
   const id = randomUUID();
+  const autoInsertLandingKind =
+    payload.autoInsertLandingKind === "button" ? "button" : "link";
   const rows = await db
     .insert(templates)
     .values({
@@ -29,6 +31,10 @@ export async function createTemplate(payload: InsertTemplate): Promise<Template>
       subject: payload.subject,
       body: payload.body,
       maliciousPageContent: payload.maliciousPageContent ?? "",
+      autoInsertLandingEnabled: payload.autoInsertLandingEnabled ?? true,
+      autoInsertLandingLabel: (payload.autoInsertLandingLabel ?? "문서 확인하기").trim(),
+      autoInsertLandingKind,
+      autoInsertLandingNewTab: payload.autoInsertLandingNewTab ?? true,
       createdAt: now,
       updatedAt: now,
     })
@@ -45,6 +51,12 @@ export async function updateTemplateById(
   const existing = await getTemplateById(id);
   if (!existing) return undefined;
   const now = new Date();
+  const autoInsertLandingKind =
+    payload.autoInsertLandingKind === "button"
+      ? "button"
+      : payload.autoInsertLandingKind === "link"
+        ? "link"
+        : existing.autoInsertLandingKind;
   const rows = await db
     .update(templates)
     .set({
@@ -55,6 +67,15 @@ export async function updateTemplateById(
         payload.maliciousPageContent !== undefined
           ? payload.maliciousPageContent ?? ""
           : existing.maliciousPageContent,
+      autoInsertLandingEnabled:
+        payload.autoInsertLandingEnabled ?? existing.autoInsertLandingEnabled,
+      autoInsertLandingLabel:
+        payload.autoInsertLandingLabel !== undefined
+          ? payload.autoInsertLandingLabel.trim()
+          : existing.autoInsertLandingLabel,
+      autoInsertLandingKind,
+      autoInsertLandingNewTab:
+        payload.autoInsertLandingNewTab ?? existing.autoInsertLandingNewTab,
       updatedAt: now,
     })
     .where(eq(templates.id, id))
@@ -81,6 +102,10 @@ export async function ensureSeedTemplates(defaultTemplates: Template[]): Promise
         subject: template.subject,
         body: template.body,
         maliciousPageContent: template.maliciousPageContent ?? "",
+        autoInsertLandingEnabled: template.autoInsertLandingEnabled ?? true,
+        autoInsertLandingLabel: (template.autoInsertLandingLabel ?? "문서 확인하기").trim(),
+        autoInsertLandingKind: template.autoInsertLandingKind ?? "link",
+        autoInsertLandingNewTab: template.autoInsertLandingNewTab ?? true,
         createdAt: template.createdAt ?? now,
         updatedAt: template.updatedAt ?? now,
       })

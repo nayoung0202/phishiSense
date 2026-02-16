@@ -58,8 +58,8 @@ export default function TrainingPages() {
 
   const previewSurfaceClass =
     previewTheme === "dark"
-      ? "rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
-      : "rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
+      : "site-scrollbar rounded-md border border-slate-200 bg-white p-4 text-slate-900";
   const previewProseClass =
     previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
 

@@ -32,6 +32,7 @@ interface RichTextEditorProps {
   onBlur?: () => void;
   placeholder?: string;
   className?: string;
+  previewHtml?: string;
 }
 
 interface ToolbarItem {
@@ -57,6 +58,7 @@ export function RichTextEditor({
   onBlur,
   placeholder,
   className,
+  previewHtml,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<EditorMode>("edit");
@@ -216,8 +218,11 @@ export function RichTextEditor({
         />
       ) : mode === "preview" ? (
         <ScrollArea className="editor-scrollbar h-[420px] border-t border-border bg-muted/30 p-2">
-          {value.trim().length > 0 ? (
-            <TemplatePreviewFrame html={value} className="rounded-md shadow-sm" />
+          {(previewHtml ?? value).trim().length > 0 ? (
+            <TemplatePreviewFrame
+              html={previewHtml ?? value}
+              className="rounded-md shadow-sm"
+            />
           ) : (
             <p className="p-4 text-sm text-muted-foreground">입력된 내용이 없습니다.</p>
           )}
