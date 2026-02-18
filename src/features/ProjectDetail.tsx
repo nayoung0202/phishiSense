@@ -56,6 +56,7 @@ type ActionLogItem = {
   name: string;
   email: string;
   department: string | null;
+  sentAt: string | null;
   status: string;
   statusCode: string;
   trackingToken: string | null;
@@ -64,6 +65,14 @@ type ActionLogItem = {
 
 type ActionLogResponse = {
   items: ActionLogItem[];
+};
+
+const parseDepartmentEntries = (value: string | null): string[] => {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 };
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {
@@ -238,14 +247,39 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { name: '제출', value: project.submitCount || 0 },
   ];
 
+  const sentCountByDepartment = new Map<string, number>();
+  selectedDepartments.forEach((department) => {
+    sentCountByDepartment.set(department, 0);
+  });
+
+  actionLogItems.forEach((item) => {
+    if (!item.sentAt) return;
+    const entries = parseDepartmentEntries(item.department);
+    const matchedDepartment =
+      selectedDepartments.find((department) =>
+        entries.some((entry) => entry === department),
+      ) ??
+      selectedDepartments.find((department) =>
+        entries.some((entry) => entry.includes(department) || department.includes(entry)),
+      ) ??
+      null;
+
+    if (!matchedDepartment) return;
+    sentCountByDepartment.set(
+      matchedDepartment,
+      (sentCountByDepartment.get(matchedDepartment) ?? 0) + 1,
+    );
+  });
+
   const departmentData = selectedDepartments
     .map((department) => ({
       name: department,
-      value: 1,
+      value: sentCountByDepartment.get(department) ?? 0,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-
-  const hasDepartmentDistribution = departmentData.length > 0;
+  const totalSentCount = actionLogItems.filter((item) => Boolean(item.sentAt)).length;
+  const chartDepartmentData = departmentData.filter((item) => item.value > 0);
+  const hasDepartmentDistribution = chartDepartmentData.length > 0;
 
   const handleStartProject = () => {
     if (project.status !== "예약") return;
@@ -356,33 +390,48 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">부서별 분포</h2>
-          {hasDepartmentDistribution ? (
+          {totalSentCount > 0 && hasDepartmentDistribution ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={departmentData}
+                  data={chartDepartmentData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name }) => `${name}`}
+                  label={({ name, value }) => `${name} ${value}명`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="none"
-                  paddingAngle={departmentData.length > 1 ? 1 : 0}
+                  paddingAngle={chartDepartmentData.length > 1 ? 1 : 0}
                 >
-                  {departmentData.map((entry, index) => (
+                  {chartDepartmentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={() => ["선택됨", "부서"]}
+                  formatter={(value) => [`${Number(value).toLocaleString()}명`, "발송 수"]}
                 />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-              선택된 부서가 없습니다.
+            <div className="flex h-[300px] flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+              {totalSentCount === 0 && selectedDepartments.length > 0 ? (
+                <>
+                  <p>발송 전입니다. 발송 후 부서별 분포가 표시됩니다.</p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {selectedDepartments.map((department) => (
+                      <Badge key={department} variant="outline">
+                        {department} 0명
+                      </Badge>
+                    ))}
+                  </div>
+                </>
+              ) : totalSentCount > 0 ? (
+                <p>발송 데이터가 있으나 선택한 부서와 일치하는 집계가 없습니다.</p>
+              ) : (
+                <p>선택된 부서가 없습니다.</p>
+              )}
             </div>
           )}
         </Card>
