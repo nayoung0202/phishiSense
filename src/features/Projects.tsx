@@ -71,6 +71,7 @@ import {
   differenceInCalendarDays,
 } from "date-fns";
 import type { Project } from "@shared/schema";
+import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import { apiRequest } from "@/lib/queryClient";
 import {
   getMissingReportCaptures,
@@ -315,6 +316,10 @@ function toDate(value: Date | string): Date {
 
 function formatPercent(value: number) {
   return `${Math.max(0, value)}%`;
+}
+
+function getDepartmentLabel(project: Pick<Project, "department" | "departmentTags">, fallback = "-") {
+  return getProjectDepartmentDisplay(project, fallback);
 }
 
 function useVirtualList(length: number, itemHeight: number, overscan = 2) {
@@ -743,7 +748,7 @@ export default function Projects() {
       return {
         id: project.id,
         name: project.name,
-        department: project.department ?? "-",
+        department: getDepartmentLabel(project),
         status: project.status,
         발송수: project.targetCount ?? 0,
         오픈률: calculateRate(project.openCount, project.targetCount),
@@ -1114,7 +1119,7 @@ export default function Projects() {
                   <TableCell>{calculateRate(project.openCount, project.targetCount)}%</TableCell>
                   <TableCell>{calculateRate(project.clickCount, project.targetCount)}%</TableCell>
                   <TableCell>{calculateRate(project.submitCount, project.targetCount)}%</TableCell>
-                  <TableCell>{project.department ?? "-"}</TableCell>
+                  <TableCell>{getDepartmentLabel(project)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Link href={`/projects/${project.id}`}>
@@ -1166,7 +1171,7 @@ export default function Projects() {
                   <Card key={project.id} className="p-3 space-y-2 border border-dashed">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{project.name}</span>
-                      <Badge variant="outline">{project.department ?? "-"}</Badge>
+                      <Badge variant="outline">{getDepartmentLabel(project)}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {format(start, "MM/dd")} ~ {format(end, "MM/dd")}
@@ -1496,7 +1501,7 @@ export default function Projects() {
         <DialogHeader>
           <DialogTitle>{detailProject.name}</DialogTitle>
           <DialogDescription>
-            {detailProject.department ?? "부서 미지정"} · {detailProject.status}
+            {getDepartmentLabel(detailProject, "부서 미지정")} · {detailProject.status}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 text-sm">
@@ -1560,7 +1565,7 @@ export default function Projects() {
                 <span className="font-semibold">이름:</span> {reportProject.name}
               </p>
               <p>
-                <span className="font-semibold">부서:</span> {reportProject.department ?? "-"}
+                <span className="font-semibold">부서:</span> {getDepartmentLabel(reportProject)}
               </p>
               <p>
                 <span className="font-semibold">일정:</span> {format(toDate(reportProject.startDate), "yyyy-MM-dd")} ~ {format(toDate(reportProject.endDate), "yyyy-MM-dd")}

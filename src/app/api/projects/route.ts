@@ -10,6 +10,10 @@ import {
 } from "@/server/services/projectsShared";
 import { enqueueSendJobForProject } from "@/server/services/sendJobs";
 import { validateTemplateForSend } from "@/server/services/templateSendValidation";
+import {
+  getProjectDepartmentDisplay,
+  getProjectPrimaryDepartment,
+} from "@shared/projectDepartment";
 import type { InsertProject } from "@shared/schema";
 import { ZodError } from "zod";
 
@@ -53,7 +57,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (searchTerm.length > 0) {
-        const haystack = [project.name, project.department ?? "", project.description ?? ""]
+        const haystack = [
+          project.name,
+          getProjectDepartmentDisplay(project, ""),
+          Array.isArray(project.departmentTags) ? project.departmentTags.join(" ") : "",
+          project.description ?? "",
+        ]
           .join(" ")
           .toLowerCase();
         if (!haystack.includes(searchTerm)) {
@@ -87,9 +96,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { departmentTags, notificationEmails, ...projectRest } = projectPayload;
+    const normalizedDepartmentTags = normalizeStringArray(departmentTags);
     const sanitized: InsertProject = {
       ...projectRest,
-      departmentTags: normalizeStringArray(departmentTags),
+      department: getProjectPrimaryDepartment({
+        department: projectRest.department ?? null,
+        departmentTags: normalizedDepartmentTags,
+      }),
+      departmentTags: normalizedDepartmentTags,
       notificationEmails: normalizeStringArray(notificationEmails),
     };
 
