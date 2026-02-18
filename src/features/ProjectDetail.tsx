@@ -27,6 +27,10 @@ import { useToast } from "@/hooks/use-toast";
 import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
 import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangle } from "lucide-react";
 import { type Project } from "@shared/schema";
+import {
+  getProjectDepartmentDisplay,
+  getProjectDepartmentTags,
+} from "@shared/projectDepartment";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
@@ -218,8 +222,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const openRate = calculateRate(project.openCount, project.targetCount);
   const clickRate = calculateRate(project.clickCount, project.targetCount);
   const submitRate = calculateRate(project.submitCount, project.targetCount);
+  const projectDepartmentLabel = getProjectDepartmentDisplay(project);
 
-  // Mock data for charts
   const timeSeriesData = [
     { name: '발송', value: project.targetCount || 0 },
     { name: '오픈', value: project.openCount || 0 },
@@ -227,12 +231,34 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { name: '제출', value: project.submitCount || 0 },
   ];
 
-  const departmentData = [
-    { name: '영업부', value: 35 },
-    { name: '개발부', value: 25 },
-    { name: '인사부', value: 20 },
-    { name: '기타', value: 20 },
-  ];
+  const selectedDepartments = getProjectDepartmentTags(project);
+  const departmentCountMap = new Map<string, number>();
+  selectedDepartments.forEach((department) => {
+    departmentCountMap.set(department, 0);
+  });
+
+  actionLogItems.forEach((item) => {
+    if (!item.department) return;
+    const department = item.department.trim();
+    if (!department) return;
+    if (selectedDepartments.length > 0 && !departmentCountMap.has(department)) return;
+    departmentCountMap.set(department, (departmentCountMap.get(department) ?? 0) + 1);
+  });
+
+  let departmentData = Array.from(departmentCountMap.entries()).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  if (departmentData.length === 0) {
+    departmentData = [{ name: projectDepartmentLabel, value: 1 }];
+  } else {
+    const hasUsageData = departmentData.some((entry) => entry.value > 0);
+    if (!hasUsageData) {
+      departmentData = departmentData.map((entry) => ({ ...entry, value: 1 }));
+    }
+  }
+
   const handleStartProject = () => {
     if (project.status !== "예약") return;
     if (!confirm(`"${project.name}" 프로젝트를 지금 시작하시겠습니까?`)) return;
@@ -255,6 +281,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
             </Badge>
           </div>
           <p className="text-muted-foreground">{project.description || '프로젝트 설명'}</p>
+          <p className="text-sm text-muted-foreground">부서: {projectDepartmentLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           {project.status === "예약" ? (

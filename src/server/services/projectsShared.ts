@@ -1,6 +1,7 @@
 import process from "node:process";
 import nodemailer from "nodemailer";
 import { insertProjectSchema, type InsertProject, type Project } from "@shared/schema";
+import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import { z } from "zod";
 
 export const statusParamMap: Record<string, string> = {
@@ -60,7 +61,7 @@ export const summarizeProject = (project: Project) => ({
   id: project.id,
   name: project.name,
   status: project.status,
-  department: project.department ?? "",
+  department: getProjectDepartmentDisplay(project, ""),
   startDate: toISO(normalizeProjectDate(project.startDate)),
   endDate: toISO(normalizeProjectDate(project.endDate)),
   targetCount: project.targetCount ?? 0,
