@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/server/storage";
 import { normalizeStringArray } from "@/server/services/projectsShared";
+import { getProjectPrimaryDepartment } from "@shared/projectDepartment";
 
 type RouteContext = {
   params: Promise<{
@@ -50,7 +51,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       payload.endDate = payload["end_date"];
     }
     if (payload.departmentTags) {
-      payload.departmentTags = normalizeStringArray(payload.departmentTags);
+      const normalizedDepartmentTags = normalizeStringArray(payload.departmentTags);
+      payload.departmentTags = normalizedDepartmentTags;
+      payload.department = getProjectPrimaryDepartment({
+        department:
+          typeof payload.department === "string" ? payload.department : null,
+        departmentTags: normalizedDepartmentTags,
+      });
     }
     if (payload.notificationEmails) {
       payload.notificationEmails = normalizeStringArray(payload.notificationEmails);

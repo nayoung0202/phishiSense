@@ -6,6 +6,7 @@ import {
   summarizeProject,
   toISO,
 } from "@/server/services/projectsShared";
+import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import {
   eachDayOfInterval,
   eachWeekOfInterval,
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
       );
       const departmentMap = new Map<string, Project[]>();
       projectsInWeek.forEach((project) => {
-        const key = project.department ?? "미지정";
+        const key = getProjectDepartmentDisplay(project);
         if (!departmentMap.has(key)) {
           departmentMap.set(key, []);
         }
