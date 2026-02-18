@@ -29,7 +29,6 @@ import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangl
 import { type Project } from "@shared/schema";
 import {
   getProjectDepartmentDisplay,
-  getProjectDepartmentTags,
 } from "@shared/projectDepartment";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -231,33 +230,19 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { name: '제출', value: project.submitCount || 0 },
   ];
 
-  const selectedDepartments = getProjectDepartmentTags(project);
   const departmentCountMap = new Map<string, number>();
-  selectedDepartments.forEach((department) => {
-    departmentCountMap.set(department, 0);
-  });
-
   actionLogItems.forEach((item) => {
-    if (!item.department) return;
-    const department = item.department.trim();
-    if (!department) return;
-    if (selectedDepartments.length > 0 && !departmentCountMap.has(department)) return;
+    const department = item.department?.trim() || "미지정";
     departmentCountMap.set(department, (departmentCountMap.get(department) ?? 0) + 1);
   });
 
-  let departmentData = Array.from(departmentCountMap.entries()).map(([name, value]) => ({
+  const departmentData = Array.from(departmentCountMap.entries()).map(([name, value]) => ({
     name,
     value,
-  }));
+  }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "ko"));
 
-  if (departmentData.length === 0) {
-    departmentData = [{ name: projectDepartmentLabel, value: 1 }];
-  } else {
-    const hasUsageData = departmentData.some((entry) => entry.value > 0);
-    if (!hasUsageData) {
-      departmentData = departmentData.map((entry) => ({ ...entry, value: 1 }));
-    }
-  }
+  const hasDepartmentDistribution = departmentData.length > 0;
 
   const handleStartProject = () => {
     if (project.status !== "예약") return;
@@ -368,25 +353,33 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">부서별 분포</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={departmentData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {departmentData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {hasDepartmentDistribution ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={departmentData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name} ${value}명`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {departmentData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => [`${Number(value).toLocaleString()}명`, "발송 수"]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+              발송 데이터가 없습니다.
+            </div>
+          )}
         </Card>
       </div>
 
