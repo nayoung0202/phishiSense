@@ -29,6 +29,7 @@ import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangl
 import { type Project } from "@shared/schema";
 import {
   getProjectDepartmentDisplay,
+  getProjectDepartmentTags,
 } from "@shared/projectDepartment";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -222,6 +223,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const clickRate = calculateRate(project.clickCount, project.targetCount);
   const submitRate = calculateRate(project.submitCount, project.targetCount);
   const projectDepartmentLabel = getProjectDepartmentDisplay(project);
+  const selectedDepartmentTags = getProjectDepartmentTags(project);
+  const selectedDepartments = selectedDepartmentTags.length > 0
+    ? selectedDepartmentTags
+    : (() => {
+        const fallbackDepartment = getProjectDepartmentDisplay(project, "").trim();
+        return fallbackDepartment ? [fallbackDepartment] : [];
+      })();
 
   const timeSeriesData = [
     { name: '발송', value: project.targetCount || 0 },
@@ -230,17 +238,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { name: '제출', value: project.submitCount || 0 },
   ];
 
-  const departmentCountMap = new Map<string, number>();
-  actionLogItems.forEach((item) => {
-    const department = item.department?.trim() || "미지정";
-    departmentCountMap.set(department, (departmentCountMap.get(department) ?? 0) + 1);
-  });
-
-  const departmentData = Array.from(departmentCountMap.entries()).map(([name, value]) => ({
-    name,
-    value,
-  }))
-    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "ko"));
+  const departmentData = selectedDepartments
+    .map((department) => ({
+      name: department,
+      value: 1,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
   const hasDepartmentDistribution = departmentData.length > 0;
 
@@ -361,7 +364,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, value }) => `${name} ${value}명`}
+                  label={({ name }) => `${name}`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -373,13 +376,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => [`${Number(value).toLocaleString()}명`, "발송 수"]}
+                  formatter={() => ["선택됨", "부서"]}
                 />
               </PieChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-              발송 데이터가 없습니다.
+              선택된 부서가 없습니다.
             </div>
           )}
         </Card>
