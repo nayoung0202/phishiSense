@@ -365,6 +365,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
+                  stroke="none"
+                  paddingAngle={departmentData.length > 1 ? 1 : 0}
                 >
                   {departmentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
