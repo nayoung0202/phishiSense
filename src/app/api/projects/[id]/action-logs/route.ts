@@ -22,6 +22,7 @@ type ActionLogItem = {
   name: string;
   email: string;
   department: string | null;
+  sentAt: string | null;
   status: string;
   statusCode: string;
   trackingToken: string | null;
@@ -101,6 +102,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           projectTargetId: projectTarget.id,
           targetId: projectTarget.targetId,
           trackingToken: projectTarget.trackingToken ?? null,
+          sentAt: toIsoString(projectTarget.sentAt),
           ...resolveTargetInfo(target),
           status,
           statusCode,
