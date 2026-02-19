@@ -26,10 +26,12 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
   bottom: auto !important;
   left: auto !important;
   z-index: auto !important;
-  width: min(100%, 720px) !important;
+  width: auto !important;
   max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
   max-height: none !important;
-  margin: 12px auto !important;
+  margin: 12px 0 !important;
   transform: none !important;
   overflow: visible !important;
   opacity: 1 !important;
@@ -37,12 +39,20 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
 }
 
 .${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_MODAL_KEYWORD_SELECTOR} {
-  max-height: min(70vh, 640px) !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
+  width: min(100%, 720px) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 12px auto !important;
+  overflow: visible !important;
 }
 
 .${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_FIXED_LAYER_SELECTOR} {
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   background: transparent !important;
   background-color: transparent !important;
 }

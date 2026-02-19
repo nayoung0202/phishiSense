@@ -45,10 +45,12 @@
   bottom: auto !important;
   left: auto !important;
   z-index: auto !important;
-  width: min(100%, 720px) !important;
+  width: auto !important;
   max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
   max-height: none !important;
-  margin: 12px auto !important;
+  margin: 12px 0 !important;
   transform: none !important;
   overflow: visible !important;
   opacity: 1 !important;
@@ -56,12 +58,20 @@
 }
 
 .template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"]) {
-  max-height: min(70vh, 640px) !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
+  width: min(100%, 720px) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 12px auto !important;
+  overflow: visible !important;
 }
 
 .template-preview-sandbox :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   background: transparent !important;
   background-color: transparent !important;
 }
