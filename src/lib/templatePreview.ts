@@ -3,14 +3,25 @@ export const TEMPLATE_PREVIEW_SANDBOX_CLASS = "template-preview-sandbox";
 const DIALOG_OPEN_ATTRIBUTE_PATTERN =
   /(<dialog\b[^>]*?)\sopen(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi;
 
-const TEMPLATE_PREVIEW_MODAL_TARGET_SELECTOR =
+const TEMPLATE_PREVIEW_MODAL_KEYWORD_SELECTOR =
   ':is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"])';
 
+const TEMPLATE_PREVIEW_FIXED_LAYER_SELECTOR =
+  ':is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"])';
+
+const TEMPLATE_PREVIEW_BLOCKED_LAYER_SELECTOR = `:is(${TEMPLATE_PREVIEW_MODAL_KEYWORD_SELECTOR.slice(4, -1)}, ${TEMPLATE_PREVIEW_FIXED_LAYER_SELECTOR.slice(4, -1)})`;
+
 const TEMPLATE_PREVIEW_BACKDROP_SELECTOR =
-  ':is([class*="backdrop"], [class*="Backdrop"], [id*="backdrop"], [id*="Backdrop"], [class*="overlay"], [class*="Overlay"], [id*="overlay"], [id*="Overlay"], [class*="scrim"], [class*="Scrim"], [class*="dimmer"], [class*="Dimmer"])';
+  ':is([class*="backdrop"], [class*="Backdrop"], [id*="backdrop"], [id*="Backdrop"], [class*="overlay"], [class*="Overlay"], [id*="overlay"], [id*="Overlay"], [class*="scrim"], [class*="Scrim"], [class*="dimmer"], [class*="Dimmer"], [class~="inset-0"], [class*=":inset-0"])';
 
 export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
-.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_MODAL_TARGET_SELECTOR} {
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_BLOCKED_LAYER_SELECTOR} {
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -31,11 +42,11 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
   pointer-events: none !important;
 }
 
-.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_MODAL_TARGET_SELECTOR} * {
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_BLOCKED_LAYER_SELECTOR} * {
   visibility: hidden !important;
 }
 
-.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_MODAL_TARGET_SELECTOR}::before {
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_BLOCKED_LAYER_SELECTOR}::before {
   content: "모달 미리보기 플레이스홀더";
   display: flex;
   align-items: center;
