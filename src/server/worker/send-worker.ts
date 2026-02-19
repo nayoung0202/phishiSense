@@ -10,6 +10,7 @@ import {
   buildOpenPixelUrl,
 } from "../lib/trainingLink";
 import { stripHtml } from "../services/projectsShared";
+import { enforceBlackTextForSend } from "../services/enforceBlackTextForSend";
 import {
   buildMailHtml,
   formatSendValidationError,
@@ -253,7 +254,8 @@ const processJob = async (jobId: string) => {
 
       const landingUrl = buildLandingUrl(trackingToken);
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      const { html: htmlBody } = buildMailHtml(template, landingUrl, openPixelUrl);
+      const { html: htmlBodyRaw } = buildMailHtml(template, landingUrl, openPixelUrl);
+      const htmlBody = enforceBlackTextForSend(htmlBodyRaw);
       const plainText = stripHtml(htmlBody);
 
       try {
