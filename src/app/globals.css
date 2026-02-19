@@ -30,7 +30,7 @@
   text-decoration: underline;
 }
 
-/* 템플릿 미리보기에서는 모달을 실제로 띄우지 않고 플레이스홀더로 표시 */
+/* 템플릿 편집/미리보기에서는 모달 레이어를 인라인으로 중립화해 표시 */
 .template-preview-sandbox {
   position: relative !important;
   isolation: isolate !important;
