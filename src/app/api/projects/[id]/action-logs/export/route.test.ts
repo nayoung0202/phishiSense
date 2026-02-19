@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { storageMock } = vi.hoisted(() => ({
   storageMock: {
@@ -61,41 +61,18 @@ beforeEach(() => {
   storageMock.getTargets.mockResolvedValue([baseTarget]);
 });
 
-describe("GET /api/projects/[id]/action-logs", () => {
-  it("해당 프로젝트 대상자만 반환한다", async () => {
-    storageMock.getProjectTargets.mockResolvedValue([
-      {
-        id: "pt-1",
-        projectId: "project-1",
-        targetId: "target-1",
-        trackingToken: "track-1",
-        status: "sent",
-        openedAt: null,
-        clickedAt: null,
-        submittedAt: null,
-      },
-      {
-        id: "pt-2",
-        projectId: "project-2",
-        targetId: "target-2",
-        trackingToken: "track-2",
-        status: "sent",
-        openedAt: null,
-        clickedAt: null,
-        submittedAt: null,
-      },
-    ]);
+describe("GET /api/projects/[id]/action-logs/export", () => {
+  it("프로젝트가 없으면 404를 반환한다", async () => {
+    storageMock.getProject.mockResolvedValueOnce(undefined);
 
     const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ id: "project-1" }),
+      params: Promise.resolve({ id: "missing-project" }),
     });
-    const body = await response.json();
 
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0].targetId).toBe("target-1");
+    expect(response.status).toBe(404);
   });
 
-  it("이벤트를 시간순으로 정렬한다", async () => {
+  it("타임라인 이벤트를 xlsx 파일로 반환한다", async () => {
     storageMock.getProjectTargets.mockResolvedValue([
       {
         id: "pt-1",
@@ -103,8 +80,9 @@ describe("GET /api/projects/[id]/action-logs", () => {
         targetId: "target-1",
         trackingToken: "track-1",
         status: "sent",
-        openedAt: new Date("2024-01-01T10:00:00Z"),
-        clickedAt: new Date("2024-01-01T09:00:00Z"),
+        sentAt: new Date("2025-01-01T08:00:00Z"),
+        openedAt: new Date("2025-01-01T09:00:00Z"),
+        clickedAt: new Date("2025-01-01T10:00:00Z"),
         submittedAt: null,
       },
     ]);
@@ -112,11 +90,16 @@ describe("GET /api/projects/[id]/action-logs", () => {
     const response = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ id: "project-1" }),
     });
-    const body = await response.json();
-    const events = body.items[0].events;
 
-    expect(events).toHaveLength(2);
-    expect(events[0].type).toBe("CLICK");
-    expect(events[1].type).toBe("OPEN");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    expect(response.headers.get("Content-Disposition")).toContain(".xlsx");
+
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    expect(buffer.length).toBeGreaterThan(0);
+    expect(buffer[0]).toBe(0x50);
+    expect(buffer[1]).toBe(0x4b);
   });
 });
