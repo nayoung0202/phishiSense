@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  neutralizePreviewModalHtml,
+  TEMPLATE_PREVIEW_SANDBOX_CLASS,
+  TEMPLATE_PREVIEW_SANDBOX_CSS,
+} from "@/lib/templatePreview";
 
 interface TemplatePreviewFrameProps {
   html: string;
@@ -14,6 +19,7 @@ export function TemplatePreviewFrame({
 }: TemplatePreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contentHeight, setContentHeight] = useState(minHeight);
+  const safeHtml = useMemo(() => neutralizePreviewModalHtml(html), [html]);
 
   const srcDoc = useMemo(
     () =>
@@ -30,14 +36,15 @@ export function TemplatePreviewFrame({
         "input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }",
         "label { display: block; margin-bottom: 0.35rem; font-weight: 600; }",
         "table { border-collapse: collapse; width: 100%; }",
+        TEMPLATE_PREVIEW_SANDBOX_CSS,
         "</style>",
         "</head>",
-        "<body>",
-        html || "",
+        `<body class="${TEMPLATE_PREVIEW_SANDBOX_CLASS}">`,
+        safeHtml || "",
         "</body>",
         "</html>",
       ].join(""),
-    [html],
+    [safeHtml],
   );
 
   useEffect(() => {
