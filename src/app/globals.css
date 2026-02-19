@@ -50,9 +50,20 @@
   max-height: none !important;
   margin: 12px auto !important;
   transform: none !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   opacity: 1 !important;
   pointer-events: auto !important;
+}
+
+.template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"]) {
+  max-height: min(70vh, 640px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.template-preview-sandbox :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .template-preview-sandbox dialog {
