@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
@@ -227,12 +227,23 @@ export default function Templates() {
         <div>
           <h1 className="text-4xl font-bold mb-2">템플릿 관리</h1>
         </div>
-        <Link href="/templates/new">
-          <Button data-testid="button-new-template">
-            <Plus className="w-4 h-4 mr-2" />
-            새 템플릿
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled
+            data-testid="button-ai-template-create"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI 템플릿 생성
           </Button>
-        </Link>
+          <Link href="/templates/new">
+            <Button data-testid="button-new-template">
+              <Plus className="w-4 h-4 mr-2" />
+              새 템플릿
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="p-6">
