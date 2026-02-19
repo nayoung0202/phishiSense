@@ -6,34 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="7049684b-6f1d-4088-9f69-45101254beb0" name="변경" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shared/sanitizeConfig.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/sanitizeConfig.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shared/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/shared/schema.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/action-logs/route.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/action-logs/route.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/send/route.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/send/route.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/send/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/send/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/[id]/status/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/[id]/status/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/projects/test-send/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/projects/test-send/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/globals.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/p/[token]/route.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/p/[token]/route.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/p/[token]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/p/[token]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/t/[token]/route.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/t/[token]/route.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/t/[token]/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/t/[token]/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ui/rich-text-editor.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/rich-text-editor.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ui/scroll-area.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/scroll-area.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/ProjectDetail.test.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/ProjectDetail.test.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/ProjectDetail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/ProjectDetail.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/TemplateEdit.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/TemplateEdit.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/Templates.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/Templates.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/TrainingPageEdit.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/TrainingPageEdit.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/features/TrainingPages.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/features/TrainingPages.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mocks/handlers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/mocks/handlers.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/dao/templateDao.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/dao/templateDao.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/lib/trainingLink.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/lib/trainingLink.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/seed/defaultTemplates.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/seed/defaultTemplates.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/services/projectsShared.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/services/projectsShared.test.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/services/sendJobs.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/services/sendJobs.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server/worker/send-worker.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/worker/send-worker.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tsconfig.tsbuildinfo" beforeDir="false" afterPath="$PROJECT_DIR$/tsconfig.tsbuildinfo" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -145,6 +117,8 @@
       <workItem from="1770775252019" duration="30188000" />
       <workItem from="1770957980000" duration="2483000" />
       <workItem from="1770960744169" duration="2684000" />
+      <workItem from="1771256666780" duration="4559000" />
+      <workItem from="1771468726537" duration="7917000" />
     </task>
     <servers />
   </component>
