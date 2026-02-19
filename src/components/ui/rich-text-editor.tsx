@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TEMPLATE_PREVIEW_SANDBOX_CLASS } from "@/lib/templatePreview";
 import {
   Bold,
   Italic,
@@ -230,7 +231,10 @@ export function RichTextEditor({
       ) : (
         <div
           ref={editorRef}
-          className="editor-scrollbar min-h-[300px] max-h-[600px] overflow-y-auto bg-background p-4 text-sm focus:outline-none"
+          className={cn(
+            "editor-scrollbar min-h-[300px] max-h-[600px] overflow-y-auto bg-background p-4 text-sm focus:outline-none",
+            TEMPLATE_PREVIEW_SANDBOX_CLASS,
+          )}
           contentEditable
           suppressContentEditableWarning
           spellCheck
