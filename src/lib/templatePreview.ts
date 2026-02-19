@@ -15,7 +15,7 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
 .${TEMPLATE_PREVIEW_SANDBOX_CLASS} {
   position: relative !important;
   isolation: isolate !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_BLOCKED_LAYER_SELECTOR} {
@@ -31,7 +31,7 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
   max-height: none !important;
   margin: 12px auto !important;
   transform: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
 }
