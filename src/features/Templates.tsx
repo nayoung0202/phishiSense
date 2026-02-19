@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Mail, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Eye, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import { type Template } from "@shared/schema";
 import { format } from "date-fns";
@@ -28,12 +28,15 @@ import {
 } from "@shared/templateTokens";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 import { renderEmailForSend } from "@/lib/email/renderEmailForSend";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 export default function Templates() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
+  const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
 
   const getSnippet = (html: string, size = 80) => {
     const plain = html
@@ -117,8 +120,14 @@ export default function Templates() {
     subject: `${previewTemplate?.subject ?? "템플릿"} - 악성 메일 본문`,
   });
   const previewScrollableSurfaceClass =
-    "site-scrollbar max-h-[60vh] overflow-y-auto rounded-md border border-slate-200 bg-white p-2";
-  const previewMutedClass = "text-slate-600";
+    previewTheme === "dark"
+      ? "site-scrollbar max-h-[60vh] overflow-y-auto rounded-md border border-slate-800 bg-slate-950 p-2"
+      : "site-scrollbar max-h-[60vh] overflow-y-auto rounded-md border border-slate-200 bg-white p-2";
+  const previewMutedClass = previewTheme === "dark" ? "text-slate-300" : "text-slate-600";
+  const previewFrameClass = cn(
+    "rounded-md",
+    previewTheme === "dark" ? "shadow-[0_0_0_1px_rgba(148,163,184,0.2)]" : "shadow-sm",
+  );
   return (
     <>
       <Dialog
@@ -136,13 +145,31 @@ export default function Templates() {
             <DialogTitle>{previewTemplate?.name ?? "템플릿 미리보기"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-muted-foreground">
-                {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                실제 발송과 동일한 라이트 기반 이메일 렌더 미리보기입니다.
-              </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">
+                  {previewTemplate?.subject ?? "템플릿 제목이 없습니다."}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  실제 발송과 동일한 라이트 기반 이메일 렌더 미리보기입니다.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className={previewTheme === "light" ? "text-foreground font-semibold" : ""}>라이트</span>
+                <Switch
+                  checked={previewTheme === "dark"}
+                  onCheckedChange={(checked) => setPreviewTheme(checked ? "dark" : "light")}
+                  aria-label="미리보기 테마 전환"
+                  thumbIcon={
+                    previewTheme === "dark" ? (
+                      <Moon className="h-3 w-3" />
+                    ) : (
+                      <Sun className="h-3 w-3" />
+                    )
+                  }
+                />
+                <span className={previewTheme === "dark" ? "text-foreground font-semibold" : ""}>다크</span>
+              </div>
             </div>
             <Tabs defaultValue="body" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
@@ -155,7 +182,7 @@ export default function Templates() {
                     previewBodyFragment.trim().length > 0 ? (
                       <TemplatePreviewFrame
                         html={previewBodyHtml}
-                        className="rounded-md shadow-sm"
+                        className={previewFrameClass}
                         minHeight={340}
                       />
                     ) : (
@@ -177,7 +204,7 @@ export default function Templates() {
                     previewMaliciousFragment.trim().length > 0 ? (
                       <TemplatePreviewFrame
                         html={previewMaliciousHtml}
-                        className="rounded-md shadow-sm"
+                        className={previewFrameClass}
                         minHeight={340}
                       />
                     ) : (
