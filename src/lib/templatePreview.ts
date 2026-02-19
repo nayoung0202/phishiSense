@@ -31,9 +31,20 @@ export const TEMPLATE_PREVIEW_SANDBOX_CSS = `
   max-height: none !important;
   margin: 12px auto !important;
   transform: none !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   opacity: 1 !important;
   pointer-events: auto !important;
+}
+
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_MODAL_KEYWORD_SELECTOR} {
+  max-height: min(70vh, 640px) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.${TEMPLATE_PREVIEW_SANDBOX_CLASS} ${TEMPLATE_PREVIEW_FIXED_LAYER_SELECTOR} {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .${TEMPLATE_PREVIEW_SANDBOX_CLASS} dialog {
