@@ -146,6 +146,26 @@ export const normalizeStringArray = (value: unknown) => {
   return value.map((entry) => normalizeOptionalString(entry)).filter(Boolean);
 };
 
+export const splitDepartmentEntries = (value: unknown): string[] => {
+  if (typeof value !== "string") return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+};
+
+export const collectDepartmentTagsFromTargets = (
+  targets: Array<{ department?: string | null }>,
+) => {
+  const departmentSet = new Set<string>();
+  targets.forEach((target) => {
+    splitDepartmentEntries(target.department).forEach((department) => {
+      departmentSet.add(department);
+    });
+  });
+  return Array.from(departmentSet).sort((a, b) => a.localeCompare(b, "ko"));
+};
+
 export const toSafeDate = (value: unknown): Date | null => {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : value;
@@ -281,17 +301,6 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
 
   if (!normalizeOptionalString(payload.name)) {
     issues.push({ field: "name", code: "required", message: "프로젝트명을 입력하세요." });
-  }
-
-  const departmentTags = Array.isArray(payload.departmentTags)
-    ? payload.departmentTags.map((tag) => normalizeOptionalString(tag)).filter(Boolean)
-    : [];
-  if (departmentTags.length === 0) {
-    issues.push({
-      field: "departmentTags",
-      code: "required",
-      message: "부서 태그를 하나 이상 선택하세요.",
-    });
   }
 
   if (!normalizeOptionalString(payload.templateId)) {
