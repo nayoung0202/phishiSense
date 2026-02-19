@@ -29,7 +29,6 @@ import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangl
 import { type Project } from "@shared/schema";
 import {
   getProjectDepartmentDisplay,
-  getProjectDepartmentTags,
 } from "@shared/projectDepartment";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -232,13 +231,19 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const clickRate = calculateRate(project.clickCount, project.targetCount);
   const submitRate = calculateRate(project.submitCount, project.targetCount);
   const projectDepartmentLabel = getProjectDepartmentDisplay(project);
-  const selectedDepartmentTags = getProjectDepartmentTags(project);
-  const selectedDepartments = selectedDepartmentTags.length > 0
-    ? selectedDepartmentTags
-    : (() => {
-        const fallbackDepartment = getProjectDepartmentDisplay(project, "").trim();
-        return fallbackDepartment ? [fallbackDepartment] : [];
-      })();
+  const selectedDepartments = (() => {
+    const departmentSet = new Set<string>();
+    actionLogItems.forEach((item) => {
+      parseDepartmentEntries(item.department).forEach((entry) => {
+        departmentSet.add(entry);
+      });
+    });
+    if (departmentSet.size > 0) {
+      return Array.from(departmentSet).sort((a, b) => a.localeCompare(b, "ko"));
+    }
+    const fallbackDepartment = getProjectDepartmentDisplay(project, "").trim();
+    return fallbackDepartment ? [fallbackDepartment] : [];
+  })();
 
   const timeSeriesData = [
     { name: '발송', value: project.targetCount || 0 },

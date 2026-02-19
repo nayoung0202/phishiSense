@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/server/storage";
-import { normalizeStringArray } from "@/server/services/projectsShared";
+import {
+  collectDepartmentTagsFromTargets,
+  normalizeStringArray,
+} from "@/server/services/projectsShared";
 import { getProjectPrimaryDepartment } from "@shared/projectDepartment";
 
 type RouteContext = {
@@ -50,7 +53,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (payload["end_date"] && !payload.endDate) {
       payload.endDate = payload["end_date"];
     }
-    if (payload.departmentTags) {
+    if (targetIds) {
+      const targets = await storage.getTargets();
+      const targetSet = new Set(targetIds);
+      const selectedTargets = targets.filter((target) => targetSet.has(target.id));
+      const derivedDepartmentTags = collectDepartmentTagsFromTargets(selectedTargets);
+      payload.departmentTags = derivedDepartmentTags;
+      payload.department = getProjectPrimaryDepartment({
+        department: null,
+        departmentTags: derivedDepartmentTags,
+      });
+    } else if (payload.departmentTags) {
       const normalizedDepartmentTags = normalizeStringArray(payload.departmentTags);
       payload.departmentTags = normalizedDepartmentTags;
       payload.department = getProjectPrimaryDepartment({

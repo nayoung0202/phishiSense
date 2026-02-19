@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/server/storage";
 import {
+  collectDepartmentTagsFromTargets,
   projectCreateSchema,
   quarterNumbers,
   statusParamMap,
@@ -84,6 +85,13 @@ export async function POST(request: NextRequest) {
     const payload = await request.json();
     const validated = projectCreateSchema.parse(payload);
     const { targetIds, ...projectPayload } = validated;
+    const uniqueTargetIds = Array.from(
+      new Set((targetIds ?? []).map((id) => id.trim()).filter(Boolean)),
+    );
+    const allTargets = uniqueTargetIds.length > 0 ? await storage.getTargets() : [];
+    const selectedTargetSet = new Set(uniqueTargetIds);
+    const selectedTargets = allTargets.filter((target) => selectedTargetSet.has(target.id));
+    const derivedDepartmentTags = collectDepartmentTagsFromTargets(selectedTargets);
     const issues = validateProjectPayload(projectPayload as InsertProject);
     if (issues.length > 0) {
       return NextResponse.json(
@@ -96,7 +104,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { departmentTags, notificationEmails, ...projectRest } = projectPayload;
-    const normalizedDepartmentTags = normalizeStringArray(departmentTags);
+    const normalizedDepartmentTags = derivedDepartmentTags.length > 0
+      ? derivedDepartmentTags
+      : normalizeStringArray(departmentTags);
     const sanitized: InsertProject = {
       ...projectRest,
       department: getProjectPrimaryDepartment({
@@ -157,9 +167,6 @@ export async function POST(request: NextRequest) {
     }
 
     const project = await storage.createProject(sanitized);
-    const uniqueTargetIds = Array.from(
-      new Set((targetIds ?? []).map((id) => id.trim()).filter(Boolean)),
-    );
     if (uniqueTargetIds.length > 0) {
       await Promise.all(
         uniqueTargetIds.map((targetId) =>

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../../../shared/schema";
-import { shouldCompleteProject, shouldStartScheduledProject } from "./projectsShared";
+import {
+  collectDepartmentTagsFromTargets,
+  shouldCompleteProject,
+  shouldStartScheduledProject,
+  splitDepartmentEntries,
+} from "./projectsShared";
 
 const baseProject: Project = {
   id: "project-1",
@@ -86,5 +91,32 @@ describe("shouldCompleteProject", () => {
     });
 
     expect(shouldCompleteProject(project, now)).toBe(false);
+  });
+});
+
+describe("splitDepartmentEntries", () => {
+  it("콤마로 구분된 부서를 배열로 분리한다", () => {
+    expect(splitDepartmentEntries("영업본부, 개발본부 1팀, 인사팀")).toEqual([
+      "영업본부",
+      "개발본부 1팀",
+      "인사팀",
+    ]);
+  });
+
+  it("문자열이 아니면 빈 배열을 반환한다", () => {
+    expect(splitDepartmentEntries(null)).toEqual([]);
+    expect(splitDepartmentEntries(undefined)).toEqual([]);
+  });
+});
+
+describe("collectDepartmentTagsFromTargets", () => {
+  it("대상 목록에서 부서 태그를 중복 제거하여 정렬한다", () => {
+    const tags = collectDepartmentTagsFromTargets([
+      { department: "영업본부, 플랫폼팀" },
+      { department: "플랫폼팀" },
+      { department: "인사팀" },
+    ]);
+
+    expect(tags).toEqual(["영업본부", "인사팀", "플랫폼팀"]);
   });
 });

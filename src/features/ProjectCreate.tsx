@@ -44,10 +44,8 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { type Project, type Target, type Template, type TrainingPage } from "@shared/schema";
+import { type Target, type Template, type TrainingPage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { useCustomDepartments } from "@/hooks/useCustomDepartments";
-import { CustomDepartmentManager } from "@/components/CustomDepartmentManager";
 import { cn } from "@/lib/utils";
 import { listSmtpConfigs } from "@/lib/api";
 import type { SmtpConfigSummary } from "@/types/smtp";
@@ -125,7 +123,6 @@ const projectFormSchema = z
   .object({
     name: z.string().min(1, "프로젝트명을 입력하세요."),
     description: z.string().optional(),
-    departmentTags: z.array(z.string()).min(1, "부서 태그를 선택하세요."),
     templateId: z.string().min(1, "템플릿을 선택하세요."),
     trainingPageId: z.string().min(1, "랜딩 페이지를 선택하세요."),
     sendingDomain: z.string().min(1, "발신 도메인 (SMTP)을 입력하세요."),
@@ -152,7 +149,6 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>;
 const DEFAULT_VALUES: ProjectFormValues = {
   name: "",
   description: "",
-  departmentTags: [],
   templateId: "",
   trainingPageId: "",
   sendingDomain: "",
@@ -199,6 +195,29 @@ const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
 };
 
 const asIsoString = (value: Date | undefined) => (value ? value.toISOString() : undefined);
+
+const splitDepartmentTags = (value?: string | null): string[] => {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+};
+
+const collectDepartmentTagsFromSelectedTargets = (
+  targetIds: string[],
+  targetMap: Map<string, Target>,
+): string[] => {
+  const departmentSet = new Set<string>();
+  targetIds.forEach((targetId) => {
+    const target = targetMap.get(targetId);
+    if (!target) return;
+    splitDepartmentTags(target.department).forEach((department) => {
+      departmentSet.add(department);
+    });
+  });
+  return Array.from(departmentSet).sort((a, b) => a.localeCompare(b, "ko"));
+};
 
 type PreviewRequestBody = {
   targetIds: string[];
@@ -271,7 +290,6 @@ export default function ProjectCreate() {
   const [testRecipient, setTestRecipient] = useState("");
   const [notificationInput, setNotificationInput] = useState("");
   const [targetSearchTerm, setTargetSearchTerm] = useState("");
-  const [departmentTagPopoverOpen, setDepartmentTagPopoverOpen] = useState(false);
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
   const [trainingPagePopoverOpen, setTrainingPagePopoverOpen] = useState(false);
   const [domainPopoverOpen, setDomainPopoverOpen] = useState(false);
@@ -297,15 +315,10 @@ export default function ProjectCreate() {
     queryKey: ["/api/training-pages"],
   });
 
-  const { data: existingProjects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-  });
-
   const { data: smtpConfigs = [] } = useQuery<SmtpConfigSummary[]>({
     queryKey: ["smtp-configs"],
     queryFn: listSmtpConfigs,
   });
-  const { customDepartments, addCustomDepartment, removeCustomDepartment } = useCustomDepartments();
 
   const selectedTargetIds = form.watch("targetIds") ?? [];
   const selectedTargetCount = selectedTargetIds.length;
@@ -315,7 +328,6 @@ export default function ProjectCreate() {
   const fromNameValue = form.watch("fromName");
   const fromEmailValue = form.watch("fromEmail");
   const projectName = form.watch("name");
-  const departmentTags = form.watch("departmentTags");
   const startDateValue = form.watch("startDate");
   const endDateValue = form.watch("endDate");
 
@@ -719,68 +731,6 @@ export default function ProjectCreate() {
     }
   }, [conflictSignature]);
 
-  const departmentTagOptions = useMemo(() => {
-    const tagSet = new Set<string>();
-    existingProjects.forEach((project) => {
-      if (Array.isArray(project.departmentTags)) {
-        project.departmentTags.forEach((tag) => {
-          const trimmed = typeof tag === "string" ? tag.trim() : "";
-          if (trimmed) {
-            tagSet.add(trimmed);
-          }
-        });
-      }
-    });
-    targets.forEach((target) => {
-      if (target.department) {
-        tagSet.add(target.department);
-      }
-    });
-    customDepartments.forEach((department) => {
-      const trimmed = department.trim();
-      if (trimmed.length > 0) {
-        tagSet.add(trimmed);
-      }
-    });
-    return Array.from(tagSet).sort((a, b) => a.localeCompare(b, "ko"));
-  }, [existingProjects, targets, customDepartments]);
-
-  const handleManualDepartmentAdd = (label: string) => {
-    const normalized = label.trim();
-    if (!normalized) {
-      return false;
-    }
-    addCustomDepartment(normalized);
-    const current = form.getValues("departmentTags") ?? [];
-    if (!current.includes(normalized)) {
-      form.setValue("departmentTags", [...current, normalized], {
-        shouldDirty: true,
-        shouldTouch: true,
-      });
-    }
-    toast({
-      title: "새 조직/팀 추가",
-      description: `"${normalized}" 태그를 추가하고 선택했습니다.`,
-    });
-    return true;
-  };
-
-  const handleManualDepartmentRemove = (label: string) => {
-    removeCustomDepartment(label);
-    const current = form.getValues("departmentTags") ?? [];
-    if (current.includes(label)) {
-      const next = current.filter((item) => item !== label);
-      form.setValue("departmentTags", next, {
-        shouldDirty: true,
-        shouldTouch: true,
-      });
-    }
-    toast({
-      title: "조직/팀 제거",
-      description: `"${label}" 태그를 목록에서 제거했습니다.`,
-    });
-  };
-
   const isFormValid = form.formState.isValid;
   const formErrors = flattenErrorMessages(form.formState.errors as Record<string, unknown>);
 
@@ -801,8 +751,7 @@ export default function ProjectCreate() {
     !sendingDomain ||
     !fromEmailValue ||
     !fromNameValue ||
-    !projectName ||
-    (departmentTags?.length ?? 0) === 0;
+    !projectName;
 
   const buildProjectPayload = useCallback(
     (values: ProjectFormValues, status: string): CreateProjectRequest => {
@@ -811,12 +760,13 @@ export default function ProjectCreate() {
         new Date(startDateIso).getTime() + 7 * 24 * 60 * 60 * 1000,
       ).toISOString();
       const endDateIso = asIsoString(values.endDate) ?? fallbackEndDate;
+      const departmentTags = collectDepartmentTagsFromSelectedTargets(values.targetIds, targetLookup);
 
       return {
         name: values.name,
         description: values.description?.trim() || null,
-        department: values.departmentTags[0] ?? null,
-        departmentTags: values.departmentTags,
+        department: departmentTags[0] ?? null,
+        departmentTags,
         templateId: values.templateId,
         trainingPageId: values.trainingPageId,
         sendingDomain: values.sendingDomain,
@@ -830,7 +780,7 @@ export default function ProjectCreate() {
         targetIds: values.targetIds,
       };
     },
-    [],
+    [targetLookup],
   );
 
   const createMutation = useMutation({
@@ -1056,7 +1006,6 @@ export default function ProjectCreate() {
   const ensureTempProject = useCallback(async () => {
     const requiredFields: (keyof ProjectFormValues)[] = [
       "name",
-      "departmentTags",
       "templateId",
       "trainingPageId",
       "sendingDomain",
@@ -1238,110 +1187,8 @@ export default function ProjectCreate() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="departmentTags"
-                    render={({ field }) => {
-                      const { value, onChange } = field;
-                      const toggleTag = (tag: string) => {
-                        if (value.includes(tag)) {
-                          onChange(value.filter((item) => item !== tag));
-                        } else {
-                          onChange([...value, tag]);
-                        }
-                        setDepartmentTagPopoverOpen(false);
-                      };
-                      return (
-                        <FormItem>
-                          <FormLabel>
-                            부서 태그<span className="ml-1 text-destructive">*</span>
-                          </FormLabel>
-                          <FormControl>
-                            <Popover
-                              open={departmentTagPopoverOpen}
-                              onOpenChange={setDepartmentTagPopoverOpen}
-                            >
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  role="combobox"
-                                  className={cn(
-                                    "w-full justify-between",
-                                    value.length === 0 && "text-muted-foreground",
-                                  )}
-                                >
-                                  {value.length > 0
-                                    ? `${value.length}개 선택됨`
-                                    : "부서를 검색/선택하세요"}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-0">
-                                <Command>
-                                  <CommandInput placeholder="부서 태그 검색" />
-                                  <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
-                                  <CommandList>
-                                    <CommandGroup>
-                                      {departmentTagOptions.map((tag) => {
-                                        const isActive = value.includes(tag);
-                                        return (
-                                          <CommandItem
-                                            key={tag}
-                                            onSelect={() => toggleTag(tag)}
-                                            className="flex items-center gap-2"
-                                          >
-                                            <Check
-                                              className={cn(
-                                                "h-4 w-4",
-                                                isActive ? "opacity-100" : "opacity-0",
-                                              )}
-                                            />
-                                            <span>{tag}</span>
-                                          </CommandItem>
-                                        );
-                                      })}
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
-                          </FormControl>
-                          {value.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              {value.map((tag) => (
-                                <Badge
-                                  key={tag}
-                                  variant="secondary"
-                                  className="flex items-center gap-1"
-                                >
-                                  {tag}
-                                  <button
-                                    type="button"
-                                    className="ml-1 rounded-full transition hover:bg-muted"
-                                    onClick={() => toggleTag(tag)}
-                                    aria-label={`${tag} 태그 제거`}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : null}
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
                 </CardContent>
               </Card>
-              <CustomDepartmentManager
-                customDepartments={customDepartments}
-                onAdd={handleManualDepartmentAdd}
-                onRemove={handleManualDepartmentRemove}
-                title="새 조직/팀 직접 추가"
-                description="부서 태그 목록에 없다면 아래에서 직접 추가하세요. 추가 즉시 선택된 태그에 반영됩니다."
-              />
 
               <Card>
                 <CardHeader>
