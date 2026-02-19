@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,17 @@ import {
 import { SafeText } from "@/components/security/SafeText";
 import { useToast } from "@/hooks/use-toast";
 import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
-import { ArrowLeft, Mail, Eye, MousePointer, FileText, Clock, Play, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Mail,
+  Eye,
+  MousePointer,
+  FileText,
+  Clock,
+  Play,
+  AlertTriangle,
+  Download,
+} from "lucide-react";
 import { type Project } from "@shared/schema";
 import {
   getProjectDepartmentDisplay,
@@ -78,6 +88,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [isTimelineExporting, setIsTimelineExporting] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ActionLogItem | null>(null);
 
   const fetchProject = async (): Promise<Project> => {
@@ -183,6 +194,78 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       toast({ title: "보고서 생성 실패", description: message, variant: "destructive" });
     } finally {
       setIsReportGenerating(false);
+    }
+  };
+
+  const resolveFilenameFromDisposition = (contentDisposition: string | null) => {
+    if (!contentDisposition) return null;
+
+    const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (encodedMatch?.[1]) {
+      try {
+        return decodeURIComponent(encodedMatch[1]);
+      } catch {
+        // noop
+      }
+    }
+
+    const basicMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    if (basicMatch?.[1]) {
+      return basicMatch[1];
+    }
+
+    return null;
+  };
+
+  const handleExportTimelineExcel = async () => {
+    if (!projectId || isTimelineExporting) return;
+
+    setIsTimelineExporting(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/action-logs/export`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message =
+          typeof payload?.error === "string" && payload.error.length > 0
+            ? payload.error
+            : "타임라인 엑셀 다운로드에 실패했습니다.";
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filename =
+        resolveFilenameFromDisposition(contentDisposition) ??
+        `${projectId}_event_timeline.xlsx`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "다운로드 시작",
+        description: "이벤트 타임라인 엑셀 파일을 다운로드합니다.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "타임라인 엑셀 다운로드에 실패했습니다.";
+      toast({
+        title: "다운로드 실패",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTimelineExporting(false);
     }
   };
 
@@ -502,7 +585,20 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       </Card>
 
       <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">이벤트 타임라인</h2>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">이벤트 타임라인</h2>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleExportTimelineExcel}
+            disabled={isTimelineExporting}
+            data-testid="button-export-timeline-excel"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {isTimelineExporting ? "내보내는 중..." : "엑셀 다운로드"}
+          </Button>
+        </div>
         <div className="space-y-4">
           {isActionLogsLoading ? (
             <div className="text-sm text-muted-foreground">로딩 중...</div>
