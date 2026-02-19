@@ -13,6 +13,7 @@ import {
   stripHtml,
 } from "@/server/services/projectsShared";
 import { buildMailHtml } from "@/server/services/templateSendValidation";
+import { enforceBlackTextForSend } from "@/server/services/enforceBlackTextForSend";
 
 const payloadSchema = z
   .object({
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
       htmlBody = buildMailHtml(template, landingUrl, openPixelUrl).html;
     }
+    htmlBody = enforceBlackTextForSend(htmlBody);
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
     const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
