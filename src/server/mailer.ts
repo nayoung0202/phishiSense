@@ -1,5 +1,6 @@
 import process from "node:process";
 import nodemailer, { type Transporter } from "nodemailer";
+import { renderEmailForSend } from "../lib/email/renderEmailForSend";
 
 type MailerConfig = {
   host: string;
@@ -81,6 +82,14 @@ const stripHtml = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export type SendTestEmailResult = {
   messageId: string;
   accepted: string[];
@@ -104,23 +113,18 @@ export const sendTestEmail = async ({
   const transporter = await getTransporter();
 
   const prefixedSubject = `[테스트] ${subject}`;
-  const plainText = stripHtml(htmlBody);
-
-  const composedHtml = `
-    <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
-      <header style="margin-bottom: 16px;">
-        <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>
-        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
-      </header>
-      <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
-        ${htmlBody}
-      </section>
-      <footer style="margin-top: 24px; font-size: 12px; color: #94a3b8;">
-        <p style="margin: 0;">수신자: ${recipient}</p>
-        <p style="margin: 4px 0 0;">PhishSense 테스트 발송 · 실 사용자에게 자동으로 전달되지 않습니다.</p>
-      </footer>
-    </article>
-  `;
+  const composedHtml = renderEmailForSend(
+    [
+      '<section style="margin-bottom:16px;padding:12px 14px;border:1px solid #dbeafe;border-radius:10px;background:#eff6ff;">',
+      '<p style="margin:0 0 4px 0;font-size:13px;color:#1f2937;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>',
+      `<p style=\"margin:0;font-size:12px;color:#475569;\">발신 도메인: ${escapeHtml(sendingDomain)}</p>`,
+      `<p style=\"margin:4px 0 0 0;font-size:12px;color:#475569;\">수신자: ${escapeHtml(recipient)}</p>`,
+      "</section>",
+      htmlBody,
+    ].join(""),
+    { subject: prefixedSubject },
+  );
+  const plainText = stripHtml(composedHtml);
 
   const info = await transporter.sendMail({
     envelope: {
