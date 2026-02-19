@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -40,8 +40,6 @@ export default function Templates() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
-  const mailPreviewRef = useRef<HTMLDivElement>(null);
-  const [mailPreviewHeight, setMailPreviewHeight] = useState<number | null>(null);
 
   const getSnippet = (html: string, size = 80) => {
     const plain = html
@@ -130,19 +128,12 @@ export default function Templates() {
     previewTheme === "light"
       ? `${previewProseClass} template-preview--light`
       : previewProseClass;
+  const previewScrollableSurfaceClass = cn(
+    previewSurfaceClass,
+    "max-h-[60vh] overflow-y-auto",
+  );
   const previewMutedClass =
     previewTheme === "dark" ? "text-slate-300" : "text-slate-600";
-
-  useEffect(() => {
-    if (!isPreviewOpen) return;
-    const frame = requestAnimationFrame(() => {
-      const height = mailPreviewRef.current?.getBoundingClientRect().height ?? 0;
-      if (height > 0) {
-        setMailPreviewHeight(height);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [isPreviewOpen, previewTemplate, previewTheme, previewBody]);
   return (
     <>
       <Dialog
@@ -187,7 +178,7 @@ export default function Templates() {
                 <TabsTrigger value="malicious">악성 메일 본문</TabsTrigger>
               </TabsList>
               <TabsContent value="body">
-                <div className={previewSurfaceClass} ref={mailPreviewRef}>
+                <div className={previewScrollableSurfaceClass}>
                   {previewTemplate ? (
                     previewBody.trim().length > 0 ? (
                       <div
@@ -208,7 +199,7 @@ export default function Templates() {
                     훈련/제출 링크가 치환된 미리보기입니다.
                   </p>
                 )}
-                <div className={previewSurfaceClass}>
+                <div className={previewScrollableSurfaceClass}>
                   {previewTemplate ? (
                     previewMalicious.trim().length > 0 ? (
                       <div
@@ -216,13 +207,7 @@ export default function Templates() {
                           previewContentClass,
                           TEMPLATE_PREVIEW_SANDBOX_CLASS,
                           "site-scrollbar",
-                          mailPreviewHeight ? "overflow-y-auto" : "",
                         )}
-                        style={
-                          mailPreviewHeight
-                            ? { maxHeight: `${mailPreviewHeight}px` }
-                            : undefined
-                        }
                         dangerouslySetInnerHTML={{ __html: previewMaliciousHtml }}
                       />
                     ) : (
