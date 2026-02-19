@@ -25,7 +25,6 @@ type ActionLogItem = {
   department: string | null;
   sentAt: string | null;
   status: string;
-  trackingToken: string | null;
   events: ActionEvent[];
 };
 
@@ -38,7 +37,6 @@ type TimelineRow = {
   eventAt: string;
   sentAt: string;
   status: string;
-  trackingToken: string;
 };
 
 const statusLabelMap: Record<string, string> = {
@@ -115,7 +113,6 @@ const buildTimelineRows = (items: ActionLogItem[]): TimelineRow[] => {
         eventAt: event.at,
         sentAt: item.sentAt ?? "-",
         status: item.status,
-        trackingToken: item.trackingToken ?? "-",
       })),
     )
     .sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime());
@@ -145,7 +142,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
         return {
           projectTargetId: projectTarget.id,
           targetId: projectTarget.targetId,
-          trackingToken: projectTarget.trackingToken ?? null,
           sentAt: toIsoString(projectTarget.sentAt),
           ...resolveTargetInfo(target),
           status,
@@ -168,7 +164,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
       { header: "이벤트 시각(ISO)", key: "eventAt", width: 28 },
       { header: "발송 시각(ISO)", key: "sentAt", width: 28 },
       { header: "상태", key: "status", width: 12 },
-      { header: "트래킹 토큰", key: "trackingToken", width: 42 },
     ];
 
     const headerRow = worksheet.getRow(1);
