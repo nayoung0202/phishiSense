@@ -1,5 +1,6 @@
 import process from "node:process";
 import nodemailer, { type Transporter } from "nodemailer";
+import { enforceBlackTextForSend } from "./services/enforceBlackTextForSend";
 
 type MailerConfig = {
   host: string;
@@ -102,9 +103,10 @@ export const sendTestEmail = async ({
   sendingDomain,
 }: SendTestEmailOptions): Promise<SendTestEmailResult> => {
   const transporter = await getTransporter();
+  const normalizedHtmlBody = enforceBlackTextForSend(htmlBody);
 
   const prefixedSubject = `[테스트] ${subject}`;
-  const plainText = stripHtml(htmlBody);
+  const plainText = stripHtml(normalizedHtmlBody);
 
   const composedHtml = `
     <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
@@ -113,7 +115,7 @@ export const sendTestEmail = async ({
         <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
       </header>
       <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
-        ${htmlBody}
+        ${normalizedHtmlBody}
       </section>
       <footer style="margin-top: 24px; font-size: 12px; color: #94a3b8;">
         <p style="margin: 0;">수신자: ${recipient}</p>
