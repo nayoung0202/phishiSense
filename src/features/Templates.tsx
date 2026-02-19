@@ -25,6 +25,10 @@ import { SafeText } from "@/components/security/SafeText";
 import { buildMailHtml } from "@shared/templateMail";
 import { cn } from "@/lib/utils";
 import {
+  neutralizePreviewModalHtml,
+  TEMPLATE_PREVIEW_SANDBOX_CLASS,
+} from "@/lib/templatePreview";
+import {
   countTokenOccurrences,
   MAIL_LANDING_TOKENS,
   MALICIOUS_TRAINING_TOKENS,
@@ -114,6 +118,8 @@ export default function Templates() {
   const previewMalicious = previewMaliciousRaw
     .replace(previewTrainingTokenReplacer, previewTrainingUrl)
     .replace(previewSubmitTokenReplacer, previewSubmitUrl);
+  const previewBodyHtml = extractBodyHtml(neutralizePreviewModalHtml(previewBody));
+  const previewMaliciousHtml = extractBodyHtml(neutralizePreviewModalHtml(previewMalicious));
   const previewSurfaceClass =
     previewTheme === "dark"
       ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
@@ -185,8 +191,8 @@ export default function Templates() {
                   {previewTemplate ? (
                     previewBody.trim().length > 0 ? (
                       <div
-                        className={previewContentClass}
-                        dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewBody) }}
+                        className={cn(previewContentClass, TEMPLATE_PREVIEW_SANDBOX_CLASS)}
+                        dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
                       />
                     ) : (
                       <p className={`text-sm ${previewMutedClass}`}>메일 본문이 없습니다.</p>
@@ -208,6 +214,7 @@ export default function Templates() {
                       <div
                         className={cn(
                           previewContentClass,
+                          TEMPLATE_PREVIEW_SANDBOX_CLASS,
                           "site-scrollbar",
                           mailPreviewHeight ? "overflow-y-auto" : "",
                         )}
@@ -216,7 +223,7 @@ export default function Templates() {
                             ? { maxHeight: `${mailPreviewHeight}px` }
                             : undefined
                         }
-                        dangerouslySetInnerHTML={{ __html: extractBodyHtml(previewMalicious) }}
+                        dangerouslySetInnerHTML={{ __html: previewMaliciousHtml }}
                       />
                     ) : (
                       <p className={`text-sm ${previewMutedClass}`}>악성 메일 본문이 없습니다.</p>

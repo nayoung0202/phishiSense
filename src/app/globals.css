@@ -30,6 +30,51 @@
   text-decoration: underline;
 }
 
+/* 템플릿 미리보기에서는 모달을 실제로 띄우지 않고 플레이스홀더로 표시 */
+.template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"]) {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 0 !important;
+  width: min(100%, 360px) !important;
+  max-width: 100% !important;
+  min-height: 96px !important;
+  margin: 12px auto !important;
+  padding: 12px !important;
+  border: 1px dashed #94a3b8 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+.template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"]) * {
+  visibility: hidden !important;
+}
+
+.template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"])::before {
+  content: "모달 미리보기 플레이스홀더";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  visibility: visible !important;
+}
+
+.template-preview-sandbox :is([class*="backdrop"], [class*="Backdrop"], [id*="backdrop"], [id*="Backdrop"], [class*="overlay"], [class*="Overlay"], [id*="overlay"], [id*="Overlay"], [class*="scrim"], [class*="Scrim"], [class*="dimmer"], [class*="Dimmer"]) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .editor-scrollbar a {
   color: hsl(var(--primary));
   text-decoration: underline;
