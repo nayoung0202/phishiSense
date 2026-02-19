@@ -230,8 +230,7 @@ export default function Templates() {
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant="outline"
-            disabled
+            variant="default"
             data-testid="button-ai-template-create"
           >
             <Sparkles className="w-4 h-4 mr-2" />
