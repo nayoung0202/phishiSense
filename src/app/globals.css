@@ -34,7 +34,7 @@
 .template-preview-sandbox {
   position: relative !important;
   isolation: isolate !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"], [style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
@@ -50,7 +50,7 @@
   max-height: none !important;
   margin: 12px auto !important;
   transform: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
 }
