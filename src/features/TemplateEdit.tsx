@@ -47,7 +47,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { cn } from "@/lib/utils";
-import { renderEmailForSend } from "@/lib/email/renderEmailForSend";
 
 export default function TemplateEdit({ templateId }: { templateId?: string }) {
   const router = useRouter();
@@ -90,7 +89,6 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
   });
 
   const bodyValue = form.watch("body") ?? "";
-  const subjectValue = form.watch("subject") ?? "";
   const maliciousValue = form.watch("maliciousPageContent") ?? "";
   const autoInsertLabel = form.watch("autoInsertLandingLabel") ?? "문서 확인하기";
   const autoInsertKind = form.watch("autoInsertLandingKind") ?? "link";
@@ -115,7 +113,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
   const previewSubmitUrl = "/example-domain?type=submit";
   const previewTrainingTokenReplacer = /\{\{\s*TRAINING_URL\s*\}\}/gi;
   const previewSubmitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
-  const previewMailFragment = buildMailHtml(
+  const previewMailHtml = buildMailHtml(
     {
       body: bodyValue,
       autoInsertLandingEnabled: false,
@@ -126,15 +124,9 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
     previewLandingUrl,
     previewOpenPixelUrl,
   ).html;
-  const previewMaliciousFragment = maliciousValue
+  const previewMaliciousHtml = maliciousValue
     .replace(previewTrainingTokenReplacer, previewTrainingUrl)
     .replace(previewSubmitTokenReplacer, previewSubmitUrl);
-  const previewMailHtml = renderEmailForSend(previewMailFragment, {
-    subject: subjectValue || "메일 본문 미리보기",
-  });
-  const previewMaliciousHtml = renderEmailForSend(previewMaliciousFragment, {
-    subject: "악성 메일 본문 미리보기",
-  });
   const handleInsertLandingLink = () => {
     const currentBody = form.getValues("body") ?? "";
     if (countTokenOccurrences(currentBody, MAIL_LANDING_TOKENS) > 0) {

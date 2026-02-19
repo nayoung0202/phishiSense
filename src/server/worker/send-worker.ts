@@ -10,7 +10,6 @@ import {
   buildOpenPixelUrl,
 } from "../lib/trainingLink";
 import { stripHtml } from "../services/projectsShared";
-import { renderEmailForSend } from "../../lib/email/renderEmailForSend";
 import {
   buildMailHtml,
   formatSendValidationError,
@@ -254,10 +253,7 @@ const processJob = async (jobId: string) => {
 
       const landingUrl = buildLandingUrl(trackingToken);
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      const { html: htmlFragment } = buildMailHtml(template, landingUrl, openPixelUrl);
-      const htmlBody = renderEmailForSend(htmlFragment, {
-        subject: template.subject ?? "(제목 없음)",
-      });
+      const { html: htmlBody } = buildMailHtml(template, landingUrl, openPixelUrl);
       const plainText = stripHtml(htmlBody);
 
       try {
