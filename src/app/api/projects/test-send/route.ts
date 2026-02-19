@@ -8,11 +8,11 @@ import {
 } from "@/server/lib/trainingLink";
 import {
   NODEMAILER_VERSION,
-  buildTestEmailHtml,
   findMissingSmtpKey,
   stripHtml,
 } from "@/server/services/projectsShared";
 import { buildMailHtml } from "@/server/services/templateSendValidation";
+import { renderEmailForSend } from "@/lib/email/renderEmailForSend";
 
 const payloadSchema = z
   .object({
@@ -32,6 +32,14 @@ const payloadSchema = z
       });
     }
   });
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 export async function POST(request: NextRequest) {
   const headers = new Headers({
@@ -147,7 +155,7 @@ export async function POST(request: NextRequest) {
       );
     };
 
-    let htmlBody = template.body ?? "";
+    let htmlFragment = template.body ?? "";
     if (project) {
       const recipientEmail = payload.recipient.trim();
       let target = await storage.findTargetByEmail(recipientEmail);
@@ -172,12 +180,20 @@ export async function POST(request: NextRequest) {
       const trackingToken = projectTarget.trackingToken ?? "";
       const landingUrl = buildLandingUrl(trackingToken);
       const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      htmlBody = buildMailHtml(template, landingUrl, openPixelUrl).html;
+      htmlFragment = buildMailHtml(template, landingUrl, openPixelUrl).html;
     }
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
-    const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
-    const plainText = stripHtml(htmlBody);
+    const testNotice = [
+      '<section style="margin-bottom:16px;padding:12px 14px;border:1px solid #dbeafe;border-radius:10px;background:#eff6ff;">',
+      '<p style="margin:0 0 4px 0;font-size:13px;color:#1f2937;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>',
+      `<p style=\"margin:0;font-size:12px;color:#475569;\">발신 도메인: ${escapeHtml(sendingDomain)}</p>`,
+      `<p style=\"margin:4px 0 0 0;font-size:12px;color:#475569;\">수신자: ${escapeHtml(payload.recipient)}</p>`,
+      "</section>",
+      htmlFragment,
+    ].join("");
+    const composedHtml = renderEmailForSend(testNotice, { subject: prefixedSubject });
+    const plainText = stripHtml(composedHtml);
 
     const mailPayload = {
       envelope: {
