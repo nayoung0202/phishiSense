@@ -4,14 +4,14 @@ import { NextRequest } from "next/server";
 let project: any;
 let projectTarget: any;
 
-const storageMock = {
+const storageMock = vi.hoisted(() => ({
   getProjectTargetByTrackingToken: vi.fn(),
   getProjectByTrainingLinkToken: vi.fn(),
   getProject: vi.fn(),
   getTrainingPage: vi.fn(),
   updateProjectTarget: vi.fn(),
   updateProject: vi.fn(),
-};
+}));
 
 vi.mock("@/server/storage", () => ({
   storage: storageMock,
@@ -20,6 +20,8 @@ vi.mock("@/server/storage", () => ({
 import { GET } from "./route";
 
 beforeEach(() => {
+  vi.clearAllMocks();
+
   project = {
     id: "project-1",
     name: "테스트 프로젝트",
@@ -63,8 +65,8 @@ beforeEach(() => {
     submittedAt: null,
   };
 
-  storageMock.getProjectTargetByTrackingToken.mockResolvedValue(projectTarget);
-  storageMock.getProject.mockResolvedValue(project);
+  storageMock.getProjectTargetByTrackingToken.mockImplementation(async () => projectTarget);
+  storageMock.getProject.mockImplementation(async () => project);
   storageMock.getTrainingPage.mockResolvedValue({
     id: "page-1",
     name: "페이지",

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const storageMock = {
+const storageMock = vi.hoisted(() => ({
   getSendJob: vi.fn(),
-};
+}));
 
 vi.mock("@/server/storage", () => ({
   storage: storageMock,
