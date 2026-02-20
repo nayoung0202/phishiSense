@@ -3,12 +3,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 let project: any;
 let projectTarget: any;
 
-const storageMock = {
+const storageMock = vi.hoisted(() => ({
   getProjectTargetByTrackingToken: vi.fn(),
   getProject: vi.fn(),
   updateProjectTarget: vi.fn(),
   updateProject: vi.fn(),
-};
+}));
 
 vi.mock("@/server/storage", () => ({
   storage: storageMock,
@@ -17,6 +17,8 @@ vi.mock("@/server/storage", () => ({
 import { POST } from "./route";
 
 beforeEach(() => {
+  vi.clearAllMocks();
+
   project = {
     id: "project-1",
     name: "테스트 프로젝트",
@@ -60,8 +62,8 @@ beforeEach(() => {
     submittedAt: null,
   };
 
-  storageMock.getProjectTargetByTrackingToken.mockResolvedValue(projectTarget);
-  storageMock.getProject.mockResolvedValue(project);
+  storageMock.getProjectTargetByTrackingToken.mockImplementation(async () => projectTarget);
+  storageMock.getProject.mockImplementation(async () => project);
   storageMock.updateProjectTarget.mockImplementation(async (_id: string, payload: any) => {
     projectTarget = { ...projectTarget, ...payload };
     return projectTarget;

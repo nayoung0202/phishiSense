@@ -1,8 +1,13 @@
-import { constants, createPublicKey, verify as verifySignature } from "node:crypto";
+import {
+  constants,
+  createPublicKey,
+  verify as verifySignature,
+  type JsonWebKey as NodeJsonWebKey,
+} from "node:crypto";
 import { getOidcConfig } from "./config";
 import type { OidcDiscovery, OidcIdTokenClaims, OidcTokenResponse } from "./types";
 
-type Jwk = JsonWebKey & {
+type Jwk = NodeJsonWebKey & {
   kid?: string;
   alg?: string;
   use?: string;

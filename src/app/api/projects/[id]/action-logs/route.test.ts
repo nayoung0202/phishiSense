@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const storageMock = {
+const storageMock = vi.hoisted(() => ({
   getProject: vi.fn(),
   getProjectTargets: vi.fn(),
   getTargets: vi.fn(),
-};
+}));
 
 vi.mock("@/server/storage", () => ({
   storage: storageMock,
