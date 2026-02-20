@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import ProjectDetail from "./ProjectDetail";
+import React from "react";
 import type { ReactNode } from "react";
 
 vi.mock("next/link", () => ({
@@ -59,16 +60,27 @@ const renderWithClient = (ui: React.ReactElement) => {
 
 describe("ProjectDetail", () => {
   it("로딩 상태를 표시한다", () => {
+    server.use(
+      http.get(/\/api\/projects\/[^/]+$/, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return HttpResponse.json(baseProject);
+      }),
+      http.get(/\/api\/projects\/[^/]+\/action-logs$/, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return HttpResponse.json({ items: [] });
+      }),
+    );
+
     const { container } = renderWithClient(<ProjectDetail projectId="project-1" />);
     expect(container).toMatchSnapshot();
   });
 
   it("빈 상태를 표시한다", async () => {
     server.use(
-      http.get("http://localhost/api/projects/:id", () => {
+      http.get(/\/api\/projects\/[^/]+$/, () => {
         return HttpResponse.json(baseProject);
       }),
-      http.get("http://localhost/api/projects/:id/action-logs", () => {
+      http.get(/\/api\/projects\/[^/]+\/action-logs$/, () => {
         return HttpResponse.json({ items: [] });
       }),
     );
@@ -80,10 +92,10 @@ describe("ProjectDetail", () => {
 
   it("정상 상태를 표시한다", async () => {
     server.use(
-      http.get("http://localhost/api/projects/:id", () => {
+      http.get(/\/api\/projects\/[^/]+$/, () => {
         return HttpResponse.json(baseProject);
       }),
-      http.get("http://localhost/api/projects/:id/action-logs", () => {
+      http.get(/\/api\/projects\/[^/]+\/action-logs$/, () => {
         return HttpResponse.json({
           items: [
             {
