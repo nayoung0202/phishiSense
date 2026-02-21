@@ -132,6 +132,20 @@ export const reportInstances = pgTable("report_instances", {
   completedAt: timestamp("completed_at"),
 });
 
+export const authSessions = pgTable("auth_sessions", {
+  sessionId: varchar("session_id").primaryKey(),
+  sub: text("sub").notNull(),
+  email: text("email"),
+  name: text("name"),
+  accessTokenExp: timestamp("access_token_exp"),
+  refreshTokenEnc: text("refresh_token_enc"),
+  idleExpiresAt: timestamp("idle_expires_at").notNull(),
+  absoluteExpiresAt: timestamp("absolute_expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -193,6 +207,12 @@ export const insertReportInstanceSchema = createInsertSchema(reportInstances).om
   completedAt: true,
 });
 
+export const insertAuthSessionSchema = createInsertSchema(authSessions).omit({
+  revokedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
@@ -211,3 +231,5 @@ export type InsertReportInstance = z.infer<typeof insertReportInstanceSchema>;
 export type ReportInstance = typeof reportInstances.$inferSelect;
 export type InsertSendJob = z.infer<typeof insertSendJobSchema>;
 export type SendJob = typeof sendJobs.$inferSelect;
+export type InsertAuthSession = z.infer<typeof insertAuthSessionSchema>;
+export type AuthSession = typeof authSessions.$inferSelect;

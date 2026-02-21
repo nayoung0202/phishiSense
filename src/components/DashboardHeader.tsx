@@ -13,8 +13,15 @@ import {
 import { LogOut, User } from "lucide-react";
 
 export function DashboardHeader() {
-  const handleLogout = () => {
-    console.log('Logout triggered');
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      window.location.href = "/";
+    }
   };
 
   return (
