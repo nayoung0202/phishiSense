@@ -9,6 +9,7 @@ import {
   sendJobs,
   reportTemplates,
   reportInstances,
+  authSessions,
 } from "@shared/schema";
 
 const timestampColumn = (column: string) => timestamp(column);
@@ -23,6 +24,7 @@ export {
   sendJobs,
   reportTemplates,
   reportInstances,
+  authSessions,
 };
 
 export const smtpAccountsTable = pgTable("smtp_accounts", {
