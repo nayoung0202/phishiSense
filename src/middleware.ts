@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookieName } from "@/server/auth/config";
+import { getAuthDevBypassConfig, getSessionCookieName } from "@/server/auth/config";
 
 const PROTECTED_PAGE_PREFIXES = [
   "/projects",
@@ -60,6 +60,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isApiPath && isAuthApiPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (getAuthDevBypassConfig().enabled) {
     return NextResponse.next();
   }
 
