@@ -41,7 +41,12 @@
 - 앱 세션 revoke + 세션/트랜잭션 쿠키 삭제
 - IdP logout 호출은 수행하지 않음
 
-## 7. 운영 체크 포인트
+## 7. 로컬 인증 우회 토글(개발 편의)
+- `AUTH_DEV_BYPASS=true`이면 OIDC 인증을 우회하고 개발용 사용자로 인증된 상태를 반환
+- `AUTH_DEV_BYPASS`가 비어있거나 `false`이면 기존 인증 정책(리다이렉트/401) 유지
+- 개발용 우회 값은 `.env`에만 보관하고, `.env`는 `.gitignore`로 커밋 제외
+
+## 8. 운영 체크 포인트
 - 운영 환경에서 `AUTH_SESSION_SECRET`, `AUTH_TOKEN_ENC_KEY`, `OIDC_CLIENT_SECRET` 필수
 - 운영은 HTTPS + Secure 쿠키 전제
 - Redirect URI는 Auth 서버 등록값과 완전 일치해야 함

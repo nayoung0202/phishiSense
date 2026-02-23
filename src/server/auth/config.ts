@@ -1,3 +1,5 @@
+import type { AuthUserPrincipal } from "./types";
+
 const DEFAULT_ISSUER_URL = "https://auth.evriz.co.kr";
 const DEFAULT_CLIENT_ID = "phishsense-app";
 const DEFAULT_REDIRECT_URI = "https://app.phishsense.cloud/oidc/callback";
@@ -6,6 +8,9 @@ const DEFAULT_SESSION_COOKIE_NAME = "ps_session";
 const DEFAULT_TXN_COOKIE_NAME = "ps_oidc_txn";
 const DEFAULT_IDLE_TTL_SEC = 60 * 60 * 8;
 const DEFAULT_ABS_TTL_SEC = 60 * 60 * 24 * 7;
+const DEFAULT_DEV_BYPASS_USER_SUB = "dev-local-user";
+const DEFAULT_DEV_BYPASS_USER_EMAIL = "dev.user@local";
+const DEFAULT_DEV_BYPASS_USER_NAME = "개발 사용자";
 
 const DEV_FALLBACK_SESSION_SECRET = "dev-auth-session-secret-change-me";
 const DEV_FALLBACK_TOKEN_ENC_KEY = "dev-auth-token-enc-key-change-me";
@@ -65,6 +70,11 @@ export type AuthSessionConfig = {
   secureCookie: boolean;
 };
 
+export type AuthDevBypassConfig = {
+  enabled: boolean;
+  user: AuthUserPrincipal;
+};
+
 export const normalizeIssuer = (issuer: string) => issuer.replace(/\/+$/, "");
 
 export function getOidcConfig(): OidcConfig {
@@ -92,6 +102,17 @@ export function getAuthSessionConfig(): AuthSessionConfig {
     idleTtlSec: parsePositiveInt(process.env.AUTH_SESSION_IDLE_TTL_SEC, DEFAULT_IDLE_TTL_SEC),
     absoluteTtlSec: parsePositiveInt(process.env.AUTH_SESSION_ABS_TTL_SEC, DEFAULT_ABS_TTL_SEC),
     secureCookie: isProduction(),
+  };
+}
+
+export function getAuthDevBypassConfig(): AuthDevBypassConfig {
+  return {
+    enabled: trim(process.env.AUTH_DEV_BYPASS).toLowerCase() === "true",
+    user: {
+      sub: trim(process.env.AUTH_DEV_USER_SUB) || DEFAULT_DEV_BYPASS_USER_SUB,
+      email: trim(process.env.AUTH_DEV_USER_EMAIL) || DEFAULT_DEV_BYPASS_USER_EMAIL,
+      name: trim(process.env.AUTH_DEV_USER_NAME) || DEFAULT_DEV_BYPASS_USER_NAME,
+    },
   };
 }
 
