@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getAuthSessionConfig } from "./config";
+import { getAuthDevBypassConfig, getAuthSessionConfig } from "./config";
 import { decryptAuthToken, encryptAuthToken } from "./crypto";
 import { getSessionIdFromRequest } from "./cookies";
 import { refreshAccessToken } from "./oidc";
@@ -26,6 +26,18 @@ const toPrincipal = (input: {
 });
 
 export async function requireAuth(request: NextRequest): Promise<AuthenticatedContext | null> {
+  const devBypass = getAuthDevBypassConfig();
+  if (devBypass.enabled) {
+    const now = new Date();
+    const config = getAuthSessionConfig();
+    return {
+      sessionId: "dev-bypass-session",
+      user: devBypass.user,
+      idleExpiresAt: new Date(now.getTime() + config.idleTtlSec * 1000).toISOString(),
+      absoluteExpiresAt: new Date(now.getTime() + config.absoluteTtlSec * 1000).toISOString(),
+    };
+  }
+
   const sessionId = getSessionIdFromRequest(request);
   if (!sessionId) {
     return null;
