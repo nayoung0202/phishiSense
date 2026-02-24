@@ -13,6 +13,8 @@ import {
   type InsertProjectTarget,
   type ReportTemplate,
   type InsertReportTemplate,
+  type ReportSetting,
+  type InsertReportSetting,
   type ReportInstance,
   type InsertReportInstance,
   type SendJob,
@@ -79,6 +81,15 @@ import {
   updateReportInstance as updateReportInstanceRecord,
 } from "./dao/reportInstanceDao";
 import {
+  countReportSettings as countReportSettingsRecord,
+  createReportSetting as createReportSettingRecord,
+  getDefaultReportSetting as getDefaultReportSettingRecord,
+  getReportSettingById as getReportSettingByIdRecord,
+  listReportSettings as listReportSettingsRecord,
+  updateReportSetting as updateReportSettingRecord,
+  setDefaultReportSetting as setDefaultReportSettingRecord,
+} from "./dao/reportSettingDao";
+import {
   createSendJobRecord,
   findActiveSendJobByProjectId,
   getSendJobById,
@@ -94,6 +105,14 @@ type SendJobUpdate = Partial<InsertSendJob> & {
 
 type ProjectUpdate = Partial<InsertProject> & {
   sendValidationError?: string | null;
+};
+
+type ReportSettingsPage = {
+  items: ReportSetting[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };
 
 export interface IStorage {
@@ -155,6 +174,21 @@ export interface IStorage {
   ): Promise<ReportTemplate>;
   setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined>;
 
+  // Report Settings
+  listReportSettings(page: number, pageSize: number): Promise<ReportSettingsPage>;
+  getReportSetting(id: string): Promise<ReportSetting | undefined>;
+  getDefaultReportSetting(): Promise<ReportSetting | undefined>;
+  createReportSetting(
+    setting: InsertReportSetting,
+    options?: { makeDefault?: boolean; id?: string },
+  ): Promise<ReportSetting>;
+  updateReportSetting(
+    id: string,
+    setting: Partial<InsertReportSetting>,
+    options?: { makeDefault?: boolean },
+  ): Promise<ReportSetting | undefined>;
+  setDefaultReportSetting(id: string): Promise<ReportSetting | undefined>;
+
   // Report Instances
   getReportInstances(projectId: string): Promise<ReportInstance[]>;
   getReportInstance(id: string): Promise<ReportInstance | undefined>;
@@ -172,6 +206,7 @@ export class MemStorage implements IStorage {
   private trainingPages: Map<string, TrainingPage>;
   private projectTargets: Map<string, ProjectTarget>;
   private reportTemplates: Map<string, ReportTemplate>;
+  private reportSettings: Map<string, ReportSetting>;
   private reportInstances: Map<string, ReportInstance>;
   private sendJobs: Map<string, SendJob>;
 
@@ -182,6 +217,7 @@ export class MemStorage implements IStorage {
     this.trainingPages = new Map();
     this.projectTargets = new Map();
     this.reportTemplates = new Map();
+    this.reportSettings = new Map();
     this.reportInstances = new Map();
     this.sendJobs = new Map();
 
@@ -1290,6 +1326,100 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  // Report Settings
+  async listReportSettings(page: number, pageSize: number): Promise<ReportSettingsPage> {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safePageSize = Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 10;
+    const ordered = Array.from(this.reportSettings.values()).sort(
+      (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
+    );
+    const total = ordered.length;
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const offset = (safePage - 1) * safePageSize;
+    return {
+      items: ordered.slice(offset, offset + safePageSize),
+      page: safePage,
+      pageSize: safePageSize,
+      total,
+      totalPages,
+    };
+  }
+
+  async getReportSetting(id: string): Promise<ReportSetting | undefined> {
+    return this.reportSettings.get(id);
+  }
+
+  async getDefaultReportSetting(): Promise<ReportSetting | undefined> {
+    return Array.from(this.reportSettings.values()).find((setting) => setting.isDefault) ?? undefined;
+  }
+
+  async createReportSetting(
+    setting: InsertReportSetting,
+    options?: { makeDefault?: boolean; id?: string },
+  ): Promise<ReportSetting> {
+    const id = options?.id ?? randomUUID();
+    const now = new Date();
+    if (options?.makeDefault) {
+      this.reportSettings.forEach((value, key) => {
+        this.reportSettings.set(key, { ...value, isDefault: false, updatedAt: now });
+      });
+    }
+    const newSetting: ReportSetting = {
+      id,
+      name: setting.name,
+      companyName: setting.companyName,
+      companyLogoFileKey: setting.companyLogoFileKey,
+      approverName: setting.approverName,
+      approverTitle: setting.approverTitle,
+      isDefault: options?.makeDefault ?? false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.reportSettings.set(id, newSetting);
+    return newSetting;
+  }
+
+  async updateReportSetting(
+    id: string,
+    setting: Partial<InsertReportSetting>,
+    options?: { makeDefault?: boolean },
+  ): Promise<ReportSetting | undefined> {
+    const existing = this.reportSettings.get(id);
+    if (!existing) return undefined;
+    const now = new Date();
+    const shouldSetDefault = options?.makeDefault ?? existing.isDefault;
+    if (shouldSetDefault) {
+      this.reportSettings.forEach((value, key) => {
+        this.reportSettings.set(key, { ...value, isDefault: false, updatedAt: now });
+      });
+    }
+    const updated: ReportSetting = {
+      ...existing,
+      ...setting,
+      name: setting.name ?? existing.name,
+      companyName: setting.companyName ?? existing.companyName,
+      companyLogoFileKey: setting.companyLogoFileKey ?? existing.companyLogoFileKey,
+      approverName: setting.approverName ?? existing.approverName,
+      approverTitle: setting.approverTitle ?? existing.approverTitle,
+      isDefault: shouldSetDefault,
+      updatedAt: now,
+    };
+    this.reportSettings.set(id, updated);
+    return updated;
+  }
+
+  async setDefaultReportSetting(id: string): Promise<ReportSetting | undefined> {
+    const existing = this.reportSettings.get(id);
+    if (!existing) return undefined;
+    const now = new Date();
+    this.reportSettings.forEach((value, key) => {
+      this.reportSettings.set(key, { ...value, isDefault: false, updatedAt: now });
+    });
+    const updated: ReportSetting = { ...existing, isDefault: true, updatedAt: now };
+    this.reportSettings.set(id, updated);
+    return updated;
+  }
+
   // Report Instances
   async getReportInstances(projectId: string): Promise<ReportInstance[]> {
     return Array.from(this.reportInstances.values())
@@ -2135,6 +2265,50 @@ export class DbStorage implements IStorage {
 
   async setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined> {
     return setActiveReportTemplateRecord(id);
+  }
+
+  // Report Settings
+  async listReportSettings(page: number, pageSize: number): Promise<ReportSettingsPage> {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safePageSize = Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 10;
+    const [items, total] = await Promise.all([
+      listReportSettingsRecord({ page: safePage, pageSize: safePageSize }),
+      countReportSettingsRecord(),
+    ]);
+    return {
+      items,
+      page: safePage,
+      pageSize: safePageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / safePageSize)),
+    };
+  }
+
+  async getReportSetting(id: string): Promise<ReportSetting | undefined> {
+    return getReportSettingByIdRecord(id);
+  }
+
+  async getDefaultReportSetting(): Promise<ReportSetting | undefined> {
+    return getDefaultReportSettingRecord();
+  }
+
+  async createReportSetting(
+    setting: InsertReportSetting,
+    options?: { makeDefault?: boolean; id?: string },
+  ): Promise<ReportSetting> {
+    return createReportSettingRecord(setting, options);
+  }
+
+  async updateReportSetting(
+    id: string,
+    setting: Partial<InsertReportSetting>,
+    options?: { makeDefault?: boolean },
+  ): Promise<ReportSetting | undefined> {
+    return updateReportSettingRecord(id, setting, options);
+  }
+
+  async setDefaultReportSetting(id: string): Promise<ReportSetting | undefined> {
+    return setDefaultReportSettingRecord(id);
   }
 
   // Report Instances
