@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthDevBypassConfig, getSessionCookieName } from "@/server/auth/config";
+import { getAppOrigin } from "@/server/auth/redirect";
 
 const PROTECTED_PAGE_PREFIXES = [
   "/projects",
@@ -25,7 +26,7 @@ const unauthorizedApiResponse = () =>
   );
 
 const redirectToOidcLogin = (request: NextRequest) => {
-  const loginUrl = new URL("/api/auth/oidc/login", request.url);
+  const loginUrl = new URL("/api/auth/oidc/login", getAppOrigin());
   const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   loginUrl.searchParams.set("returnTo", returnTo || "/");
   return NextResponse.redirect(loginUrl);

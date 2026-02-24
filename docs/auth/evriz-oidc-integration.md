@@ -50,3 +50,4 @@
 - 운영 환경에서 `AUTH_SESSION_SECRET`, `AUTH_TOKEN_ENC_KEY`, `OIDC_CLIENT_SECRET` 필수
 - 운영은 HTTPS + Secure 쿠키 전제
 - Redirect URI는 Auth 서버 등록값과 완전 일치해야 함
+- 운영 환경에서는 `APP_BASE_URL`을 반드시 지정해야 하며, 리다이렉트는 해당 origin만 사용한다.

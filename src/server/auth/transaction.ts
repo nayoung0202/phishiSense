@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { getAuthSessionConfig } from "./config";
+import { normalizeReturnTo } from "./redirect";
 import type { OidcAuthTransaction } from "./types";
 
 const MAX_TRANSACTION_AGE_MS = 1000 * 60 * 10;
@@ -17,14 +18,6 @@ const safeEqual = (a: string, b: string) => {
 const signPayload = (payloadBase64: string) => {
   const { sessionSecret } = getAuthSessionConfig();
   return createHmac("sha256", sessionSecret).update(payloadBase64).digest("base64url");
-};
-
-export const normalizeReturnTo = (candidate: string | null | undefined) => {
-  if (!candidate) return "/";
-  if (!candidate.startsWith("/")) return "/";
-  if (candidate.startsWith("//")) return "/";
-  if (candidate.startsWith("/api/auth")) return "/";
-  return candidate;
 };
 
 export function encodeOidcTransaction(transaction: OidcAuthTransaction): string {

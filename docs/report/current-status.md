@@ -83,7 +83,7 @@
 ### 환경 변수
 - `.env`: 실행 환경별 비밀값/설정을 저장한다. 로컬 개발 또는 배포 시점에 필요하다.
 - `.env.example`: `.env` 작성 가이드로, 신규 환경 세팅 시 복사해 사용한다.
-- 사용 예: `DATABASE_URL`(DB 연결), `SEED_DEFAULTS`(개발용 시드 토글), `SMTP_SECRET`(암호화 키), `APP_URL`(메일 링크 생성), `SMTP_TEST_ALLOWED_DOMAINS`(테스트 제한).
+- 사용 예: `DATABASE_URL`(DB 연결), `SEED_DEFAULTS`(개발용 시드 토글), `SMTP_SECRET`(암호화 키), `APP_BASE_URL`(메일 링크 생성), `SMTP_TEST_ALLOWED_DOMAINS`(테스트 제한).
 
 ### 빌드/런타임 설정
 - `package.json`: 실행 스크립트와 의존성 정의.

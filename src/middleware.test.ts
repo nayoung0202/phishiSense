@@ -9,6 +9,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   process.env.AUTH_SESSION_COOKIE_NAME = "ps_session";
+  process.env.APP_BASE_URL = "https://app.phishsense.cloud";
   delete process.env.AUTH_DEV_BYPASS;
   delete process.env.AUTH_DEV_USER_SUB;
   delete process.env.AUTH_DEV_USER_EMAIL;
@@ -22,7 +23,7 @@ describe("middleware 인증 게이트", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
+      "https://app.phishsense.cloud/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
     );
   });
 
@@ -65,7 +66,7 @@ describe("middleware 인증 게이트", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
+      "https://app.phishsense.cloud/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
     );
   });
 
