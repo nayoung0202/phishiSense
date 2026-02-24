@@ -1438,6 +1438,7 @@ export class MemStorage implements IStorage {
       id,
       projectId: instance.projectId,
       templateId: instance.templateId,
+      reportSettingId: instance.reportSettingId ?? null,
       status: instance.status,
       fileKey: instance.fileKey ?? null,
       errorMessage: instance.errorMessage ?? null,
@@ -1457,6 +1458,10 @@ export class MemStorage implements IStorage {
     const updated: ReportInstance = {
       ...existing,
       ...instance,
+      reportSettingId:
+        instance.reportSettingId !== undefined
+          ? instance.reportSettingId ?? null
+          : existing.reportSettingId,
       fileKey: instance.fileKey !== undefined ? instance.fileKey ?? null : existing.fileKey,
       errorMessage:
         instance.errorMessage !== undefined ? instance.errorMessage ?? null : existing.errorMessage,
