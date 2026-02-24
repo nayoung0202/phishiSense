@@ -527,7 +527,6 @@ export class MemStorage implements IStorage {
           fromName: "정보보안팀",
           fromEmail: "security@company.com",
           timezone: "Asia/Seoul",
-          notificationEmails: ["security@company.com", departmentInfo.notification],
           startDate,
           endDate,
           status,
@@ -798,9 +797,6 @@ export class MemStorage implements IStorage {
       fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
       timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
-      notificationEmails: Array.isArray(project.notificationEmails)
-        ? project.notificationEmails.map((email) => email.trim())
-        : [],
       startDate,
       endDate,
       status: project.status,
@@ -872,9 +868,6 @@ export class MemStorage implements IStorage {
           typeof project.timezone === "string"
             ? normalizePlainText(project.timezone, 64)
             : existing.timezone ?? "Asia/Seoul",
-        notificationEmails: Array.isArray(project.notificationEmails)
-          ? project.notificationEmails.map((email) => email.trim())
-          : existing.notificationEmails ?? [],
         fiscalYear: temporal.fiscalYear,
         fiscalQuarter: temporal.fiscalQuarter,
         weekOfYear: temporal.weekOfYear,
@@ -1550,7 +1543,6 @@ export class DbStorage implements IStorage {
               fromName: project.fromName ?? null,
               fromEmail: project.fromEmail ?? null,
               timezone: project.timezone ?? null,
-              notificationEmails: project.notificationEmails ?? [],
               startDate: project.startDate,
               endDate: project.endDate,
               status: project.status,
@@ -1674,9 +1666,6 @@ export class DbStorage implements IStorage {
       fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
       timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
-      notificationEmails: Array.isArray(project.notificationEmails)
-        ? project.notificationEmails.map((email) => email.trim())
-        : [],
       startDate,
       endDate,
       status: project.status,
@@ -1759,9 +1748,6 @@ export class DbStorage implements IStorage {
         typeof project.timezone === "string"
           ? normalizePlainText(project.timezone, 64)
           : existing.timezone ?? "Asia/Seoul",
-      notificationEmails: Array.isArray(project.notificationEmails)
-        ? project.notificationEmails.map((email) => email.trim())
-        : existing.notificationEmails ?? [],
       status: project.status ?? existing.status,
       targetCount:
         project.targetCount !== undefined ? project.targetCount ?? null : existing.targetCount ?? null,
@@ -1809,7 +1795,6 @@ export class DbStorage implements IStorage {
       fromName: nextProject.fromName ?? null,
       fromEmail: nextProject.fromEmail ?? null,
       timezone: nextProject.timezone ?? null,
-      notificationEmails: nextProject.notificationEmails ?? [],
       startDate: nextProject.startDate,
       endDate: nextProject.endDate,
       status: nextProject.status,
@@ -1877,7 +1862,6 @@ export class DbStorage implements IStorage {
         fromName: project.fromName ?? null,
         fromEmail: project.fromEmail ?? null,
         timezone: project.timezone ?? "Asia/Seoul",
-        notificationEmails: project.notificationEmails ?? [],
         startDate,
         endDate,
         status: project.status,

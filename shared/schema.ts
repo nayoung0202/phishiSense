@@ -30,7 +30,6 @@ export const projects = pgTable("projects", {
   fromName: text("from_name"),
   fromEmail: text("from_email"),
   timezone: text("timezone"),
-  notificationEmails: text("notification_emails").array(),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   status: text("status").notNull(), // 임시, 예약, 진행중, 완료
@@ -121,10 +120,23 @@ export const reportTemplates = pgTable("report_templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const reportSettings = pgTable("report_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  companyName: text("company_name").notNull(),
+  companyLogoFileKey: text("company_logo_file_key").notNull(),
+  approverName: text("approver_name").notNull(),
+  approverTitle: text("approver_title").notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const reportInstances = pgTable("report_instances", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull(),
   templateId: varchar("template_id").notNull(),
+  reportSettingId: varchar("report_setting_id"),
   status: text("status").notNull(), // pending, completed, failed
   fileKey: text("file_key"),
   errorMessage: text("error_message"),
@@ -201,6 +213,12 @@ export const insertReportTemplateSchema = createInsertSchema(reportTemplates).om
   updatedAt: true,
 });
 
+export const insertReportSettingSchema = createInsertSchema(reportSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertReportInstanceSchema = createInsertSchema(reportInstances).omit({
   id: true,
   createdAt: true,
@@ -227,6 +245,8 @@ export type InsertProjectTarget = z.infer<typeof insertProjectTargetSchema>;
 export type ProjectTarget = typeof projectTargets.$inferSelect;
 export type InsertReportTemplate = z.infer<typeof insertReportTemplateSchema>;
 export type ReportTemplate = typeof reportTemplates.$inferSelect;
+export type InsertReportSetting = z.infer<typeof insertReportSettingSchema>;
+export type ReportSetting = typeof reportSettings.$inferSelect;
 export type InsertReportInstance = z.infer<typeof insertReportInstanceSchema>;
 export type ReportInstance = typeof reportInstances.$inferSelect;
 export type InsertSendJob = z.infer<typeof insertSendJobSchema>;
