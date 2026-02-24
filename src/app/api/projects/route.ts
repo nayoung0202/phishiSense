@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { departmentTags, notificationEmails, ...projectRest } = projectPayload;
+    const { departmentTags, ...projectRest } = projectPayload;
     const normalizedDepartmentTags = derivedDepartmentTags.length > 0
       ? derivedDepartmentTags
       : normalizeStringArray(departmentTags);
@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
         departmentTags: normalizedDepartmentTags,
       }),
       departmentTags: normalizedDepartmentTags,
-      notificationEmails: normalizeStringArray(notificationEmails),
     };
 
     if (sanitized.status === "진행중") {
