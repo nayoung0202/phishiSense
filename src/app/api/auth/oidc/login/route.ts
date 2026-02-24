@@ -6,7 +6,8 @@ import {
 } from "@/server/auth/crypto";
 import { setTransactionCookie } from "@/server/auth/cookies";
 import { buildAuthorizationUrl } from "@/server/auth/oidc";
-import { encodeOidcTransaction, normalizeReturnTo } from "@/server/auth/transaction";
+import { encodeOidcTransaction } from "@/server/auth/transaction";
+import { normalizeReturnTo } from "@/server/auth/redirect";
 
 export const runtime = "nodejs";
 

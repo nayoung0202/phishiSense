@@ -6,11 +6,7 @@ const DEFAULT_APP_URL = "http://localhost:3000";
 const normalizeAppUrl = (value: string) => value.replace(/\/+$/, "");
 
 export const getAppBaseUrl = () => {
-  const raw =
-    process.env.APP_BASE_URL ??
-    process.env.APP_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    DEFAULT_APP_URL;
+  const raw = process.env.APP_BASE_URL ?? DEFAULT_APP_URL;
   const trimmed = typeof raw === "string" ? raw.trim() : "";
   return normalizeAppUrl(trimmed.length > 0 ? trimmed : DEFAULT_APP_URL);
 };

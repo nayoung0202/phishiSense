@@ -13,7 +13,8 @@ import {
   verifyIdToken,
 } from "@/server/auth/oidc";
 import { createAuthSession } from "@/server/auth/sessionStore";
-import { decodeOidcTransaction, normalizeReturnTo } from "@/server/auth/transaction";
+import { decodeOidcTransaction } from "@/server/auth/transaction";
+import { buildReturnUrl } from "@/server/auth/redirect";
 import type { AuthUserPrincipal } from "@/server/auth/types";
 
 export const runtime = "nodejs";
@@ -113,8 +114,7 @@ export async function GET(request: NextRequest) {
       absoluteExpiresAt: new Date(now.getTime() + config.absoluteTtlSec * 1000),
     });
 
-    const returnTo = normalizeReturnTo(transaction.returnTo);
-    const response = NextResponse.redirect(new URL(returnTo, request.url));
+    const response = NextResponse.redirect(buildReturnUrl(transaction.returnTo));
     clearTransactionCookie(response);
     setSessionCookie(response, sessionId);
     return response;
