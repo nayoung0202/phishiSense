@@ -1742,7 +1742,6 @@ export default function ProjectCreate() {
           </DialogHeader>
           <div className="space-y-4">
             <Input
-              placeholder="테스트 수신자 이메일"
               value={testRecipient}
               onChange={(event) => setTestRecipient(event.target.value)}
             />
