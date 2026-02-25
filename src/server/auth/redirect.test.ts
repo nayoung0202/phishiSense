@@ -3,12 +3,10 @@ import { buildReturnUrl, getAppOrigin, normalizeReturnTo } from "./redirect";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_APP_BASE_URL = process.env.APP_BASE_URL;
-const ORIGINAL_PORT = process.env.PORT;
 
 afterEach(() => {
   process.env.NODE_ENV = ORIGINAL_NODE_ENV;
   process.env.APP_BASE_URL = ORIGINAL_APP_BASE_URL;
-  process.env.PORT = ORIGINAL_PORT;
 });
 
 describe("normalizeReturnTo", () => {
@@ -35,19 +33,18 @@ describe("normalizeReturnTo", () => {
 });
 
 describe("getAppOrigin", () => {
-  it("운영에서 APP_BASE_URL이 없으면 오류를 발생시킨다", () => {
+  it("APP_BASE_URL이 없으면 오류를 발생시킨다", () => {
     process.env.NODE_ENV = "production";
     delete process.env.APP_BASE_URL;
 
-    expect(() => getAppOrigin()).toThrow("[auth] 운영 환경에서는 APP_BASE_URL이 필요합니다.");
+    expect(() => getAppOrigin()).toThrow("[auth] APP_BASE_URL이 필요합니다.");
   });
 
-  it("개발 환경에서는 PORT 기반 fallback을 사용한다", () => {
+  it("개발 환경에서도 APP_BASE_URL이 없으면 오류를 발생시킨다", () => {
     process.env.NODE_ENV = "test";
     delete process.env.APP_BASE_URL;
-    process.env.PORT = "5000";
 
-    expect(getAppOrigin()).toBe("http://localhost:5000");
+    expect(() => getAppOrigin()).toThrow("[auth] APP_BASE_URL이 필요합니다.");
   });
 });
 

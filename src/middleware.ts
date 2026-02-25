@@ -32,8 +32,21 @@ const redirectToOidcLogin = (request: NextRequest) => {
   return NextResponse.redirect(loginUrl);
 };
 
+const getSessionCheckOrigin = (request: NextRequest) => {
+  const override = process.env.AUTH_SESSION_CHECK_ORIGIN?.trim();
+  if (override) return override;
+
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  if (forwardedProto && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  return request.nextUrl.origin;
+};
+
 const hasValidSession = async (request: NextRequest) => {
-  const sessionUrl = new URL("/api/auth/session", request.url);
+  const sessionUrl = new URL("/api/auth/session", getSessionCheckOrigin(request));
 
   try {
     const validationResponse = await fetch(sessionUrl, {
