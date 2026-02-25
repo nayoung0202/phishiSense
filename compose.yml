@@ -4,13 +4,14 @@ services:
     container_name: phishsense-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: phishsense_dev
-      POSTGRES_USER: phishsense
-      POSTGRES_PASSWORD: qhdks00@@
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5433:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - phishsense_pgdata:/var/lib/postgresql/data
 
 volumes:
   phishsense_pgdata:
+    external: true
