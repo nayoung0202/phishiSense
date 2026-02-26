@@ -4,18 +4,23 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 const OIDC_LOGIN_URL = "/api/auth/oidc/login";
-const SIGNUP_URL = "https://auth.evriz.co.kr/signup?client_id=phishsense-app";
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const returnTo = searchParams.get("returnTo");
 
-  const handleLogin = () => {
+  const moveToOidc = (prompt?: "create") => {
     const url = new URL(OIDC_LOGIN_URL, window.location.origin);
     url.searchParams.set("returnTo", returnTo || "/");
+    if (prompt) {
+      url.searchParams.set("prompt", prompt);
+    }
     window.location.href = url.toString();
   };
+
+  const handleLogin = () => moveToOidc();
+  const handleSignup = () => moveToOidc("create");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -78,8 +83,9 @@ function LoginContent() {
           {/* 회원가입 안내 */}
           <div className="text-center">
             <p className="mb-2 text-sm text-muted-foreground">처음 이용하시나요?</p>
-            <a
-              href={SIGNUP_URL}
+            <button
+              type="button"
+              onClick={handleSignup}
               className="inline-flex items-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
               무료로 시작하기
@@ -96,7 +102,7 @@ function LoginContent() {
                 <path d="M5 12h14" />
                 <path d="m12 5 7 7-7 7" />
               </svg>
-            </a>
+            </button>
           </div>
         </div>
       </div>
