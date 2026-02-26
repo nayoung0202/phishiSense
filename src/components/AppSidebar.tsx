@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen, Mail } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen, Mail, FileBarChart3 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
@@ -37,6 +37,11 @@ const menuItems: Array<{ title: string; url: Route; icon: typeof LayoutDashboard
     icon: FileText,
   },
   {
+    title: "보고서 관리",
+    url: "/reports/settings" as Route,
+    icon: FileBarChart3,
+  },
+  {
     title: "훈련 안내 페이지",
     url: "/training-pages" as Route,
     icon: BookOpen,
@@ -50,6 +55,8 @@ const menuItems: Array<{ title: string; url: Route; icon: typeof LayoutDashboard
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const isMenuActive = (url: Route) =>
+    url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(`${url}/`);
 
   return (
     <Sidebar>
@@ -72,7 +79,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                  <SidebarMenuButton asChild isActive={isMenuActive(item.url)}>
                     <Link href={item.url} data-testid={`link-${item.url.slice(1) || "dashboard"}`}>
                       <item.icon className="w-5 h-5" />
                       <span>{item.title}</span>
