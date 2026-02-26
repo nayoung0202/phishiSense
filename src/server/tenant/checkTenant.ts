@@ -22,7 +22,7 @@ export async function checkTenant(userId: string): Promise<TenantCheckResult> {
   // 실제 platform-api 호출 (개발 완료 후)
   // TODO: platform-api Tenant 엔드포인트 완성 시 아래 주석 해제
   // const response = await fetch(
-  //   `${process.env.PLATFORM_API_URL}/tenant/tenants/user/${userId}`,
+  //   `${process.env.PLATFORM_API_URL}/tenant/users/${userId}`,
   //   { cache: "no-store" },
   // );
   //
