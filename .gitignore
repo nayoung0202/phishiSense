@@ -15,3 +15,7 @@ dev.db
 *.sqlite
 public/uploads
 storage/reports
+
+.idea
+.local
+.tmp
