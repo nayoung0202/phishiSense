@@ -14,8 +14,9 @@ import {
 } from "@/server/auth/oidc";
 import { createAuthSession } from "@/server/auth/sessionStore";
 import { decodeOidcTransaction } from "@/server/auth/transaction";
-import { buildReturnUrl } from "@/server/auth/redirect";
+import { buildReturnUrl, getAppOrigin } from "@/server/auth/redirect";
 import type { AuthUserPrincipal } from "@/server/auth/types";
+import { checkTenant } from "@/server/tenant/checkTenant";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,9 @@ const buildUserPrincipal = (options: {
   userInfo: Record<string, unknown>;
 }): AuthUserPrincipal => {
   const sub =
-    toOptionalString(options.userInfo.sub) ?? toOptionalString(options.claims.sub) ?? "";
+    toOptionalString(options.userInfo.sub) ??
+    toOptionalString(options.claims.sub) ??
+    "";
 
   if (!sub) {
     throw new Error("userinfo/ID Token에 sub가 없습니다.");
@@ -38,8 +41,12 @@ const buildUserPrincipal = (options: {
 
   return {
     sub,
-    email: toOptionalString(options.userInfo.email) ?? toOptionalString(options.claims.email),
-    name: toOptionalString(options.userInfo.name) ?? toOptionalString(options.claims.name),
+    email:
+      toOptionalString(options.userInfo.email) ??
+      toOptionalString(options.claims.email),
+    name:
+      toOptionalString(options.userInfo.name) ??
+      toOptionalString(options.claims.name),
   };
 };
 
@@ -60,14 +67,20 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code || !state) {
-    return buildFailureResponse("OIDC callback 파라미터(code/state)가 누락되었습니다.", 400);
+    return buildFailureResponse(
+      "OIDC callback 파라미터(code/state)가 누락되었습니다.",
+      400,
+    );
   }
 
   const transactionCookie = getTransactionFromRequest(request);
   const transaction = decodeOidcTransaction(transactionCookie);
 
   if (!transaction) {
-    return buildFailureResponse("OIDC 트랜잭션 쿠키가 없거나 만료되었습니다.", 400);
+    return buildFailureResponse(
+      "OIDC 트랜잭션 쿠키가 없거나 만료되었습니다.",
+      400,
+    );
   }
 
   if (transaction.state !== state) {
@@ -75,7 +88,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const token = await exchangeAuthorizationCode(code, transaction.codeVerifier);
+    const token = await exchangeAuthorizationCode(
+      code,
+      transaction.codeVerifier,
+    );
 
     if (!token.id_token) {
       return buildFailureResponse("OIDC 응답에 id_token이 없습니다.", 400);
@@ -98,6 +114,18 @@ export async function GET(request: NextRequest) {
       userInfo,
     });
 
+    // 테넌트 체크
+    let tenantId: string | null = null;
+    let isNewUser = false;
+    try {
+      const tenantResult = await checkTenant(user.sub);
+      tenantId = tenantResult.tenantId;
+      isNewUser = !tenantResult.exists;
+    } catch {
+      // 테넌트 API 실패 시에도 로그인은 허용 (신규 사용자로 간주)
+      isNewUser = true;
+    }
+
     const sessionId = createOpaqueSessionId();
     const now = new Date();
     const config = getAuthSessionConfig();
@@ -108,19 +136,29 @@ export async function GET(request: NextRequest) {
     await createAuthSession({
       sessionId,
       user,
+      tenantId,
       accessTokenExp,
-      refreshTokenEnc: token.refresh_token ? encryptAuthToken(token.refresh_token) : null,
+      refreshTokenEnc: token.refresh_token
+        ? encryptAuthToken(token.refresh_token)
+        : null,
       idleExpiresAt: new Date(now.getTime() + config.idleTtlSec * 1000),
       absoluteExpiresAt: new Date(now.getTime() + config.absoluteTtlSec * 1000),
     });
 
-    const response = NextResponse.redirect(buildReturnUrl(transaction.returnTo));
+    // 신규 사용자(테넌트 없음) → /onboarding, 기존 사용자 → returnTo(기본 /)
+    const redirectTarget = isNewUser
+      ? new URL("/onboarding", getAppOrigin()).toString()
+      : buildReturnUrl(transaction.returnTo);
+
+    const response = NextResponse.redirect(redirectTarget);
     clearTransactionCookie(response);
     setSessionCookie(response, sessionId);
     return response;
   } catch (authError) {
     const message =
-      authError instanceof Error ? authError.message : "OIDC 콜백 처리 중 오류가 발생했습니다.";
+      authError instanceof Error
+        ? authError.message
+        : "OIDC 콜백 처리 중 오류가 발생했습니다.";
     return buildFailureResponse(message, 401);
   }
 }

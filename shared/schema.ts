@@ -12,13 +12,17 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
 export const projects = pgTable("projects", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
   department: text("department"),
@@ -50,21 +54,33 @@ export const projects = pgTable("projects", {
 });
 
 export const templates = pgTable("templates", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   maliciousPageContent: text("malicious_page_content").notNull(),
-  autoInsertLandingEnabled: boolean("auto_insert_landing_enabled").notNull().default(true),
-  autoInsertLandingLabel: text("auto_insert_landing_label").notNull().default("문서 확인하기"),
-  autoInsertLandingKind: text("auto_insert_landing_kind").notNull().default("link"),
-  autoInsertLandingNewTab: boolean("auto_insert_landing_new_tab").notNull().default(true),
+  autoInsertLandingEnabled: boolean("auto_insert_landing_enabled")
+    .notNull()
+    .default(true),
+  autoInsertLandingLabel: text("auto_insert_landing_label")
+    .notNull()
+    .default("문서 확인하기"),
+  autoInsertLandingKind: text("auto_insert_landing_kind")
+    .notNull()
+    .default("link"),
+  autoInsertLandingNewTab: boolean("auto_insert_landing_new_tab")
+    .notNull()
+    .default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const targets = pgTable("targets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   department: text("department"),
@@ -74,7 +90,9 @@ export const targets = pgTable("targets", {
 });
 
 export const trainingPages = pgTable("training_pages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
   content: text("content").notNull(), // HTML content
@@ -84,7 +102,9 @@ export const trainingPages = pgTable("training_pages", {
 });
 
 export const projectTargets = pgTable("project_targets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull(),
   targetId: varchar("target_id").notNull(),
   trackingToken: text("tracking_token").unique(),
@@ -98,7 +118,9 @@ export const projectTargets = pgTable("project_targets", {
 });
 
 export const sendJobs = pgTable("send_jobs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull(),
   status: text("status").notNull(), // queued, running, done, failed
   createdAt: timestamp("created_at").defaultNow(),
@@ -112,7 +134,9 @@ export const sendJobs = pgTable("send_jobs", {
 });
 
 export const reportTemplates = pgTable("report_templates", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   version: text("version").notNull(),
   fileKey: text("file_key").notNull(),
@@ -122,7 +146,9 @@ export const reportTemplates = pgTable("report_templates", {
 });
 
 export const reportInstances = pgTable("report_instances", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull(),
   templateId: varchar("template_id").notNull(),
   status: text("status").notNull(), // pending, completed, failed
@@ -137,6 +163,7 @@ export const authSessions = pgTable("auth_sessions", {
   sub: text("sub").notNull(),
   email: text("email"),
   name: text("name"),
+  tenantId: text("tenant_id"),
   accessTokenExp: timestamp("access_token_exp"),
   refreshTokenEnc: text("refresh_token_enc"),
   idleExpiresAt: timestamp("idle_expires_at").notNull(),
@@ -168,7 +195,11 @@ export const insertTemplateSchema = createInsertSchema(templates)
   })
   .extend({
     autoInsertLandingEnabled: z.boolean().default(true),
-    autoInsertLandingLabel: z.string().trim().min(1, "링크 문구를 입력하세요.").default("문서 확인하기"),
+    autoInsertLandingLabel: z
+      .string()
+      .trim()
+      .min(1, "링크 문구를 입력하세요.")
+      .default("문서 확인하기"),
     autoInsertLandingKind: z.enum(["link", "button"]).default("link"),
     autoInsertLandingNewTab: z.boolean().default(true),
   });
@@ -184,7 +215,9 @@ export const insertTrainingPageSchema = createInsertSchema(trainingPages).omit({
   updatedAt: true,
 });
 
-export const insertProjectTargetSchema = createInsertSchema(projectTargets).omit({
+export const insertProjectTargetSchema = createInsertSchema(
+  projectTargets,
+).omit({
   id: true,
 });
 
@@ -195,13 +228,17 @@ export const insertSendJobSchema = createInsertSchema(sendJobs).omit({
   finishedAt: true,
 });
 
-export const insertReportTemplateSchema = createInsertSchema(reportTemplates).omit({
+export const insertReportTemplateSchema = createInsertSchema(
+  reportTemplates,
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertReportInstanceSchema = createInsertSchema(reportInstances).omit({
+export const insertReportInstanceSchema = createInsertSchema(
+  reportInstances,
+).omit({
   id: true,
   createdAt: true,
   completedAt: true,

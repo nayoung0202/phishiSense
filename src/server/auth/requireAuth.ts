@@ -3,7 +3,11 @@ import { getAuthDevBypassConfig, getAuthSessionConfig } from "./config";
 import { decryptAuthToken, encryptAuthToken } from "./crypto";
 import { getSessionIdFromRequest } from "./cookies";
 import { refreshAccessToken } from "./oidc";
-import { getAuthSessionById, revokeAuthSession, touchAuthSession } from "./sessionStore";
+import {
+  getAuthSessionById,
+  revokeAuthSession,
+  touchAuthSession,
+} from "./sessionStore";
 import type { AuthUserPrincipal } from "./types";
 
 const REFRESH_SKEW_MS = 1000 * 30;
@@ -11,6 +15,7 @@ const REFRESH_SKEW_MS = 1000 * 30;
 export type AuthenticatedContext = {
   sessionId: string;
   user: AuthUserPrincipal;
+  tenantId: string | null;
   idleExpiresAt: string;
   absoluteExpiresAt: string;
 };
@@ -25,7 +30,9 @@ const toPrincipal = (input: {
   name: input.name,
 });
 
-export async function requireAuth(request: NextRequest): Promise<AuthenticatedContext | null> {
+export async function requireAuth(
+  request: NextRequest,
+): Promise<AuthenticatedContext | null> {
   const devBypass = getAuthDevBypassConfig();
   if (devBypass.enabled) {
     const now = new Date();
@@ -33,8 +40,13 @@ export async function requireAuth(request: NextRequest): Promise<AuthenticatedCo
     return {
       sessionId: "dev-bypass-session",
       user: devBypass.user,
-      idleExpiresAt: new Date(now.getTime() + config.idleTtlSec * 1000).toISOString(),
-      absoluteExpiresAt: new Date(now.getTime() + config.absoluteTtlSec * 1000).toISOString(),
+      tenantId: process.env.DEV_TENANT_ID ?? "tenant-local-001",
+      idleExpiresAt: new Date(
+        now.getTime() + config.idleTtlSec * 1000,
+      ).toISOString(),
+      absoluteExpiresAt: new Date(
+        now.getTime() + config.absoluteTtlSec * 1000,
+      ).toISOString(),
     };
   }
 
@@ -78,7 +90,9 @@ export async function requireAuth(request: NextRequest): Promise<AuthenticatedCo
 
       const refreshed = await refreshAccessToken(refreshToken);
       if (refreshed.expires_in) {
-        nextAccessTokenExp = new Date(now.getTime() + refreshed.expires_in * 1000);
+        nextAccessTokenExp = new Date(
+          now.getTime() + refreshed.expires_in * 1000,
+        );
       }
 
       if (refreshed.refresh_token) {
@@ -93,12 +107,16 @@ export async function requireAuth(request: NextRequest): Promise<AuthenticatedCo
   }
 
   const nextIdleExpiresAt = new Date(
-    Math.min(session.absoluteExpiresAt.getTime(), now.getTime() + config.idleTtlSec * 1000),
+    Math.min(
+      session.absoluteExpiresAt.getTime(),
+      now.getTime() + config.idleTtlSec * 1000,
+    ),
   );
 
   const shouldTouch =
     didRefresh ||
-    session.idleExpiresAt.getTime() - now.getTime() <= Math.floor((config.idleTtlSec * 1000) / 2);
+    session.idleExpiresAt.getTime() - now.getTime() <=
+      Math.floor((config.idleTtlSec * 1000) / 2);
 
   if (shouldTouch) {
     await touchAuthSession({
@@ -114,6 +132,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthenticatedCo
   return {
     sessionId,
     user: toPrincipal(session),
+    tenantId: session.tenantId,
     idleExpiresAt: idleExpiresAt.toISOString(),
     absoluteExpiresAt: session.absoluteExpiresAt.toISOString(),
   };
