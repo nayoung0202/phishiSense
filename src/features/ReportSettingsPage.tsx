@@ -1,0 +1,392 @@
+﻿"use client";
+
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+
+type ReportSettingItem = {
+  id: string;
+  name: string;
+  companyName: string;
+  companyLogoFileKey: string;
+  approverName: string;
+  isDefault: boolean;
+  createdAt?: string;
+};
+
+type ReportSettingsResponse = {
+  items: ReportSettingItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export default function ReportSettingsPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [approverName, setApproverName] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCompanyName, setEditCompanyName] = useState("");
+  const [editApproverName, setEditApproverName] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+
+  const listQuery = useQuery({
+    queryKey: ["report-settings", page] as const,
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/settings?page=${page}&pageSize=10`);
+      if (!response.ok) {
+        throw new Error("보고서 설정 목록을 불러오지 못했습니다.");
+      }
+      return (await response.json()) as ReportSettingsResponse;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.set("name", name);
+      formData.set("companyName", companyName);
+      formData.set("approverName", approverName);
+      formData.set("isDefault", String(isDefault));
+      if (logoFile) {
+        formData.set("logo", logoFile);
+      }
+      const response = await fetch("/api/reports/settings", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? "보고서 설정 저장에 실패했습니다.");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report-settings"] });
+      setIsCreateOpen(false);
+      setName("");
+      setCompanyName("");
+      setApproverName("");
+      setIsDefault(false);
+      setLogoFile(null);
+      toast({ title: "저장 완료", description: "보고서 설정을 추가했습니다." });
+    },
+    onError: (error) => {
+      toast({
+        title: "저장 실패",
+        description: error instanceof Error ? error.message : "보고서 설정 저장에 실패했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/reports/settings/${id}/default`, {
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? "기본 설정 변경에 실패했습니다.");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report-settings"] });
+      toast({ title: "변경 완료", description: "기본 보고서 설정을 변경했습니다." });
+    },
+    onError: (error) => {
+      toast({
+        title: "변경 실패",
+        description: error instanceof Error ? error.message : "기본 보고서 설정 변경에 실패했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingId) {
+        throw new Error("수정할 설정 ID가 없습니다.");
+      }
+      const formData = new FormData();
+      formData.set("name", editName);
+      formData.set("companyName", editCompanyName);
+      formData.set("approverName", editApproverName);
+      formData.set("isDefault", String(editIsDefault));
+      if (editLogoFile) {
+        formData.set("logo", editLogoFile);
+      }
+      const response = await fetch(`/api/reports/settings/${editingId}`, {
+        method: "PATCH",
+        body: formData,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? "보고서 설정 수정에 실패했습니다.");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report-settings"] });
+      setIsEditOpen(false);
+      setEditingId(null);
+      setEditName("");
+      setEditCompanyName("");
+      setEditApproverName("");
+      setEditIsDefault(false);
+      setEditLogoFile(null);
+      toast({ title: "수정 완료", description: "보고서 설정을 수정했습니다." });
+    },
+    onError: (error) => {
+      toast({
+        title: "수정 실패",
+        description: error instanceof Error ? error.message : "보고서 설정 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const canSubmit = useMemo(
+    () =>
+      name.trim().length > 0 &&
+      companyName.trim().length > 0 &&
+      approverName.trim().length > 0 &&
+      Boolean(logoFile),
+    [approverName, companyName, logoFile, name],
+  );
+  const canEditSubmit = useMemo(
+    () =>
+      editName.trim().length > 0 &&
+      editCompanyName.trim().length > 0 &&
+      editApproverName.trim().length > 0 &&
+      Boolean(editingId),
+    [editApproverName, editCompanyName, editName, editingId],
+  );
+
+  const openEditDialog = (item: ReportSettingItem) => {
+    setEditingId(item.id);
+    setEditName(item.name);
+    setEditCompanyName(item.companyName);
+    setEditApproverName(item.approverName);
+    setEditIsDefault(item.isDefault);
+    setEditLogoFile(null);
+    setIsEditOpen(true);
+  };
+
+  const result = listQuery.data;
+  const items = result?.items ?? [];
+  const totalPages = result?.totalPages ?? 1;
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">보고서 관리</h1>
+        <Button onClick={() => setIsCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          설정 추가
+        </Button>
+      </div>
+
+      <Card className="p-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>설정명</TableHead>
+              <TableHead>회사명</TableHead>
+              <TableHead>승인자</TableHead>
+              <TableHead>기본</TableHead>
+              <TableHead>생성일</TableHead>
+              <TableHead className="text-right">동작</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  등록된 보고서 설정이 없습니다.
+                </TableCell>
+              </TableRow>
+            ) : (
+              items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{item.companyName}</TableCell>
+                  <TableCell>{item.approverName}</TableCell>
+                  <TableCell>{item.isDefault ? <Badge>기본</Badge> : <Badge variant="outline">-</Badge>}</TableCell>
+                  <TableCell>{item.createdAt ? new Date(item.createdAt).toLocaleDateString("ko-KR") : "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mr-2"
+                      onClick={() => openEditDialog(item)}
+                    >
+                      수정
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={item.isDefault || setDefaultMutation.isPending}
+                      onClick={() => setDefaultMutation.mutate(item.id)}
+                    >
+                      기본 설정
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          >
+            이전
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          >
+            다음
+          </Button>
+        </div>
+      </Card>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>보고서 설정 추가</DialogTitle>
+            <DialogDescription>회사명, 로고, 승인자 정보를 등록합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>설정명</Label>
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>회사명</Label>
+              <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>승인자명</Label>
+              <Input value={approverName} onChange={(event) => setApproverName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>회사 로고 (PNG/JPEG, 5MB 이하)</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isDefault}
+                onChange={(event) => setIsDefault(event.target.checked)}
+              />
+              기본 설정으로 저장
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              취소
+            </Button>
+            <Button onClick={() => createMutation.mutate()} disabled={!canSubmit || createMutation.isPending}>
+              {createMutation.isPending ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>보고서 설정 수정</DialogTitle>
+            <DialogDescription>필요한 항목만 수정하고 저장하세요.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>설정명</Label>
+              <Input value={editName} onChange={(event) => setEditName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>회사명</Label>
+              <Input value={editCompanyName} onChange={(event) => setEditCompanyName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>승인자명</Label>
+              <Input value={editApproverName} onChange={(event) => setEditApproverName(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>회사 로고 (PNG/JPEG, 5MB 이하, 선택)</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(event) => setEditLogoFile(event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editIsDefault}
+                onChange={(event) => setEditIsDefault(event.target.checked)}
+              />
+              기본 설정으로 저장
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              취소
+            </Button>
+            <Button onClick={() => updateMutation.mutate()} disabled={!canEditSubmit || updateMutation.isPending}>
+              {updateMutation.isPending ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
