@@ -23,11 +23,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const queryYear = searchParams.get("year");
     const parsedYear =
-      queryYear && !Number.isNaN(Number(queryYear)) ? Number(queryYear) : undefined;
+      queryYear && !Number.isNaN(Number(queryYear))
+        ? Number(queryYear)
+        : undefined;
 
     const rawQuarter = searchParams.get("quarter");
     const parsedQuarter =
-      rawQuarter && !Number.isNaN(Number(rawQuarter)) ? Number(rawQuarter) : undefined;
+      rawQuarter && !Number.isNaN(Number(rawQuarter))
+        ? Number(rawQuarter)
+        : undefined;
 
     const rawStatus = (searchParams.get("status") ?? "").toLowerCase();
     const statusFilter = statusParamMap[rawStatus] ?? undefined;
@@ -37,7 +41,8 @@ export async function GET(request: NextRequest) {
     const projects = await storage.getProjects();
     const filtered = projects.filter((project) => {
       const fiscalYear =
-        project.fiscalYear ?? normalizeProjectDate(project.startDate).getFullYear();
+        project.fiscalYear ??
+        normalizeProjectDate(project.startDate).getFullYear();
       if (parsedYear && fiscalYear !== parsedYear) {
         return false;
       }
@@ -47,7 +52,9 @@ export async function GET(request: NextRequest) {
         Math.floor(normalizeProjectDate(project.startDate).getMonth() / 3) + 1;
       if (
         parsedQuarter &&
-        quarterNumbers.includes(parsedQuarter as (typeof quarterNumbers)[number]) &&
+        quarterNumbers.includes(
+          parsedQuarter as (typeof quarterNumbers)[number],
+        ) &&
         fiscalQuarter !== parsedQuarter
       ) {
         return false;
@@ -61,7 +68,9 @@ export async function GET(request: NextRequest) {
         const haystack = [
           project.name,
           getProjectDepartmentDisplay(project, ""),
-          Array.isArray(project.departmentTags) ? project.departmentTags.join(" ") : "",
+          Array.isArray(project.departmentTags)
+            ? project.departmentTags.join(" ")
+            : "",
           project.description ?? "",
         ]
           .join(" ")
@@ -76,7 +85,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(filtered);
   } catch {
-    return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch projects" },
+      { status: 500 },
+    );
   }
 }
 
@@ -88,10 +100,14 @@ export async function POST(request: NextRequest) {
     const uniqueTargetIds = Array.from(
       new Set((targetIds ?? []).map((id) => id.trim()).filter(Boolean)),
     );
-    const allTargets = uniqueTargetIds.length > 0 ? await storage.getTargets() : [];
+    const allTargets =
+      uniqueTargetIds.length > 0 ? await storage.getTargets() : [];
     const selectedTargetSet = new Set(uniqueTargetIds);
-    const selectedTargets = allTargets.filter((target) => selectedTargetSet.has(target.id));
-    const derivedDepartmentTags = collectDepartmentTagsFromTargets(selectedTargets);
+    const selectedTargets = allTargets.filter((target) =>
+      selectedTargetSet.has(target.id),
+    );
+    const derivedDepartmentTags =
+      collectDepartmentTagsFromTargets(selectedTargets);
     const issues = validateProjectPayload(projectPayload as InsertProject);
     if (issues.length > 0) {
       return NextResponse.json(
@@ -103,11 +119,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { departmentTags, ...projectRest } = projectPayload;
-    const { departmentTags, notificationEmails, ...projectRest } = projectPayload;
-    const normalizedDepartmentTags = derivedDepartmentTags.length > 0
-      ? derivedDepartmentTags
-      : normalizeStringArray(departmentTags);
+    const { departmentTags, notificationEmails, ...projectRest } =
+      projectPayload;
+    const normalizedDepartmentTags =
+      derivedDepartmentTags.length > 0
+        ? derivedDepartmentTags
+        : normalizeStringArray(departmentTags);
     const sanitized: InsertProject = {
       ...projectRest,
       department: getProjectPrimaryDepartment({
@@ -198,6 +215,9 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       );
     }
-    return NextResponse.json({ error: "Failed to create project" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Failed to create project" },
+      { status: 400 },
+    );
   }
 }
