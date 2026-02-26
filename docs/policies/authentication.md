@@ -8,6 +8,8 @@
 - **Client ID**: `phishsense-app`
 - **Redirect URI**: `https://app.phishsense.cloud/oidc/callback`
 - **스코프(Scope)**: `openid profile email offline_access`
+- **Prompt 정책**: `prompt_values_supported = ["none", "create"]`
+- **회원가입 진입 정책**: 앱에서 IdP `/signup`를 직접 호출하지 않고, 항상 `/oauth2/authorize` 시작점으로 진입합니다 (`prompt=create` 사용).
 - **기본 인증 UX 정책**: 보호된 페이지에 세션 없이 접근 시, 별도의 안내 화면 없이 즉시 IdP(Identity Provider)의 로그인 화면으로 리다이렉트 처리합니다.
 
 ## 2. 보안 접근(Routing) 정책
@@ -26,6 +28,8 @@
 2. **리다이렉트**: 세션이 없거나 유효하지 않으면 `/api/auth/oidc/login?returnTo=[원래경로]`로 302 리다이렉트를 수행합니다.
 3. **토큰 및 검증자 생성**: 로그인 라우트에서 `state`, `nonce`, PKCE `code_verifier`를 생성하여 트랜잭션 쿠키에 임시 저장합니다.
 4. **IdP 연동**: 생성된 `code_challenge(S256)`를 포함하여 OIDC Discovery의 `authorization_endpoint`로 접속합니다.
+   - 회원가입 유도 시 `prompt=create`를 함께 전달합니다.
+   - `prompt=none`과 `prompt=create`를 동시에 전달하면 `invalid_request`로 간주합니다.
 5. **콜백 및 토큰 교환**:
    - 사용자가 EVRIZ Auth 서버에서 로그인을 완료하면 `/oidc/callback`으로 리턴됩니다.
    - 전달받은 `state`를 트랜잭션 쿠키와 비교 검증한 후, 발급받은 Authorization Code를 Access/ID Token으로 교환합니다.
@@ -33,6 +37,14 @@
    - 수신한 `id_token`의 서명(JWKS) 및 클레임(Claim)을 검증하고 `userinfo`를 조회합니다.
    - 검증이 완료되면 내부 DB의 `auth_sessions` 테이블에 세션 데이터를 기록하고, 클라이언트에 `HttpOnly` 속성의 세션 쿠키를 발급합니다.
 7. **복귀**: 최초 접근했던 `returnTo` 경로로 사용자를 최종 랜딩시킵니다.
+
+### 회원가입 후 복귀 흐름 (현재 구현)
+
+1. 앱이 `/api/auth/oidc/login?prompt=create&returnTo=[원래경로]`로 요청해 authorize를 시작합니다.
+2. Auth 서버가 회원가입 화면으로 유도하고, 회원가입 완료 후 로그인 화면으로 이동합니다.
+3. 사용자가 로그인하면 SavedRequest 기반으로 기존 authorize 요청을 재개합니다.
+4. Auth 서버가 등록된 `redirect_uri`(Exact Match)로 authorization code를 전달합니다.
+5. 앱은 `/oidc/callback`에서 code 교환 및 세션 생성을 완료한 뒤 `returnTo`로 복귀시킵니다.
 
 ## 4. 세션 관리 및 로그아웃 정책
 

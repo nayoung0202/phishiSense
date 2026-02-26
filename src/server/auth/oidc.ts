@@ -7,6 +7,9 @@ import {
 import { getOidcConfig } from "./config";
 import type { OidcDiscovery, OidcIdTokenClaims, OidcTokenResponse } from "./types";
 
+export const SUPPORTED_OIDC_PROMPTS = ["none", "create"] as const;
+export type OidcPrompt = (typeof SUPPORTED_OIDC_PROMPTS)[number];
+
 type Jwk = NodeJsonWebKey & {
   kid?: string;
   alg?: string;
@@ -365,6 +368,7 @@ export async function buildAuthorizationUrl(params: {
   state: string;
   nonce: string;
   codeChallenge: string;
+  prompt?: OidcPrompt;
 }) {
   const config = getOidcConfig();
   const discovery = await getOidcDiscovery();
@@ -379,7 +383,9 @@ export async function buildAuthorizationUrl(params: {
   url.searchParams.set("code_challenge", params.codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
 
-  if (config.requireConsent) {
+  if (params.prompt) {
+    url.searchParams.set("prompt", params.prompt);
+  } else if (config.requireConsent) {
     url.searchParams.set("prompt", "consent");
   }
 
