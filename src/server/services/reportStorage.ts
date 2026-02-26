@@ -3,10 +3,17 @@ import path from "node:path";
 
 const DEFAULT_STORAGE_ROOT = path.join(process.cwd(), "storage");
 
-export const REPORT_STORAGE_ROOT = process.env.REPORT_STORAGE_ROOT ?? DEFAULT_STORAGE_ROOT;
+export const REPORT_STORAGE_ROOT =
+  process.env.REPORT_STORAGE_ROOT ?? DEFAULT_STORAGE_ROOT;
 
 export function buildTemplateFileKey(templateId: string, version: string) {
-  return path.posix.join("reports", "templates", templateId, version, "template.docx");
+  return path.posix.join(
+    "reports",
+    "templates",
+    templateId,
+    version,
+    "template.docx",
+  );
 }
 
 export function buildReportFileKey(instanceId: string) {
@@ -24,6 +31,19 @@ export function buildReportCaptureFileKey(
     "captures",
     projectId,
     `${captureKey}.${normalizedExt}`,
+  );
+}
+
+export function buildReportSettingLogoFileKey(
+  settingId: string,
+  extension: string,
+) {
+  const normalizedExt = extension.replace(/^\./, "");
+  return path.posix.join(
+    "reports",
+    "settings",
+    settingId,
+    `logo.${normalizedExt}`,
   );
 }
 

@@ -1,4 +1,10 @@
-import { pgTable, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  integer,
+  boolean,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import {
   users,
   projects,
@@ -10,6 +16,7 @@ import {
   reportTemplates,
   reportInstances,
   authSessions,
+  reportSettings,
 } from "@shared/schema";
 
 const timestampColumn = (column: string) => timestamp(column);
@@ -25,6 +32,7 @@ export {
   reportTemplates,
   reportInstances,
   authSessions,
+  reportSettings,
 };
 
 export const smtpAccountsTable = pgTable("smtp_accounts", {
