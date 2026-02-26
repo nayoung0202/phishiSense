@@ -72,6 +72,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         departmentTags: normalizedDepartmentTags,
       });
     }
+    if (payload.notificationEmails) {
+      payload.notificationEmails = normalizeStringArray(payload.notificationEmails);
+    }
     let project = await storage.updateProject(id, payload);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });

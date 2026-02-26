@@ -30,6 +30,7 @@ const baseProject = {
   fromName: null,
   fromEmail: null,
   timezone: "Asia/Seoul",
+  notificationEmails: [],
   startDate: new Date("2025-01-01T00:00:00Z"),
   endDate: new Date("2025-01-02T00:00:00Z"),
   status: "진행중",

@@ -133,6 +133,7 @@ const projectFormSchema = z
     }),
     endDate: z.date().optional(),
     targetIds: z.array(z.string()).min(1, "대상을 선택하세요."),
+    notificationEmails: z.array(z.string()).optional(),
     allowDuplicateTargets: z.boolean().default(false),
   })
   .refine(
@@ -156,6 +157,7 @@ const DEFAULT_VALUES: ProjectFormValues = {
   startDate: new Date(),
   endDate: undefined,
   targetIds: [],
+  notificationEmails: [],
   allowDuplicateTargets: false,
 };
 
@@ -270,6 +272,7 @@ type CreateProjectRequest = {
   sendingDomain: string;
   fromName: string;
   fromEmail: string;
+  notificationEmails: string[];
   startDate: string;
   endDate: string;
   status: string;
@@ -285,6 +288,7 @@ export default function ProjectCreate() {
   const [isConflictDialogOpen, setConflictDialogOpen] = useState(false);
   const lastConflictSignatureRef = useRef("");
   const [testRecipient, setTestRecipient] = useState("");
+  const [notificationInput, setNotificationInput] = useState("");
   const [targetSearchTerm, setTargetSearchTerm] = useState("");
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
   const [trainingPagePopoverOpen, setTrainingPagePopoverOpen] = useState(false);
@@ -768,6 +772,7 @@ export default function ProjectCreate() {
         sendingDomain: values.sendingDomain,
         fromName: values.fromName,
         fromEmail: values.fromEmail,
+        notificationEmails: values.notificationEmails ?? [],
         startDate: startDateIso,
         endDate: endDateIso,
         status,
@@ -1642,6 +1647,71 @@ export default function ProjectCreate() {
                 </CardContent>
               </Card>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle>안전 · 알림</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="notificationEmails"
+                    render={({ field }) => {
+                      const emails = field.value ?? [];
+                      const addEmail = () => {
+                        const trimmed = notificationInput.trim();
+                        if (!trimmed) return;
+                        if (emails.includes(trimmed)) return;
+                        field.onChange([...emails, trimmed]);
+                        setNotificationInput("");
+                      };
+                      return (
+                        <FormItem>
+                          <FormLabel>결과 알림 수신자</FormLabel>
+                          <FormControl>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  placeholder="예: security@company.com"
+                                  value={notificationInput}
+                                  onChange={(event) => setNotificationInput(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      addEmail();
+                                    }
+                                  }}
+                                />
+                                <Button type="button" variant="outline" onClick={addEmail}>
+                                  추가
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {emails.map((email) => (
+                                  <Badge
+                                    key={email}
+                                    variant="secondary"
+                                    className="flex items-center gap-1"
+                                  >
+                                    {email}
+                                    <button
+                                      type="button"
+                                      className="ml-1 rounded-full transition hover:bg-muted"
+                                      onClick={() => field.onChange(emails.filter((item) => item !== email))}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </CardContent>
+              </Card>
             </form>
           </Form>
 
@@ -1742,6 +1812,7 @@ export default function ProjectCreate() {
           </DialogHeader>
           <div className="space-y-4">
             <Input
+              placeholder="테스트 수신자 이메일"
               value={testRecipient}
               onChange={(event) => setTestRecipient(event.target.value)}
             />

@@ -38,6 +38,7 @@ export type AuthSessionRecord = {
   sub: string;
   email: string | null;
   name: string | null;
+  tenantId: string | null;
   accessTokenExp: Date | null;
   refreshTokenEnc: string | null;
   idleExpiresAt: Date;
