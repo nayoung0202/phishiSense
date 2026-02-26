@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthDevBypassConfig, getSessionCookieName } from "@/server/auth/config";
+import {
+  getAuthDevBypassConfig,
+  getSessionCookieName,
+} from "@/server/auth/config";
 import { getAppOrigin } from "@/server/auth/redirect";
 
 const PROTECTED_PAGE_PREFIXES = [
@@ -8,12 +11,21 @@ const PROTECTED_PAGE_PREFIXES = [
   "/templates",
   "/training-pages",
   "/admin",
+  "/onboarding",
 ];
+
+/** 인증 없이 접근 가능한 페이지 경로 */
+const PUBLIC_PAGE_PATHS = ["/login"];
 
 const isProtectedPagePath = (pathname: string) => {
   if (pathname === "/") return true;
-  return PROTECTED_PAGE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return PROTECTED_PAGE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 };
+
+const isPublicPagePath = (pathname: string) =>
+  PUBLIC_PAGE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 const isAuthApiPath = (pathname: string) => pathname.startsWith("/api/auth/");
 
@@ -25,10 +37,12 @@ const unauthorizedApiResponse = () =>
     { status: 401 },
   );
 
-const redirectToOidcLogin = (request: NextRequest) => {
-  const loginUrl = new URL("/api/auth/oidc/login", getAppOrigin());
+const redirectToLogin = (request: NextRequest) => {
+  const loginUrl = new URL("/login", getAppOrigin());
   const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  loginUrl.searchParams.set("returnTo", returnTo || "/");
+  if (returnTo && returnTo !== "/") {
+    loginUrl.searchParams.set("returnTo", returnTo);
+  }
   return NextResponse.redirect(loginUrl);
 };
 
@@ -46,7 +60,10 @@ const getSessionCheckOrigin = (request: NextRequest) => {
 };
 
 const hasValidSession = async (request: NextRequest) => {
-  const sessionUrl = new URL("/api/auth/session", getSessionCheckOrigin(request));
+  const sessionUrl = new URL(
+    "/api/auth/session",
+    getSessionCheckOrigin(request),
+  );
 
   try {
     const validationResponse = await fetch(sessionUrl, {
@@ -68,6 +85,12 @@ export async function middleware(request: NextRequest) {
 
   const isApiPath = pathname.startsWith("/api/");
   const isProtectedPage = isProtectedPagePath(pathname);
+  const isPublicPage = isPublicPagePath(pathname);
+
+  // 공개 페이지는 그대로 통과
+  if (isPublicPage) {
+    return NextResponse.next();
+  }
 
   if (!isApiPath && !isProtectedPage) {
     return NextResponse.next();
@@ -85,12 +108,12 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get(cookieName)?.value?.trim();
 
   if (!sessionCookie) {
-    return isApiPath ? unauthorizedApiResponse() : redirectToOidcLogin(request);
+    return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
   }
 
   const valid = await hasValidSession(request);
   if (!valid) {
-    return isApiPath ? unauthorizedApiResponse() : redirectToOidcLogin(request);
+    return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
   }
 
   return NextResponse.next();
@@ -99,6 +122,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/login",
+    "/onboarding/:path*",
     "/projects/:path*",
     "/targets/:path*",
     "/templates/:path*",

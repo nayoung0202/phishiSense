@@ -17,13 +17,13 @@ beforeEach(() => {
 });
 
 describe("middleware 인증 게이트", () => {
-  it("AUTH_DEV_BYPASS가 undefined이면 보호 페이지 무세션 요청을 OIDC 로그인 시작점으로 리다이렉트한다", async () => {
+  it("AUTH_DEV_BYPASS가 undefined이면 보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
     const request = new NextRequest("http://localhost/projects?tab=list");
     const response = await middleware(request);
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://app.phishsense.cloud/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
+      "https://app.phishsense.cloud/login?returnTo=%2Fprojects%3Ftab%3Dlist",
     );
   });
 
@@ -58,7 +58,7 @@ describe("middleware 인증 게이트", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("AUTH_DEV_BYPASS=false이면 보호 페이지 무세션 요청을 OIDC 로그인 시작점으로 리다이렉트한다", async () => {
+  it("AUTH_DEV_BYPASS=false이면 보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
     process.env.AUTH_DEV_BYPASS = "false";
 
     const request = new NextRequest("http://localhost/projects?tab=list");
@@ -66,7 +66,7 @@ describe("middleware 인증 게이트", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://app.phishsense.cloud/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
+      "https://app.phishsense.cloud/login?returnTo=%2Fprojects%3Ftab%3Dlist",
     );
   });
 
