@@ -6,6 +6,7 @@ import type { AuthSessionRecord, AuthUserPrincipal } from "./types";
 type SessionCreateInput = {
   sessionId: string;
   user: AuthUserPrincipal;
+  tenantId: string | null;
   accessTokenExp: Date | null;
   refreshTokenEnc: string | null;
   idleExpiresAt: Date;
@@ -25,6 +26,7 @@ const mapRow = (row: typeof authSessions.$inferSelect): AuthSessionRecord => ({
   sub: row.sub,
   email: row.email ?? null,
   name: row.name ?? null,
+  tenantId: row.tenantId ?? null,
   accessTokenExp: toDateOrNull(row.accessTokenExp),
   refreshTokenEnc: row.refreshTokenEnc ?? null,
   idleExpiresAt: toDateOrNull(row.idleExpiresAt) ?? new Date(0),
@@ -34,7 +36,9 @@ const mapRow = (row: typeof authSessions.$inferSelect): AuthSessionRecord => ({
   updatedAt: toDateOrNull(row.updatedAt),
 });
 
-export async function getAuthSessionById(sessionId: string): Promise<AuthSessionRecord | null> {
+export async function getAuthSessionById(
+  sessionId: string,
+): Promise<AuthSessionRecord | null> {
   const rows = await db
     .select()
     .from(authSessions)
@@ -53,6 +57,7 @@ export async function createAuthSession(input: SessionCreateInput) {
     sub: input.user.sub,
     email: input.user.email,
     name: input.user.name,
+    tenantId: input.tenantId,
     accessTokenExp: input.accessTokenExp,
     refreshTokenEnc: input.refreshTokenEnc,
     idleExpiresAt: input.idleExpiresAt,
@@ -98,5 +103,8 @@ export async function touchAuthSession(input: TouchSessionInput) {
     updates.refreshTokenEnc = input.refreshTokenEnc ?? null;
   }
 
-  await db.update(authSessions).set(updates).where(eq(authSessions.sessionId, input.sessionId));
+  await db
+    .update(authSessions)
+    .set(updates)
+    .where(eq(authSessions.sessionId, input.sessionId));
 }

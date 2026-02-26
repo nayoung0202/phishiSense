@@ -27,11 +27,9 @@ export const buildSubmitFormUrl = (token: string) =>
 export const buildOpenPixelUrl = (token: string) =>
   `${getAppBaseUrl()}/o/${encodeURIComponent(token)}.gif`;
 
-export const buildTrainingLinkUrl = (token: string) =>
-  buildSubmitUrl(token);
+export const buildTrainingLinkUrl = (token: string) => buildSubmitUrl(token);
 
-export const buildPhishingLinkUrl = (token: string) =>
-  buildLandingUrl(token);
+export const buildPhishingLinkUrl = (token: string) => buildLandingUrl(token);
 
 export const generateTrainingLinkToken = () => randomBytes(16).toString("hex");
 
@@ -96,12 +94,14 @@ export const injectTrainingLink = (
           `onclick=$1location.href='${trainingUrl}'$1`,
         );
       } else {
-        updatedAttributes = `${updatedAttributes} onclick="location.href='${trainingUrl}'"`.trim();
+        updatedAttributes =
+          `${updatedAttributes} onclick="location.href='${trainingUrl}'"`.trim();
       }
       if (!hasType) {
         updatedAttributes = `${updatedAttributes} type="button"`.trim();
       }
-      const normalized = updatedAttributes.length > 0 ? ` ${updatedAttributes}` : "";
+      const normalized =
+        updatedAttributes.length > 0 ? ` ${updatedAttributes}` : "";
       return htmlBody.replace(buttonOpenTagMatcher, `<button${normalized}>`);
     }
   }

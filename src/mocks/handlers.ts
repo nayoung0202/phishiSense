@@ -13,6 +13,7 @@ const baseProject = {
   fromName: "보안팀",
   fromEmail: "security@example.com",
   timezone: "Asia/Seoul",
+  notificationEmails: [],
   startDate: "2025-01-01T00:00:00.000Z",
   endDate: "2025-01-02T00:00:00.000Z",
   status: "진행중",
