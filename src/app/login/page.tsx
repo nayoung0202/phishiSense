@@ -36,7 +36,10 @@ function LoginContent() {
               >
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              <span className="text-2xl font-bold text-foreground">PhishSense</span>
+              <span className="text-2xl font-bold">
+                <span style={{ color: "#FDF6E3" }}>Phish</span>
+                <span style={{ color: "#4EC3E0" }}>Sense</span>
+              </span>
             </div>
           </div>
 
