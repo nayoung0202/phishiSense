@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 const requestSchema = z.object({
   projectId: z.string().min(1, "프로젝트 ID가 필요합니다."),
+  reportSettingId: z.string().min(1, "보고서 설정 ID가 필요합니다."),
   templateId: z.string().optional(),
 });
 
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
 
     const result = await generateProjectReport(parsed.data.projectId, {
       templateId: parsed.data.templateId,
+      reportSettingId: parsed.data.reportSettingId,
     });
 
     return NextResponse.json(result);

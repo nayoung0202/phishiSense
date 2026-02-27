@@ -23,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SafeText } from "@/components/security/SafeText";
+import { ReportGenerateDialog } from "@/components/ReportGenerateDialog";
 import { useToast } from "@/hooks/use-toast";
-import { getMissingReportCaptures, hasAllReportCaptures } from "@/lib/reportCaptures";
 import {
   ArrowLeft,
   Mail,
@@ -87,7 +87,7 @@ const parseDepartmentEntries = (value: string | null): string[] => {
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isTimelineExporting, setIsTimelineExporting] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ActionLogItem | null>(null);
 
@@ -164,38 +164,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       });
     },
   });
-
-  const handleGenerateReport = async () => {
-    if (!project || isReportGenerating) return;
-    if (!hasAllReportCaptures(project)) {
-      const missing = getMissingReportCaptures(project).map((field) => field.label);
-      alert(`보고서 캡처 이미지가 누락되었습니다: ${missing.join(", ")}`);
-      return;
-    }
-    setIsReportGenerating(true);
-    try {
-      const res = await fetch("/api/reports/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id }),
-      });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || "보고서 생성에 실패했습니다.");
-      }
-      const payload = (await res.json()) as { downloadUrl?: string };
-      if (!payload.downloadUrl) {
-        throw new Error("보고서 다운로드 주소를 찾지 못했습니다.");
-      }
-      window.location.href = payload.downloadUrl;
-      toast({ title: "보고서 생성 완료", description: "보고서를 다운로드합니다." });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "보고서 생성에 실패했습니다.";
-      toast({ title: "보고서 생성 실패", description: message, variant: "destructive" });
-    } finally {
-      setIsReportGenerating(false);
-    }
-  };
 
   const resolveFilenameFromDisposition = (contentDisposition: string | null) => {
     if (!contentDisposition) return null;
@@ -406,11 +374,10 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           ) : null}
           <Button
             data-testid="button-generate-report"
-            onClick={handleGenerateReport}
-            disabled={isReportGenerating}
+            onClick={() => setIsReportOpen(true)}
           >
             <FileText className="w-4 h-4 mr-2" />
-            {isReportGenerating ? "생성 중..." : "보고서 생성"}
+            보고서 생성
           </Button>
         </div>
       </div>
@@ -665,6 +632,15 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ReportGenerateDialog
+        open={isReportOpen}
+        onOpenChange={setIsReportOpen}
+        project={project}
+        onProjectUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+        }}
+      />
     </div>
   );
 }
