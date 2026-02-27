@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen, Mail, FileBarChart3 } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Users, FileText, BookOpen, Mail, FileBarChart } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
@@ -37,14 +37,14 @@ const menuItems: Array<{ title: string; url: Route; icon: typeof LayoutDashboard
     icon: FileText,
   },
   {
-    title: "보고서 관리",
-    url: "/reports/settings" as Route,
-    icon: FileBarChart3,
-  },
-  {
     title: "훈련 안내 페이지",
     url: "/training-pages" as Route,
     icon: BookOpen,
+  },
+  {
+    title: "보고서 관리",
+    url: "/reports/settings" as Route,
+    icon: FileBarChart,
   },
   {
     title: "SMTP 관리",
