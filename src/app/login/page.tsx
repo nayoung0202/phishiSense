@@ -67,7 +67,7 @@ function LoginContent() {
             onClick={handleLogin}
             className="mb-6 w-full rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Evriz 계정으로 로그인
+            EVRIZ 계정으로 로그인
           </button>
 
           {/* 구분선 */}
