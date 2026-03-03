@@ -334,8 +334,8 @@ export async function generateProjectReport(
         {
           key: "company_logo",
           path: logoPath,
-          width_cm: 6.54,
-          height_cm: 2,
+          width_cm: 4.05,
+          height_cm: 1.59,
         },
         ...captureImages.map((capture) => ({
           key: capture.key,

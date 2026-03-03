@@ -18,6 +18,27 @@ import {
 import type { InsertProject } from "@shared/schema";
 import { ZodError } from "zod";
 
+const parseSortableDate = (value: string | Date | null | undefined) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = value instanceof Date ? value : new Date(value);
+  const timestamp = date.getTime();
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+};
+const STATUS_RUNNING = "\uC9C4\uD589\uC911";
+
+const compareProjectBySchedule = (
+  a: { startDate?: string | Date | null; endDate?: string | Date | null; name?: string | null },
+  b: { startDate?: string | Date | null; endDate?: string | Date | null; name?: string | null },
+) => {
+  const startDiff = parseSortableDate(a.startDate) - parseSortableDate(b.startDate);
+  if (startDiff !== 0) return startDiff;
+
+  const endDiff = parseSortableDate(a.endDate) - parseSortableDate(b.endDate);
+  if (endDiff !== 0) return endDiff;
+
+  return (a.name ?? "").localeCompare(b.name ?? "", "ko");
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -83,6 +104,8 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
+    filtered.sort(compareProjectBySchedule);
+
     return NextResponse.json(filtered);
   } catch {
     return NextResponse.json(
@@ -135,7 +158,7 @@ export async function POST(request: NextRequest) {
       notificationEmails: normalizeStringArray(notificationEmails),
     };
 
-    if (sanitized.status === "진행중") {
+    if (sanitized.status === STATUS_RUNNING) {
       if (!sanitized.templateId) {
         return NextResponse.json(
           {
@@ -144,7 +167,7 @@ export async function POST(request: NextRequest) {
               {
                 code: "template_missing",
                 scope: "project",
-                message: "프로젝트에 템플릿이 연결되어 있지 않습니다.",
+                message: "?꾨줈?앺듃???쒗뵆由우씠 ?곌껐?섏뼱 ?덉? ?딆뒿?덈떎.",
               },
             ],
           },
@@ -165,7 +188,7 @@ export async function POST(request: NextRequest) {
               {
                 code: "template_missing",
                 scope: "project",
-                message: "템플릿을 찾을 수 없습니다.",
+                message: "?쒗뵆由우쓣 李얠쓣 ???놁뒿?덈떎.",
               },
             ],
           },
@@ -197,7 +220,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (project.status === "진행중") {
+    if (project.status === STATUS_RUNNING) {
       await enqueueSendJobForProject(project.id);
     }
     return NextResponse.json(project, { status: 201 });
@@ -221,3 +244,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

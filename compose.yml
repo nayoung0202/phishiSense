@@ -15,3 +15,4 @@ services:
 volumes:
   phishsense_pgdata:
     external: true
+    name: phishisense_phishsense_pgdata

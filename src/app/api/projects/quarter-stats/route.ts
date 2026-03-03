@@ -6,6 +6,10 @@ import {
   quarterNumbers,
 } from "@/server/services/projectsShared";
 
+const STATUS_DONE = "\uC644\uB8CC";
+const STATUS_RUNNING = "\uC9C4\uD589\uC911";
+const STATUS_SCHEDULED = "\uC608\uC57D";
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -29,9 +33,9 @@ export async function GET(request: NextRequest) {
 
       const totals = {
         total: quarterProjects.length,
-        done: quarterProjects.filter((project) => project.status === "완료").length,
-        running: quarterProjects.filter((project) => project.status === "진행중").length,
-        scheduled: quarterProjects.filter((project) => project.status === "예약").length,
+        done: quarterProjects.filter((project) => project.status === STATUS_DONE).length,
+        running: quarterProjects.filter((project) => project.status === STATUS_RUNNING).length,
+        scheduled: quarterProjects.filter((project) => project.status === STATUS_SCHEDULED).length,
       };
 
       const clickRates: number[] = [];

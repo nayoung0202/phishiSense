@@ -214,13 +214,14 @@ export function ReportGenerateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
+      <DialogContent className="max-h-[85vh] w-[95vw] max-w-2xl overflow-hidden p-0 sm:max-h-[90vh]">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>프로젝트 보고서 미리보기</DialogTitle>
           <DialogDescription>보고서 설정을 선택하고 캡처 업로드 후 보고서를 생성하세요.</DialogDescription>
         </DialogHeader>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="space-y-4 overflow-y-auto px-6 py-2">
+          <div className="text-sm text-muted-foreground">
           {currentProject ? (
             <div className="space-y-2">
               <p>
@@ -239,7 +240,7 @@ export function ReportGenerateDialog({
           ) : (
             <p>선택된 프로젝트가 없습니다.</p>
           )}
-        </div>
+          </div>
 
         <div className="space-y-2 rounded-lg border border-muted p-3">
           <Label className="text-sm font-semibold">보고서 설정 선택</Label>
@@ -311,7 +312,9 @@ export function ReportGenerateDialog({
           <p className="text-xs text-muted-foreground">4개 캡처가 모두 업로드되어야 보고서 생성이 가능합니다.</p>
         </div>
 
-        <DialogFooter>
+        </div>
+
+        <DialogFooter className="px-6 pb-6 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             닫기
           </Button>

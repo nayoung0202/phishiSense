@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -61,7 +61,6 @@ import {
 } from "lucide-react";
 import {
   format,
-  addDays,
   differenceInHours,
   startOfISOWeek,
   eachDayOfInterval,
@@ -235,7 +234,6 @@ const quarterStartMonth: Record<Quarter, string> = {
 };
 const QUARTER_ALL_VALUE = "all";
 const MONTH_CARD_HEIGHT = 420;
-const WEEK_CARD_HEIGHT = 280;
 
 /* -------------------------------------------------------------------------- */
 /*                               Util Functions                               */
@@ -308,66 +306,64 @@ function toDate(value: Date | string): Date {
   return fallback;
 }
 
+const toSortableTime = (value: Date | string | null | undefined) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const parsed = value instanceof Date ? value : new Date(value);
+  const timestamp = parsed.getTime();
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+};
+
+function compareProjectsBySchedule(
+  a: Pick<Project, "startDate" | "endDate" | "name">,
+  b: Pick<Project, "startDate" | "endDate" | "name">,
+) {
+  const startDiff = toSortableTime(a.startDate) - toSortableTime(b.startDate);
+  if (startDiff !== 0) return startDiff;
+
+  const endDiff = toSortableTime(a.endDate) - toSortableTime(b.endDate);
+  if (endDiff !== 0) return endDiff;
+
+  return (a.name ?? "").localeCompare(b.name ?? "", "ko");
+}
+
+function buildVisibleProjectsByMonth(quarterProjects: Project[], selectedMonthNumber: number) {
+  const filtered = Number.isNaN(selectedMonthNumber)
+    ? quarterProjects
+    : quarterProjects.filter((project) => {
+      const rawStart = project.startDate;
+      if (!rawStart) return false;
+      const start =
+        rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart);
+      if (Number.isNaN(start.getTime())) return false;
+      return start.getMonth() + 1 === selectedMonthNumber;
+    });
+
+  return [...filtered].sort(compareProjectsBySchedule);
+}
+
+function resolveCalendarTargetMonthNumber(selectedMonth: string, selectedQuarter: Quarter) {
+  if (selectedMonth === QUARTER_ALL_VALUE) {
+    return Number(quarterStartMonth[selectedQuarter]);
+  }
+  const parsed = Number(selectedMonth);
+  return Number.isNaN(parsed) ? Number(quarterStartMonth[selectedQuarter]) : parsed;
+}
+
+function findCalendarMonthIndex(months: CalendarMonthSummary[], targetMonthNumber: number) {
+  if (months.length === 0) return 0;
+  const index = months.findIndex((month) => {
+    const monthDate = toDate(month.month);
+    return monthDate.getMonth() + 1 === targetMonthNumber;
+  });
+  return index >= 0 ? index : 0;
+}
+
 function formatPercent(value: number) {
   return `${Math.max(0, value)}%`;
 }
 
 function getDepartmentLabel(project: Pick<Project, "department" | "departmentTags">, fallback = "-") {
   return getProjectDepartmentDisplay(project, fallback);
-}
-
-function useVirtualList(length: number, itemHeight: number, overscan = 2) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [viewportHeight, setViewportHeight] = useState(itemHeight * 3);
-  const [scrollTop, setScrollTop] = useState(0);
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-
-    const handleScroll = () => setScrollTop(node.scrollTop);
-    handleScroll();
-    node.addEventListener("scroll", handleScroll);
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setViewportHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(node);
-
-    return () => {
-      node.removeEventListener("scroll", handleScroll);
-      observer.disconnect();
-    };
-  }, [itemHeight]);
-
-  const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-  const endIndex = Math.min(
-    length,
-    Math.ceil((scrollTop + viewportHeight) / itemHeight) + overscan,
-  );
-
-  const virtualItems = [] as {
-    index: number;
-    start: number;
-    size: number;
-  }[];
-
-  for (let index = startIndex; index < endIndex; index += 1) {
-    virtualItems.push({
-      index,
-      start: index * itemHeight,
-      size: itemHeight,
-    });
-  }
-
-  return {
-    containerRef,
-    virtualItems,
-    totalSize: length * itemHeight,
-  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -567,28 +563,22 @@ export default function Projects() {
   const selectedMonthNumber = Number(selectedMonth);
 
   const projects = useMemo(() => {
-    if (Number.isNaN(selectedMonthNumber)) {
-      return quarterProjects;
-    }
-
-    return quarterProjects.filter((project) => {
-      const rawStart = project.startDate;
-      if (!rawStart) return false;
-      const start =
-        rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart);
-      if (Number.isNaN(start.getTime())) return false;
-      return start.getMonth() + 1 === selectedMonthNumber;
-    });
+    return buildVisibleProjectsByMonth(quarterProjects, selectedMonthNumber);
   }, [quarterProjects, selectedMonthNumber]);
 
   const quarterStats = quarterStatsQuery.data ?? [];
   const calendarData = calendarQuery.data ?? EMPTY_CALENDAR;
 
-  const weekVirtual = useVirtualList(calendarData.weeks.length, WEEK_CARD_HEIGHT);
-
   useEffect(() => {
     setMonthIndex(0);
   }, [selectedQuarter, selectedYear]);
+
+  useEffect(() => {
+    if (viewMode !== "calendar") return;
+    const targetMonthNumber = resolveCalendarTargetMonthNumber(selectedMonth, selectedQuarter);
+    const targetIndex = findCalendarMonthIndex(calendarData.months, targetMonthNumber);
+    setMonthIndex((prev) => (prev === targetIndex ? prev : targetIndex));
+  }, [viewMode, selectedMonth, selectedQuarter, calendarData.months]);
 
   useEffect(() => {
     if (calendarData.months.length === 0) {
@@ -860,38 +850,6 @@ export default function Projects() {
   const handleWeekDragOver = () => (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-  };
-
-  const adjustProjectByDays = (
-    projectId: string,
-    adjustment: number,
-    target: "start" | "end",
-  ) => {
-    const project = projects.find((item) => item.id === projectId);
-    if (!project) return;
-    const startDate = toDate(project.startDate);
-    const endDate = toDate(project.endDate);
-    if (target === "start") {
-      const updatedStart = addDays(startDate, adjustment);
-      if (updatedStart > endDate) {
-        toast({
-          title: "시작일이 종료일보다 늦을 수 없습니다.",
-          variant: "destructive",
-        });
-        return;
-      }
-      updateProjectDates(projectId, updatedStart, endDate, "시작일이 조정되었습니다.");
-    } else {
-      const updatedEnd = addDays(endDate, adjustment);
-      if (updatedEnd < startDate) {
-        toast({
-          title: "종료일이 시작일보다 빠를 수 없습니다.",
-          variant: "destructive",
-        });
-        return;
-      }
-      updateProjectDates(projectId, startDate, updatedEnd, "종료일이 조정되었습니다.");
-    }
   };
 
   const renderQuarterHighlights = () => (
@@ -1209,7 +1167,7 @@ export default function Projects() {
   const renderTimelineWeekCard = (week: CalendarWeekSummary) => (
     <Card
       key={`${week.isoYear}-${week.isoWeek}`}
-      className="space-y-3 rounded-lg border bg-background p-4 shadow-sm"
+      className="space-y-1.5 rounded-lg border bg-background p-2 shadow-sm"
       onDragOver={handleWeekDragOver()}
       onDrop={handleWeekDrop(week)}
     >
@@ -1222,19 +1180,19 @@ export default function Projects() {
           <Badge variant="outline">이번 주</Badge>
         ) : null}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {week.departments.length === 0 ? (
           <div className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
             해당 주차에 프로젝트가 없습니다.
           </div>
         ) : (
           week.departments.map((dept) => (
-            <Card key={dept.department} className="border border-dashed p-3" role="group" aria-label={`${dept.department} 프로젝트`}>
+            <Card key={dept.department} className="border border-dashed p-2" role="group" aria-label={`${dept.department} 프로젝트`}>
               <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="font-semibold">{dept.department}</span>
                 <span>{dept.projects.length}개</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
                 {dept.projects.map((project) => (
                   <div key={project.id} className="flex items-center gap-1">
                     <Tooltip>
@@ -1261,40 +1219,6 @@ export default function Projects() {
                         </div>
                       </TooltipContent>
                     </Tooltip>
-                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground" aria-label={`${project.name} 일정 조정`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-1"
-                        onClick={() => adjustProjectByDays(project.id, -1, "start")}
-                      >
-                        시작-1
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-1"
-                        onClick={() => adjustProjectByDays(project.id, 1, "start")}
-                      >
-                        시작+1
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-1"
-                        onClick={() => adjustProjectByDays(project.id, -1, "end")}
-                      >
-                        종료-1
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-1"
-                        onClick={() => adjustProjectByDays(project.id, 1, "end")}
-                      >
-                        종료+1
-                      </Button>
-                    </div>
                   </div>
                 ))}
               </div>
@@ -1316,28 +1240,12 @@ export default function Projects() {
     }
 
     return (
-      <div
-        ref={weekVirtual.containerRef}
-        className="max-h-[720px] overflow-y-auto rounded-md border"
-        role="list"
-        aria-label="주간 타임라인"
-      >
-        <div style={{ position: "relative", height: weekVirtual.totalSize }}>
-          {weekVirtual.virtualItems.map(({ index, start, size }) => {
-            const week = weeks[index];
-            if (!week) return null;
-            return (
-              <div
-                key={`${week.isoYear}-${week.isoWeek}`}
-                role="listitem"
-                style={{ position: "absolute", top: start, height: size, left: 0, right: 0 }}
-                className="px-1 pb-4"
-              >
-                {renderTimelineWeekCard(week)}
-              </div>
-            );
-          })}
-        </div>
+      <div className="space-y-4 rounded-md border p-1" role="list" aria-label="주간 타임라인">
+        {weeks.map((week) => (
+          <div key={`${week.isoYear}-${week.isoWeek}`} role="listitem" className="px-1">
+            {renderTimelineWeekCard(week)}
+          </div>
+        ))}
       </div>
     );
   };
@@ -1571,16 +1479,16 @@ export default function Projects() {
           <Input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="프로젝트명/부서/설명 검색 또는 2025:q2 영업 형식으로 필터"
+            placeholder="프로젝트명/부서/설명 검색 또는 q2 / 연도:q분기 형식으로 필터"
             className="pl-10"
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          예시: <code>2025:q2 영업</code>처럼 입력하면 해당 연도·분기의 특정 키워드만 조회됩니다.
+          예시: 분기(q1~q4) 또는 연도:분기 형식으로 조회할 수 있습니다.
         </p>
       </Card>
 
-      {renderQuarterHighlights()}
+      {viewMode !== "calendar" ? renderQuarterHighlights() : null}
 
       {viewMode === "list" && selectedProjects.length > 0 ? (
         <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-4 py-3 text-sm">
