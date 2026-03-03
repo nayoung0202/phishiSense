@@ -18,8 +18,6 @@ const PYTHON_SCRIPT = path.join(process.cwd(), "scripts", "report", "generate_re
 const DEFAULT_TEMPLATE_PATH =
   process.env.REPORT_DEFAULT_TEMPLATE_PATH ??
   path.join(process.cwd(), "attached_assets", "default_report_template.docx");
-const COMPANY_NAME_ENV = "REPORT_COMPANY_NAME";
-const COMPANY_LOGO_ENV = "REPORT_COMPANY_LOGO_PATH";
 const CONFIDENTIAL_LOGO_ENV = "REPORT_CONFIDENTIAL_LOGO_PATH";
 const DEFAULT_CONFIDENTIAL_LOGO_PATH = path.join(
   process.cwd(),
@@ -44,6 +42,8 @@ const buildReportData = (
   project: Project,
   options: {
     companyName: string;
+    approverName: string;
+    approverTitle: string;
     reportYear: number;
     reportQuarter: number;
     reportMonth: string;
@@ -72,6 +72,8 @@ const buildReportData = (
     report_month: options.reportMonth,
     report_date: options.reportDate,
     owner_name: project.fromName ?? project.fromEmail ?? "",
+    approver_name: options.approverName,
+    approver_title: options.approverTitle,
     department: project.department ?? "",
     description: project.description ?? "",
     target_count: targetCount,
@@ -166,19 +168,21 @@ const resolveTemplate = async (templateId?: string | null) => {
   throw new Error("활성화된 보고서 템플릿이 없습니다.");
 };
 
-const resolveCompanyConfig = async () => {
-  const companyName = (process.env[COMPANY_NAME_ENV] ?? "").trim();
-  if (!companyName) {
-    throw new Error(`회사명이 설정되지 않았습니다. ${COMPANY_NAME_ENV}을 설정하세요.`);
+const resolveReportSettingConfig = async (reportSettingId?: string | null) => {
+  if (!reportSettingId) {
+    throw new Error("보고서 설정 ID가 필요합니다.");
   }
-  const logoRaw = (process.env[COMPANY_LOGO_ENV] ?? "").trim();
-  if (!logoRaw) {
-    throw new Error(`회사 로고가 설정되지 않았습니다. ${COMPANY_LOGO_ENV}을 설정하세요.`);
+
+  const reportSetting = await storage.getReportSetting(reportSettingId);
+  if (!reportSetting) {
+    throw new Error("보고서 설정을 찾을 수 없습니다.");
   }
-  const logoPath = path.isAbsolute(logoRaw) ? logoRaw : path.join(process.cwd(), logoRaw);
+
+  const logoPath = resolveStoragePath(reportSetting.companyLogoFileKey);
   if (!(await fileExists(logoPath))) {
-    throw new Error("회사 로고 파일을 찾을 수 없습니다.");
+    throw new Error("선택한 보고서 설정의 로고 파일을 찾을 수 없습니다.");
   }
+
   const confidentialRaw = (process.env[CONFIDENTIAL_LOGO_ENV] ?? "").trim();
   const confidentialPath = confidentialRaw
     ? path.isAbsolute(confidentialRaw)
@@ -188,7 +192,14 @@ const resolveCompanyConfig = async () => {
   if (!(await fileExists(confidentialPath))) {
     throw new Error("대외비 로고 파일을 찾을 수 없습니다.");
   }
-  return { companyName, logoPath, confidentialPath };
+  return {
+    companyName: reportSetting.companyName,
+    approverName: reportSetting.approverName,
+    approverTitle: reportSetting.approverTitle ?? "",
+    logoPath,
+    confidentialPath,
+    reportSettingId: reportSetting.id,
+  };
 };
 
 const resolveReportYear = (project: Project) =>
@@ -202,14 +213,15 @@ const resolveReportQuarter = (project: Project) => {
 
 export async function generateProjectReport(
   projectId: string,
-  options?: { templateId?: string | null },
+  options?: { templateId?: string | null; reportSettingId?: string | null },
 ) {
   const project = await storage.getProject(projectId);
   if (!project) {
     throw new Error("프로젝트 정보를 찾을 수 없습니다.");
   }
 
-  const { companyName, logoPath, confidentialPath } = await resolveCompanyConfig();
+  const { companyName, approverName, approverTitle, logoPath, confidentialPath, reportSettingId } =
+    await resolveReportSettingConfig(options?.reportSettingId ?? null);
   const template = await resolveTemplate(options?.templateId ?? null);
   const templatePath = resolveStoragePath(template.fileKey);
   if (!(await fileExists(templatePath))) {
@@ -259,6 +271,7 @@ export async function generateProjectReport(
   const reportInstance = await storage.createReportInstance({
     projectId: project.id,
     templateId: template.id,
+    reportSettingId,
     status: "pending",
     fileKey: null,
     errorMessage: null,
@@ -300,6 +313,8 @@ export async function generateProjectReport(
       data: {
         ...buildReportData(project, {
           companyName,
+          approverName,
+          approverTitle,
           reportYear: resolveReportYear(project),
           reportQuarter: resolveReportQuarter(project),
           reportMonth: formatDate(project.endDate, "yyyy.MM"),
@@ -319,8 +334,8 @@ export async function generateProjectReport(
         {
           key: "company_logo",
           path: logoPath,
-          width_cm: 6.54,
-          height_cm: 2,
+          width_cm: 4.05,
+          height_cm: 1.59,
         },
         ...captureImages.map((capture) => ({
           key: capture.key,

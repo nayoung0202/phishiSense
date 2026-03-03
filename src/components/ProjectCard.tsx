@@ -13,9 +13,9 @@ interface ProjectCardProps {
 }
 
 const statusConfig = {
-  "진행중": { variant: "default" as const, className: "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30" },
-  "완료": { variant: "default" as const, className: "bg-green-500/20 text-green-400 hover:bg-green-500/30" },
-  "예약": { variant: "default" as const, className: "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" },
+  진행중: { variant: "default" as const, className: "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30" },
+  완료: { variant: "default" as const, className: "bg-green-500/20 text-green-400 hover:bg-green-500/30" },
+  예약: { variant: "default" as const, className: "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" },
 };
 
 export function ProjectCard({ id, name, startDate, endDate, status, openRate, clickRate }: ProjectCardProps) {
@@ -34,17 +34,17 @@ export function ProjectCard({ id, name, startDate, endDate, status, openRate, cl
             {status}
           </Badge>
         </div>
-        
+
         <div className="flex items-center gap-6 pt-2 border-t border-border">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-primary" />
             <div className="text-sm">
-              <span className="text-muted-foreground">오픈률: </span>
+              <span className="text-muted-foreground">오픈율 </span>
               <span className="font-semibold text-primary" data-testid={`text-open-rate-${id}`}>{openRate}%</span>
             </div>
           </div>
           <div className="text-sm">
-            <span className="text-muted-foreground">클릭률: </span>
+            <span className="text-muted-foreground">클릭율 </span>
             <span className="font-semibold text-primary" data-testid={`text-click-rate-${id}`}>{clickRate}%</span>
           </div>
         </div>

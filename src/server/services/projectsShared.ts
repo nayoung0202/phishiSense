@@ -4,20 +4,25 @@ import { insertProjectSchema, type InsertProject, type Project } from "@shared/s
 import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import { z } from "zod";
 
+export const STATUS_RUNNING = "\uC9C4\uD589\uC911";
+export const STATUS_SCHEDULED = "\uC608\uC57D";
+export const STATUS_DONE = "\uC644\uB8CC";
+export const STATUS_TEMP = "\uC784\uC2DC";
+
 export const statusParamMap: Record<string, string> = {
-  running: "진행중",
-  inprogress: "진행중",
-  "in-progress": "진행중",
-  진행중: "진행중",
-  scheduled: "예약",
-  예약: "예약",
-  done: "완료",
-  completed: "완료",
-  완료: "완료",
-  temp: "임시",
-  temporary: "임시",
-  draft: "임시",
-  임시: "임시",
+  running: STATUS_RUNNING,
+  inprogress: STATUS_RUNNING,
+  "in-progress": STATUS_RUNNING,
+  "\uC9C4\uD589\uC911": STATUS_RUNNING,
+  scheduled: STATUS_SCHEDULED,
+  "\uC608\uC57D": STATUS_SCHEDULED,
+  done: STATUS_DONE,
+  completed: STATUS_DONE,
+  "\uC644\uB8CC": STATUS_DONE,
+  temp: STATUS_TEMP,
+  temporary: STATUS_TEMP,
+  draft: STATUS_TEMP,
+  "\uC784\uC2DC": STATUS_TEMP,
 };
 
 export const quarterNumbers = [1, 2, 3, 4] as const;
@@ -40,16 +45,17 @@ export const normalizeProjectDate = (date: Project["startDate"]) => {
 };
 
 export const shouldStartScheduledProject = (project: Project, now = new Date()) => {
-  if (project.status !== "예약") return false;
+  if (project.status !== STATUS_SCHEDULED) return false;
   const startDate = normalizeProjectDate(project.startDate);
   return startDate.getTime() <= now.getTime();
 };
 
 export const shouldCompleteProject = (project: Project, now = new Date()) => {
-  if (project.status === "완료" || project.status === "임시") return false;
+  if (project.status === STATUS_DONE || project.status === STATUS_TEMP) return false;
   const endDate = normalizeProjectDate(project.endDate);
   return endDate.getTime() <= now.getTime();
 };
+
 
 export const projectOverlaps = (project: Project, rangeStart: Date, rangeEnd: Date) => {
   const projectStart = normalizeProjectDate(project.startDate);
@@ -103,7 +109,7 @@ export type PreviewTargetSample = {
   name: string;
   email: string;
   department: string;
-  status: "예정";
+  status: "\uC608\uC815";
 };
 
 export type PreviewConflict = {
@@ -219,15 +225,15 @@ export const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, reci
         a { color: #0284c7; text-decoration: underline; }
       </style>
       <header style="margin-bottom: 16px;">
-        <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>
-        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
+        <p style="margin: 0; font-size: 14px; color: #64748b;">??筌롫뗄??? ????野꺜??? ?袁る립 ???뮞??獄쏆뮇???낅빍??</p>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">獄쏆뮇???袁⑥컭?? ${sendingDomain}</p>
       </header>
       <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
         ${htmlBody}
       </section>
       <footer style="margin-top: 24px; font-size: 12px; color: #94a3b8;">
-        <p style="margin: 0;">수신자: ${recipient}</p>
-        <p style="margin: 4px 0 0;">PhishSense 테스트 발송 · 실 사용자에게 자동으로 전달되지 않습니다.</p>
+        <p style="margin: 0;">??뤿뻿?? ${recipient}</p>
+        <p style="margin: 4px 0 0;">PhishSense ???뮞??獄쏆뮇??夷???????癒?퓠野??癒?짗??곗쨮 ?袁⑤뼎??? ??녿뮸??덈뼄.</p>
       </footer>
     </article>
   `;
@@ -291,23 +297,23 @@ export const buildPreviewTrend = (
   forecast: PreviewForecast,
 ): PreviewTrendPoint[] => [
   { label: "발송", metric: "count", value: targetCount },
-  { label: "오픈률", metric: "rate", value: forecast.openRate },
-  { label: "클릭률", metric: "rate", value: forecast.clickRate },
-  { label: "제출률", metric: "rate", value: forecast.submitRate },
+  { label: "오픈율", metric: "rate", value: forecast.openRate },
+  { label: "클릭율", metric: "rate", value: forecast.clickRate },
+  { label: "제출율", metric: "rate", value: forecast.submitRate },
 ];
 
 export const validateProjectPayload = (payload: InsertProject): ProjectValidationIssue[] => {
   const issues: ProjectValidationIssue[] = [];
 
   if (!normalizeOptionalString(payload.name)) {
-    issues.push({ field: "name", code: "required", message: "프로젝트명을 입력하세요." });
+    issues.push({ field: "name", code: "required", message: "?袁⑥쨮??븍뱜筌뤿굞????낆젾??뤾쉭??" });
   }
 
   if (!normalizeOptionalString(payload.templateId)) {
     issues.push({
       field: "templateId",
       code: "required",
-      message: "템플릿을 선택하세요.",
+      message: "??쀫탣?깆슦???醫뤾문??뤾쉭??",
     });
   }
 
@@ -315,7 +321,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "trainingPageId",
       code: "required",
-      message: "랜딩/미리보기 페이지를 선택하세요.",
+      message: "??뺣뎃/沃섎챶?곮퉪?용┛ ??륁뵠筌왖???醫뤾문??뤾쉭??",
     });
   }
 
@@ -324,7 +330,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "sendingDomain",
       code: "required",
-      message: "발신 도메인을 선택하세요.",
+      message: "獄쏆뮇???袁⑥컭?紐꾩뱽 ?醫뤾문??뤾쉭??",
     });
   }
 
@@ -333,7 +339,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "fromName",
       code: "required",
-      message: "발신자 이름을 입력하세요.",
+      message: "獄쏆뮇?????已????낆젾??뤾쉭??",
     });
   }
 
@@ -342,13 +348,13 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "fromEmail",
       code: "required",
-      message: "발신 이메일을 입력하세요.",
+      message: "獄쏆뮇????李??깆뱽 ??낆젾??뤾쉭??",
     });
   } else if (!fromEmail.includes("@")) {
     issues.push({
       field: "fromEmail",
       code: "invalid",
-      message: "올바른 이메일 주소 형식이 아닙니다.",
+      message: "??而?몴???李??雅뚯눘???類ㅻ뻼???袁⑤뻸??덈뼄.",
     });
   }
 
@@ -357,7 +363,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "startDate",
       code: "required",
-      message: "시작일을 입력하세요.",
+      message: "??뽰삂??깆뱽 ??낆젾??뤾쉭??",
     });
   }
 
@@ -366,7 +372,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "endDate",
       code: "invalid_range",
-      message: "종료일은 시작일 이후여야 합니다.",
+      message: "?ル굝利??? ??뽰삂????꾩뜎??鍮???몃빍??",
     });
   }
 
@@ -374,9 +380,10 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "targetCount",
       code: "invalid",
-      message: "대상자 수가 잘못되었습니다.",
+      message: "???怨몄쁽 ??? ??롢걵??뤿???щ빍??",
     });
   }
 
   return issues;
 };
+

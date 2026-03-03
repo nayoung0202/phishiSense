@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { TEMPLATE_PREVIEW_SANDBOX_CLASS } from "@/lib/templatePreview";
 import {
   Bold,
@@ -129,7 +128,7 @@ export function RichTextEditor({
   };
 
   return (
-    <div className={cn("overflow-hidden rounded-md border border-border bg-background", className)}>
+    <div className={cn("overflow-visible rounded-md border border-border bg-background", className)}>
       <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 p-2">
         {toolbarItems.map((item) => (
           <Button
@@ -218,7 +217,7 @@ export function RichTextEditor({
           placeholder={placeholder}
         />
       ) : mode === "preview" ? (
-        <ScrollArea className="editor-scrollbar h-[420px] border-t border-border bg-muted/30 p-2">
+        <div className="border-t border-border bg-muted/30 p-2 overflow-visible">
           {(previewHtml ?? value).trim().length > 0 ? (
             <TemplatePreviewFrame
               html={previewHtml ?? value}
@@ -227,12 +226,12 @@ export function RichTextEditor({
           ) : (
             <p className="p-4 text-sm text-muted-foreground">입력된 내용이 없습니다.</p>
           )}
-        </ScrollArea>
+        </div>
       ) : (
         <div
           ref={editorRef}
           className={cn(
-            "editor-scrollbar min-h-[300px] max-h-[600px] overflow-y-auto bg-background p-4 text-sm focus:outline-none",
+            "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
             TEMPLATE_PREVIEW_SANDBOX_CLASS,
           )}
           contentEditable

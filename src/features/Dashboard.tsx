@@ -55,6 +55,15 @@ type QuarterlySummary = {
   submitRate: number | null;
 };
 
+type QuarterComparisonItem = {
+  index: number;
+  projectName: string;
+  targetCount: number;
+  openRate: number;
+  clickRate: number;
+  submitRate: number;
+};
+
 const toMonthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
@@ -132,21 +141,20 @@ export default function Dashboard() {
       map.set(key, summary);
     });
 
-    const summaries = Array.from(map.values()).map((summary) => {
-      const { targetCount, openCount, clickCount, submitCount } = summary;
-      const safeRate = (count: number) =>
-        targetCount > 0 ? (count / targetCount) * 100 : null;
+    return Array.from(map.values())
+      .map((summary) => {
+        const { targetCount, openCount, clickCount, submitCount } = summary;
+        const safeRate = (count: number) =>
+          targetCount > 0 ? (count / targetCount) * 100 : null;
 
-      return {
-        ...summary,
-        openRate: safeRate(openCount),
-        clickRate: safeRate(clickCount),
-        submitRate: safeRate(submitCount),
-      };
-    });
-
-    summaries.sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime());
-    return summaries;
+        return {
+          ...summary,
+          openRate: safeRate(openCount),
+          clickRate: safeRate(clickCount),
+          submitRate: safeRate(submitCount),
+        };
+      })
+      .sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime());
   }, [projects]);
 
   const quarterlySummaries = useMemo<QuarterlySummary[]>(() => {
@@ -184,21 +192,19 @@ export default function Dashboard() {
       map.set(key, summary);
     });
 
-    const summaries = Array.from(map.values()).map((summary) => {
-      const { targetCount, openCount, clickCount, submitCount } = summary;
-      const safeRate = (count: number) =>
-        targetCount > 0 ? (count / targetCount) * 100 : null;
+    return Array.from(map.values())
+      .map((summary) => {
+        const safeRate = (count: number) =>
+          summary.targetCount > 0 ? (count / summary.targetCount) * 100 : null;
 
-      return {
-        ...summary,
-        openRate: safeRate(openCount),
-        clickRate: safeRate(clickCount),
-        submitRate: safeRate(submitCount),
-      };
-    });
-
-    summaries.sort((a, b) => b.quarterDate.getTime() - a.quarterDate.getTime());
-    return summaries;
+        return {
+          ...summary,
+          openRate: safeRate(summary.openCount),
+          clickRate: safeRate(summary.clickCount),
+          submitRate: safeRate(summary.submitCount),
+        };
+      })
+      .sort((a, b) => b.quarterDate.getTime() - a.quarterDate.getTime());
   }, [projects]);
 
   const quartersByYear = useMemo(() => {
@@ -330,7 +336,7 @@ export default function Dashboard() {
     });
   }, [projectsByQuarter, selectedQuarterKey]);
 
-  const quarterComparisonData = useMemo(() => {
+  const quarterComparisonData = useMemo<QuarterComparisonItem[]>(() => {
     if (!selectedQuarterProjects.length) return [];
     return selectedQuarterProjects.map((project, index) => {
       const targetCount = project.targetCount ?? 0;
@@ -338,18 +344,18 @@ export default function Dashboard() {
         targetCount > 0 && count ? (count / targetCount) * 100 : 0;
       return {
         index: index + 1,
-        프로젝트: formatProjectLabel(project.name),
-        발송수: targetCount,
-        오픈률: rate(project.openCount),
-        클릭률: rate(project.clickCount),
-        제출률: rate(project.submitCount),
+        projectName: formatProjectLabel(project.name),
+        targetCount,
+        openRate: rate(project.openCount),
+        clickRate: rate(project.clickCount),
+        submitRate: rate(project.submitCount),
       };
     });
   }, [selectedQuarterProjects]);
 
   const maxQuarterTarget = useMemo(() => {
     if (!quarterComparisonData.length) return 0;
-    return quarterComparisonData.reduce((max, item) => Math.max(max, item.발송수 ?? 0), 0);
+    return quarterComparisonData.reduce((max, item) => Math.max(max, item.targetCount), 0);
   }, [quarterComparisonData]);
 
   return (
@@ -401,19 +407,19 @@ export default function Dashboard() {
                 description={`${selectedSummary.monthLabel} 기준`}
               />
               <StatCard
-                title="오픈률"
+                title="오픈율"
                 value={formatPercent(selectedSummary.openRate)}
                 icon={BarChart3}
-                description={`${selectedSummary.openCount.toLocaleString()}명 열람`}
+                description={`${selectedSummary.openCount.toLocaleString()}명 오픈`}
               />
               <StatCard
-                title="클릭률"
+                title="클릭율"
                 value={formatPercent(selectedSummary.clickRate)}
                 icon={TrendingUp}
                 description={`${selectedSummary.clickCount.toLocaleString()}명 클릭`}
               />
               <StatCard
-                title="제출률"
+                title="제출율"
                 value={formatPercent(selectedSummary.submitRate)}
                 icon={Shield}
                 description={`${selectedSummary.submitCount.toLocaleString()}명 제출`}
@@ -421,7 +427,7 @@ export default function Dashboard() {
             </>
           ) : (
             <Card className="col-span-full p-6 text-center text-muted-foreground">
-              월별 데이터를 불러올 수 없습니다.
+              통계 데이터를 불러올 수 없습니다.
             </Card>
           )}
         </div>
@@ -435,11 +441,11 @@ export default function Dashboard() {
               모의훈련 현황 비교
             </h2>
             <p className="text-sm text-muted-foreground">
-              연도와 분기를 선택해 해당 기간의 프로젝트 실적을 비교하세요.
+              연도와 분기를 선택해 해당 기간의 프로젝트 성과를 비교하세요.
             </p>
             <p className="text-xs text-muted-foreground">
               {selectedQuarterKey
-                ? `${selectedYear ?? "-"}년 ${selectedQuarterNumber ?? "-"}분기 · 총 ${selectedQuarterProjects.length.toLocaleString()}개 프로젝트`
+                ? `${selectedYear ?? "-"}년 ${selectedQuarterNumber ?? "-"}분기 총 ${selectedQuarterProjects.length.toLocaleString()}개 프로젝트`
                 : "선택 가능한 분기가 없습니다."}
             </p>
           </div>
@@ -516,14 +522,12 @@ export default function Dashboard() {
                     borderRadius: "0.5rem",
                   }}
                   labelFormatter={(value) => {
-                    const entry = quarterComparisonData.find(
-                      (item) => item.index === value,
-                    );
-                    return entry?.프로젝트 ?? "";
+                    const entry = quarterComparisonData.find((item) => item.index === value);
+                    return entry?.projectName ?? "";
                   }}
-                  formatter={(value, name, props) => {
+                  formatter={(value, name) => {
                     const label = String(name);
-                    if (label.endsWith("률")) {
+                    if (label.toLowerCase().includes("rate")) {
                       return [`${Number(value).toFixed(1)}%`, label];
                     }
                     return [value, label];
@@ -532,14 +536,16 @@ export default function Dashboard() {
                 <Legend />
                 <Bar
                   yAxisId="count"
-                  dataKey="발송수"
+                  dataKey="targetCount"
+                  name="발송 수"
                   fill="hsl(var(--primary))"
                   radius={[4, 4, 0, 0]}
                 />
                 <Line
                   yAxisId="rate"
                   type="linear"
-                  dataKey="오픈률"
+                  dataKey="openRate"
+                  name="오픈율"
                   stroke="hsl(var(--chart-2))"
                   strokeWidth={2}
                   dot={{ r: 3 }}
@@ -547,7 +553,8 @@ export default function Dashboard() {
                 <Line
                   yAxisId="rate"
                   type="linear"
-                  dataKey="클릭률"
+                  dataKey="clickRate"
+                  name="클릭율"
                   stroke="hsl(var(--chart-3))"
                   strokeWidth={2}
                   dot={{ r: 3 }}
@@ -555,7 +562,8 @@ export default function Dashboard() {
                 <Line
                   yAxisId="rate"
                   type="linear"
-                  dataKey="제출률"
+                  dataKey="submitRate"
+                  name="제출율"
                   stroke="hsl(var(--chart-4))"
                   strokeWidth={2}
                   dot={{ r: 3 }}

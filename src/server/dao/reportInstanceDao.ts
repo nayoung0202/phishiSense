@@ -28,6 +28,7 @@ export async function createReportInstance(
       id,
       projectId: payload.projectId,
       templateId: payload.templateId,
+      reportSettingId: payload.reportSettingId ?? null,
       status: payload.status,
       fileKey: payload.fileKey ?? null,
       errorMessage: payload.errorMessage ?? null,
@@ -50,6 +51,10 @@ export async function updateReportInstance(
     .update(reportInstances)
     .set({
       status: payload.status ?? existing.status,
+      reportSettingId:
+        payload.reportSettingId !== undefined
+          ? payload.reportSettingId ?? null
+          : existing.reportSettingId,
       fileKey: payload.fileKey !== undefined ? payload.fileKey ?? null : existing.fileKey,
       errorMessage:
         payload.errorMessage !== undefined ? payload.errorMessage ?? null : existing.errorMessage,
