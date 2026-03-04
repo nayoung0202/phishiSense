@@ -1,5 +1,5 @@
 import ProjectCreate from "@/features/ProjectCreate";
 
 export default function ProjectCreatePage() {
-  return <ProjectCreate />;
+  return <ProjectCreate mode="create" />;
 }

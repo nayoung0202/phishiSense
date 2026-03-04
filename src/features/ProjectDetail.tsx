@@ -362,6 +362,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <p className="text-sm text-muted-foreground">부서: {projectDepartmentLabel}</p>
         </div>
         <div className="flex items-center gap-2">
+          {project.status === "임시" ? (
+            <Link href={`/projects/${project.id}/edit`}>
+              <Button variant="outline">
+                이어 설정
+              </Button>
+            </Link>
+          ) : null}
           {project.status === "예약" ? (
             <Button
               variant="outline"

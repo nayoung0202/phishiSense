@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { type Target, type Template, type TrainingPage } from "@shared/schema";
+import { type Project, type ProjectTarget, type Target, type Template, type TrainingPage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { listSmtpConfigs } from "@/lib/api";
@@ -280,10 +280,18 @@ type CreateProjectRequest = {
   targetIds: string[];
 };
 
-export default function ProjectCreate() {
+type ProjectCreateProps = {
+  mode?: "create" | "edit";
+  projectId?: string;
+};
+
+export default function ProjectCreate({ mode = "create", projectId }: ProjectCreateProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const router = useRouter();
+  const isEditMode = mode === "edit" && Boolean(projectId);
+  const hydratedProjectIdRef = useRef<string | null>(null);
+  const editErrorHandledRef = useRef(false);
   const [isTestDialogOpen, setTestDialogOpen] = useState(false);
   const [isConflictDialogOpen, setConflictDialogOpen] = useState(false);
   const lastConflictSignatureRef = useRef("");
@@ -319,6 +327,43 @@ export default function ProjectCreate() {
     queryFn: listSmtpConfigs,
   });
 
+  const {
+    data: existingProject,
+    isLoading: isExistingProjectLoading,
+    isError: isExistingProjectError,
+  } = useQuery<Project>({
+    queryKey: ["/api/projects", projectId],
+    enabled: isEditMode,
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const reason =
+          typeof data?.error === "string" && data.error.length > 0
+            ? data.error
+            : "프로젝트를 불러오지 못했습니다.";
+        throw new Error(reason);
+      }
+      return data as Project;
+    },
+  });
+
+  const {
+    data: existingProjectTargets = [],
+    isLoading: isExistingProjectTargetsLoading,
+  } = useQuery<ProjectTarget[]>({
+    queryKey: ["/api/projects", projectId, "targets"],
+    enabled: isEditMode,
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/targets`);
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error("프로젝트 대상자를 불러오지 못했습니다.");
+      }
+      return Array.isArray(data) ? (data as ProjectTarget[]) : [];
+    },
+  });
+
   const selectedTargetIds = form.watch("targetIds") ?? [];
   const selectedTargetCount = selectedTargetIds.length;
   const templateId = form.watch("templateId");
@@ -329,6 +374,54 @@ export default function ProjectCreate() {
   const projectName = form.watch("name");
   const startDateValue = form.watch("startDate");
   const endDateValue = form.watch("endDate");
+
+  useEffect(() => {
+    if (!isEditMode || !existingProject || !projectId) return;
+    if (hydratedProjectIdRef.current === existingProject.id) return;
+
+    const startDate = new Date(existingProject.startDate);
+    const parsedEndDate = existingProject.endDate
+      ? new Date(existingProject.endDate)
+      : undefined;
+    const targetIds = existingProjectTargets
+      .filter((item) => item.status !== "test")
+      .map((item) => item.targetId);
+
+    form.reset({
+      ...DEFAULT_VALUES,
+      name: existingProject.name ?? "",
+      description: existingProject.description ?? "",
+      templateId: existingProject.templateId ?? "",
+      trainingPageId: existingProject.trainingPageId ?? "",
+      sendingDomain: existingProject.sendingDomain ?? "",
+      fromName: existingProject.fromName ?? "",
+      fromEmail: existingProject.fromEmail ?? "",
+      startDate: Number.isNaN(startDate.getTime()) ? new Date() : startDate,
+      endDate:
+        parsedEndDate && !Number.isNaN(parsedEndDate.getTime())
+          ? parsedEndDate
+          : undefined,
+      targetIds,
+      notificationEmails: Array.isArray(existingProject.notificationEmails)
+        ? existingProject.notificationEmails
+        : [],
+      allowDuplicateTargets: false,
+    });
+
+    setTempProjectId(existingProject.id);
+    hydratedProjectIdRef.current = existingProject.id;
+  }, [isEditMode, projectId, existingProject, existingProjectTargets, form]);
+
+  useEffect(() => {
+    if (!isEditMode || !isExistingProjectError || editErrorHandledRef.current) return;
+    editErrorHandledRef.current = true;
+    toast({
+      title: "프로젝트 로드 실패",
+      description: "프로젝트를 찾을 수 없어 목록으로 이동합니다.",
+      variant: "destructive",
+    });
+    router.replace("/projects");
+  }, [isEditMode, isExistingProjectError, toast, router]);
 
   const targetIdsSignature = useMemo(
     () => [...selectedTargetIds].sort().join("|"),
@@ -989,7 +1082,7 @@ export default function ProjectCreate() {
         }
       }
 
-      const status = mode === "run" ? "진행중" : "예약";
+      const status = mode === "run" ? "진행중" : mode === "schedule" ? "예약" : "임시";
       const payload = buildProjectPayload(values, status);
 
       if (tempProjectId) {
@@ -1106,17 +1199,37 @@ export default function ProjectCreate() {
   }, [testRecipient, ensureTempProject, testSendMutation, toast]);
 
   const handleCancel = () => {
+    if (isEditMode && projectId) {
+      router.push(`/projects/${projectId}`);
+      return;
+    }
     router.push("/projects");
   };
+
+  const isEditHydrating =
+    isEditMode &&
+    (isExistingProjectLoading ||
+      isExistingProjectTargetsLoading ||
+      (projectId != null && hydratedProjectIdRef.current !== projectId));
+
+  if (isEditHydrating) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12 text-muted-foreground">프로젝트 정보를 불러오는 중입니다...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
       <div className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center justify-between px-6 py-3">
           <div>
-            <h1 className="text-2xl font-semibold">프로젝트 생성</h1>
+            <h1 className="text-2xl font-semibold">{isEditMode ? "프로젝트 이어 설정" : "프로젝트 생성"}</h1>
             <p className="text-sm text-muted-foreground">
-              좌측에서 정보를 입력하고 필요한 경우 충돌 경고를 확인하세요.
+              {isEditMode
+                ? "임시 저장된 프로젝트를 이어서 설정하고 예약/시작을 진행하세요."
+                : "좌측에서 정보를 입력하고 필요한 경우 충돌 경고를 확인하세요."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1683,7 +1796,7 @@ export default function ProjectCreate() {
               onClick={() => handleSubmitProject("schedule")}
             >
               <Clock className="mr-2 h-4 w-4" />
-              예약 생성
+              {isEditMode ? "저장 후 예약" : "예약 생성"}
             </Button>
             <Button
               variant="default"
@@ -1692,7 +1805,7 @@ export default function ProjectCreate() {
               onClick={() => handleSubmitProject("run")}
             >
               <Play className="mr-2 h-4 w-4" />
-              바로 생성
+              {isEditMode ? "저장 후 시작" : "바로 생성"}
             </Button>
           </div>
         </div>

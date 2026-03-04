@@ -948,6 +948,11 @@ export default function Projects() {
                       <Link href={`/projects/${project.id}`}>
                         <Button variant="ghost" size="sm">상세</Button>
                       </Link>
+                      {project.status === "임시" ? (
+                        <Link href={`/projects/${project.id}/edit`}>
+                          <Button variant="outline" size="sm">이어 설정</Button>
+                        </Link>
+                      ) : null}
                       <Button variant="ghost" size="sm" onClick={() => openReport(project)}>
                         보고서
                       </Button>
@@ -1002,6 +1007,16 @@ export default function Projects() {
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span>대상 {project.targetCount ?? 0}명</span>
                       <span>클릭 {calculateRate(project.clickCount, project.targetCount)}%</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/projects/${project.id}`}>
+                        <Button variant="ghost" size="sm">상세</Button>
+                      </Link>
+                      {project.status === "임시" ? (
+                        <Link href={`/projects/${project.id}/edit`}>
+                          <Button variant="outline" size="sm">이어 설정</Button>
+                        </Link>
+                      ) : null}
                     </div>
                   </Card>
                 );
