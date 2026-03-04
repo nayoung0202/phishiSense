@@ -80,7 +80,7 @@ const toQuarterStartDate = (date: Date) =>
   new Date(date.getFullYear(), (getQuarterNumber(date) - 1) * 3, 1);
 
 const formatPercent = (value: number | null) =>
-  value === null ? "-" : `${value.toFixed(1)}%`;
+  value === null ? "-" : `${Math.round(value)}%`;
 
 const formatProjectLabel = (name: string | null | undefined) => name ?? "무제 프로젝트";
 
@@ -528,7 +528,7 @@ export default function Dashboard() {
                   formatter={(value, name) => {
                     const label = String(name);
                     if (label.toLowerCase().includes("rate")) {
-                      return [`${Number(value).toFixed(1)}%`, label];
+                      return [`${Math.round(Number(value))}%`, label];
                     }
                     return [value, label];
                   }}
