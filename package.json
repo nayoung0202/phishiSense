@@ -10,6 +10,7 @@
     "check": "tsc",
     "test": "vitest",
     "worker:send": "tsx src/server/worker/send-worker.ts",
+    "repair:mojibake-mail-texts": "tsx scripts/repair-mojibake-mail-texts.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

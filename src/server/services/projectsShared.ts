@@ -225,15 +225,15 @@ export const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, reci
         a { color: #0284c7; text-decoration: underline; }
       </style>
       <header style="margin-bottom: 16px;">
-        <p style="margin: 0; font-size: 14px; color: #64748b;">??筌롫뗄??? ????野꺜??? ?袁る립 ???뮞??獄쏆뮇???낅빍??</p>
-        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">獄쏆뮇???袁⑥컭?? ${sendingDomain}</p>
+        <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 점검을 위한 테스트 발송입니다.</p>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
       </header>
       <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
         ${htmlBody}
       </section>
       <footer style="margin-top: 24px; font-size: 12px; color: #94a3b8;">
-        <p style="margin: 0;">??뤿뻿?? ${recipient}</p>
-        <p style="margin: 4px 0 0;">PhishSense ???뮞??獄쏆뮇??夷???????癒?퓠野??癒?짗??곗쨮 ?袁⑤뼎??? ??녿뮸??덈뼄.</p>
+        <p style="margin: 0;">수신자: ${recipient}</p>
+        <p style="margin: 4px 0 0;">PhishSense 테스트 발송 메일입니다. 실사용자에게 자동 전송되지 않습니다.</p>
       </footer>
     </article>
   `;
@@ -306,14 +306,14 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
   const issues: ProjectValidationIssue[] = [];
 
   if (!normalizeOptionalString(payload.name)) {
-    issues.push({ field: "name", code: "required", message: "?袁⑥쨮??븍뱜筌뤿굞????낆젾??뤾쉭??" });
+    issues.push({ field: "name", code: "required", message: "프로젝트명을 입력하세요." });
   }
 
   if (!normalizeOptionalString(payload.templateId)) {
     issues.push({
       field: "templateId",
       code: "required",
-      message: "??쀫탣?깆슦???醫뤾문??뤾쉭??",
+      message: "템플릿을 선택하세요.",
     });
   }
 
@@ -321,7 +321,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "trainingPageId",
       code: "required",
-      message: "??뺣뎃/沃섎챶?곮퉪?용┛ ??륁뵠筌왖???醫뤾문??뤾쉭??",
+      message: "훈련 안내 페이지를 선택하세요.",
     });
   }
 
@@ -330,7 +330,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "sendingDomain",
       code: "required",
-      message: "獄쏆뮇???袁⑥컭?紐꾩뱽 ?醫뤾문??뤾쉭??",
+      message: "발신 도메인을 선택하세요.",
     });
   }
 
@@ -339,7 +339,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "fromName",
       code: "required",
-      message: "獄쏆뮇?????已????낆젾??뤾쉭??",
+      message: "발신자 이름을 입력하세요.",
     });
   }
 
@@ -348,13 +348,13 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "fromEmail",
       code: "required",
-      message: "獄쏆뮇????李??깆뱽 ??낆젾??뤾쉭??",
+      message: "발신 이메일을 입력하세요.",
     });
   } else if (!fromEmail.includes("@")) {
     issues.push({
       field: "fromEmail",
       code: "invalid",
-      message: "??而?몴???李??雅뚯눘???類ㅻ뻼???袁⑤뻸??덈뼄.",
+      message: "올바른 이메일 형식이 아닙니다.",
     });
   }
 
@@ -363,7 +363,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "startDate",
       code: "required",
-      message: "??뽰삂??깆뱽 ??낆젾??뤾쉭??",
+      message: "시작일을 입력하세요.",
     });
   }
 
@@ -372,7 +372,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "endDate",
       code: "invalid_range",
-      message: "?ル굝利??? ??뽰삂????꾩뜎??鍮???몃빍??",
+      message: "종료일은 시작일보다 늦어야 합니다.",
     });
   }
 
@@ -380,7 +380,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     issues.push({
       field: "targetCount",
       code: "invalid",
-      message: "???怨몄쁽 ??? ??롢걵??뤿???щ빍??",
+      message: "대상자 수는 0 이상이어야 합니다.",
     });
   }
 

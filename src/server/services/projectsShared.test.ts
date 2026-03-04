@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Project } from "../../../shared/schema";
+import type { InsertProject, Project } from "../../../shared/schema";
 import {
+  buildTestEmailHtml,
   collectDepartmentTagsFromTargets,
   shouldCompleteProject,
   shouldStartScheduledProject,
   splitDepartmentEntries,
+  validateProjectPayload,
 } from "./projectsShared";
 
 const baseProject: Project = {
@@ -118,5 +120,46 @@ describe("collectDepartmentTagsFromTargets", () => {
     ]);
 
     expect(tags).toEqual(["영업본부", "인사팀", "플랫폼팀"]);
+  });
+});
+
+describe("buildTestEmailHtml", () => {
+  it("메일 래퍼에 깨진 문자열 없이 정상 한국어 문구를 포함한다", () => {
+    const html = buildTestEmailHtml("<p>본문</p>", "evriz.co.kr", "na9173@naver.com");
+
+    expect(html).toContain("이 메일은 사전 점검을 위한 테스트 발송입니다.");
+    expect(html).toContain("발신 도메인: evriz.co.kr");
+    expect(html).toContain("수신자: na9173@naver.com");
+    expect(html).toContain("실사용자에게 자동 전송되지 않습니다.");
+    expect(html).not.toMatch(/[筌獄袁癒꺜沃]/);
+  });
+});
+
+describe("validateProjectPayload", () => {
+  const invalidPayload = {
+    name: "",
+    templateId: "",
+    trainingPageId: "",
+    sendingDomain: "",
+    fromName: "",
+    fromEmail: "invalid-email",
+    startDate: null,
+    endDate: null,
+    targetCount: -1,
+  } as unknown as InsertProject;
+
+  it("깨진 문자열 대신 정상 한국어 검증 메시지를 반환한다", () => {
+    const issues = validateProjectPayload(invalidPayload);
+    const messages = issues.map((issue) => issue.message);
+
+    expect(messages).toContain("프로젝트명을 입력하세요.");
+    expect(messages).toContain("템플릿을 선택하세요.");
+    expect(messages).toContain("훈련 안내 페이지를 선택하세요.");
+    expect(messages).toContain("발신 도메인을 선택하세요.");
+    expect(messages).toContain("발신자 이름을 입력하세요.");
+    expect(messages).toContain("올바른 이메일 형식이 아닙니다.");
+    expect(messages).toContain("시작일을 입력하세요.");
+    expect(messages).toContain("대상자 수는 0 이상이어야 합니다.");
+    expect(messages.join(" ")).not.toMatch(/[筌獄袁癒꺜沃]/);
   });
 });
