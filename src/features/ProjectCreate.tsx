@@ -1163,7 +1163,7 @@ export default function ProjectCreate() {
                           프로젝트명<span className="ml-1 text-destructive">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="예: 2025년 Q2 전사 모의훈련" {...field} />
+                          <Input placeholder="예: YYYY년 QN 전사 피싱 모의훈련" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
