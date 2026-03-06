@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -34,6 +34,55 @@ const parseDepartments = (department: Target["department"]): string[] => {
     .filter((dept) => dept.length > 0);
 };
 
+export const normalizeTargetSearchValue = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+export const tokenizeTargetSearch = (value: string) =>
+  normalizeTargetSearchValue(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+
+export const isNumericOnlyQuery = (tokens: string[]) => {
+  if (tokens.length === 0) return false;
+  const joined = tokens.join("");
+  return /^[0-9]+$/.test(joined);
+};
+
+export const buildTargetNameSearchHaystack = (target: Pick<Target, "name">) =>
+  normalizeTargetSearchValue(target.name ?? "");
+
+export const buildTargetSearchHaystack = (
+  target: Pick<Target, "name" | "email" | "department" | "tags">,
+) => {
+  const departments = parseDepartments(target.department).join(" ");
+  const tags = (target.tags ?? [])
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0)
+    .join(" ");
+  const combined = [target.name ?? "", target.email ?? "", departments, tags]
+    .join(" ")
+    .trim();
+  return normalizeTargetSearchValue(combined);
+};
+
+export const filterTargetsBySearch = (targets: Target[], searchTerm: string) => {
+  const tokens = tokenizeTargetSearch(searchTerm);
+  if (tokens.length === 0) {
+    return targets;
+  }
+  const numericOnly = isNumericOnlyQuery(tokens);
+  return targets.filter((target) => {
+    const haystack = numericOnly
+      ? buildTargetNameSearchHaystack(target)
+      : buildTargetSearchHaystack(target);
+    return tokens.every((token) => haystack.includes(token));
+  });
+};
+
 export default function Targets() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -43,7 +92,6 @@ export default function Targets() {
     useState<ImportTrainingTargetsResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const { data: targets = [], isLoading } = useQuery<Target[]>({
     queryKey: ["/api/targets"],
@@ -62,14 +110,10 @@ export default function Targets() {
     },
   });
 
-  const filteredTargets = targets.filter((target) => {
-    const departments = parseDepartments(target.department);
-    return (
-      target.name.toLowerCase().includes(normalizedSearch) ||
-      target.email.toLowerCase().includes(normalizedSearch) ||
-      departments.some((dept) => dept.toLowerCase().includes(normalizedSearch))
-    );
-  });
+  const filteredTargets = useMemo(
+    () => filterTargetsBySearch(targets, searchTerm),
+    [targets, searchTerm],
+  );
 
   const isAllSelected =
     filteredTargets.length > 0 &&

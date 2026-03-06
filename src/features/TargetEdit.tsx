@@ -344,6 +344,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
       shouldDirty: true,
       shouldTouch: true,
     });
+    setIsAdditionalOpen(false);
   };
 
   const handlePromoteToMain = (value: string) => {
@@ -554,7 +555,6 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
                             readOnly
                             value={selectedLabel}
                             placeholder="주 소속을 선택하세요"
-                            onFocus={() => setIsMainOpen(true)}
                             onClick={() => setIsMainOpen(true)}
                             onBlur={field.onBlur}
                             ref={field.ref}
@@ -627,7 +627,6 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
                             readOnly
                             placeholder="소속을 검색/선택하세요 (여러 개)"
                             value=""
-                            onFocus={() => setIsAdditionalOpen(true)}
                             onClick={() => setIsAdditionalOpen(true)}
                             onBlur={field.onBlur}
                             ref={field.ref}

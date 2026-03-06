@@ -945,14 +945,15 @@ export default function Projects() {
                   <TableCell>{getDepartmentLabel(project)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Link href={`/projects/${project.id}`}>
-                        <Button variant="ghost" size="sm">상세</Button>
-                      </Link>
                       {project.status === "임시" ? (
                         <Link href={`/projects/${project.id}/edit`}>
-                          <Button variant="outline" size="sm">이어 설정</Button>
+                          <Button variant="outline" size="sm">재개</Button>
                         </Link>
-                      ) : null}
+                      ) : (
+                        <Link href={`/projects/${project.id}`}>
+                          <Button variant="ghost" size="sm">상세</Button>
+                        </Link>
+                      )}
                       <Button variant="ghost" size="sm" onClick={() => openReport(project)}>
                         보고서
                       </Button>
@@ -1009,14 +1010,15 @@ export default function Projects() {
                       <span>클릭 {calculateRate(project.clickCount, project.targetCount)}%</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Link href={`/projects/${project.id}`}>
-                        <Button variant="ghost" size="sm">상세</Button>
-                      </Link>
                       {project.status === "임시" ? (
                         <Link href={`/projects/${project.id}/edit`}>
-                          <Button variant="outline" size="sm">이어 설정</Button>
+                          <Button variant="outline" size="sm">재개</Button>
                         </Link>
-                      ) : null}
+                      ) : (
+                        <Link href={`/projects/${project.id}`}>
+                          <Button variant="ghost" size="sm">상세</Button>
+                        </Link>
+                      )}
                     </div>
                   </Card>
                 );
@@ -1308,9 +1310,15 @@ export default function Projects() {
           <Button variant="outline" onClick={() => closeDetailPanel()}>
             닫기
           </Button>
-          <Link href={`/projects/${detailProject.id}`}>
-            <Button>상세 보기</Button>
-          </Link>
+          {detailProject.status === "임시" ? (
+            <Link href={`/projects/${detailProject.id}/edit`}>
+              <Button>재개</Button>
+            </Link>
+          ) : (
+            <Link href={`/projects/${detailProject.id}`}>
+              <Button>상세 보기</Button>
+            </Link>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

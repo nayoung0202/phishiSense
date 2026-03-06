@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,6 +43,11 @@ import {
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  PROJECTS_CALENDAR_QUERY_KEY,
+  PROJECTS_LIST_QUERY_KEY,
+  PROJECTS_QUARTER_STATS_QUERY_KEY,
+} from "@/lib/queryKeys";
 
 const statusConfig: Record<string, { className: string }> = {
   "임시": { className: "bg-slate-500/20 text-slate-400" },
@@ -90,6 +95,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isTimelineExporting, setIsTimelineExporting] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ActionLogItem | null>(null);
+  const invalidateProjectQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    queryClient.invalidateQueries({ queryKey: PROJECTS_LIST_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: PROJECTS_QUARTER_STATS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: PROJECTS_CALENDAR_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+  }, [projectId, queryClient]);
 
   const fetchProject = async (): Promise<Project> => {
     if (!projectId) {
@@ -149,14 +161,14 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       return (await res.json()) as { id: string; status: string };
     },
     onSuccess: (_response, target) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      invalidateProjectQueries();
       toast({
         title: "프로젝트 시작",
         description: `${target.name} 프로젝트가 진행중으로 전환되었습니다.`,
       });
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      invalidateProjectQueries();
       toast({
         title: "시작 실패",
         description: error.message ?? "프로젝트를 시작할 수 없습니다.",
@@ -365,7 +377,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           {project.status === "임시" ? (
             <Link href={`/projects/${project.id}/edit`}>
               <Button variant="outline">
-                이어 설정
+                재개
               </Button>
             </Link>
           ) : null}
@@ -645,7 +657,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         onOpenChange={setIsReportOpen}
         project={project}
         onProjectUpdated={() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+          invalidateProjectQueries();
         }}
       />
     </div>

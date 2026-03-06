@@ -238,18 +238,55 @@ export default function Dashboard() {
     [quartersByYear],
   );
 
-  const monthOptions = useMemo(
-    () =>
-      monthlySummaries.map((summary) => ({
+  const monthYearMap = useMemo(() => {
+    const map = new Map<number, { value: string; label: string }[]>();
+    monthlySummaries.forEach((summary) => {
+      const year = summary.monthDate.getFullYear();
+      const list = map.get(year) ?? [];
+      list.push({
         value: summary.key,
         label: summary.monthLabel,
-      })),
-    [monthlySummaries],
+      });
+      map.set(year, list);
+    });
+    return map;
+  }, [monthlySummaries]);
+
+  const monthYearOptions = useMemo(
+    () =>
+      Array.from(monthYearMap.keys())
+        .sort((a, b) => b - a)
+        .map((year) => ({
+          value: String(year),
+          label: `${year}년`,
+        })),
+    [monthYearMap],
   );
 
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(() =>
-    monthOptions.length > 0 ? monthOptions[0].value : null,
-  );
+  const [selectedMonthYear, setSelectedMonthYear] = useState<string | null>(() => {
+    const currentYear = new Date().getFullYear();
+    if (monthYearMap.has(currentYear)) {
+      return String(currentYear);
+    }
+    const latestYear = Array.from(monthYearMap.keys()).sort((a, b) => b - a)[0];
+    return typeof latestYear === "number" ? String(latestYear) : null;
+  });
+
+  const monthOptions = useMemo(() => {
+    if (!selectedMonthYear) return [];
+    return monthYearMap.get(Number(selectedMonthYear)) ?? [];
+  }, [monthYearMap, selectedMonthYear]);
+
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(() => {
+    const currentYear = new Date().getFullYear();
+    const year =
+      monthYearMap.has(currentYear)
+        ? currentYear
+        : Array.from(monthYearMap.keys()).sort((a, b) => b - a)[0];
+    if (typeof year !== "number") return null;
+    const months = monthYearMap.get(year) ?? [];
+    return months.length > 0 ? months[0].value : null;
+  });
 
   const [selectedYear, setSelectedYear] = useState<string | null>(() =>
     yearOptions.length > 0 ? yearOptions[0].value : null,
@@ -272,15 +309,32 @@ export default function Dashboard() {
   }, [quartersByYear, selectedYear]);
 
   useEffect(() => {
-    if (!monthOptions.length) {
-      setSelectedMonth(null);
+    if (!monthYearOptions.length) {
+      setSelectedMonthYear(null);
       return;
     }
 
-    if (!selectedMonth || !monthOptions.some((option) => option.value === selectedMonth)) {
-      setSelectedMonth(monthOptions[0].value);
+    if (
+      !selectedMonthYear ||
+      !monthYearOptions.some((option) => option.value === selectedMonthYear)
+    ) {
+      const currentYear = String(new Date().getFullYear());
+      const fallbackYear = monthYearOptions.find((option) => option.value === currentYear)?.value
+        ?? monthYearOptions[0].value;
+      setSelectedMonthYear(fallbackYear);
     }
-  }, [monthOptions, selectedMonth]);
+  }, [monthYearOptions, selectedMonthYear]);
+
+  useEffect(() => {
+    if (!monthOptions.length) {
+      setSelectedMonthKey(null);
+      return;
+    }
+
+    if (!selectedMonthKey || !monthOptions.some((option) => option.value === selectedMonthKey)) {
+      setSelectedMonthKey(monthOptions[0].value);
+    }
+  }, [monthOptions, selectedMonthKey]);
 
   useEffect(() => {
     if (!yearOptions.length) {
@@ -314,7 +368,7 @@ export default function Dashboard() {
   }, [quartersByYear, selectedYear, selectedQuarterNumber]);
 
   const selectedSummary =
-    monthlySummaries.find((summary) => summary.key === selectedMonth) ??
+    monthlySummaries.find((summary) => summary.key === selectedMonthKey) ??
     monthlySummaries[0];
 
   const selectedQuarterKey =
@@ -375,22 +429,40 @@ export default function Dashboard() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">월간 훈련 현황</h2>
-          {monthOptions.length > 0 && (
-            <Select
-              value={selectedMonth ?? undefined}
-              onValueChange={(value) => setSelectedMonth(value)}
-            >
-              <SelectTrigger className="w-[200px]" data-testid="select-dashboard-month">
-                <SelectValue placeholder="월 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {monthOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {monthYearOptions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Select
+                value={selectedMonthYear ?? undefined}
+                onValueChange={(value) => setSelectedMonthYear(value)}
+              >
+                <SelectTrigger className="w-[140px]" data-testid="select-dashboard-month-year">
+                  <SelectValue placeholder="연도 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthYearOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedMonthKey ?? undefined}
+                onValueChange={(value) => setSelectedMonthKey(value)}
+                disabled={monthOptions.length === 0}
+              >
+                <SelectTrigger className="w-[200px]" data-testid="select-dashboard-month">
+                  <SelectValue placeholder="월 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
