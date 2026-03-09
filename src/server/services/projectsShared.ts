@@ -135,6 +135,10 @@ export type ProjectValidationIssue = {
   message: string;
 };
 
+type ValidateProjectPayloadOptions = {
+  allowTemporaryDraft?: boolean;
+};
+
 export const PREVIEW_CACHE_WINDOW_MS = 2 * 60 * 1000;
 export const previewCache = new Map<string, { data: PreviewResponse; expiresAt: number }>();
 export const NODEMAILER_VERSION =
@@ -302,14 +306,19 @@ export const buildPreviewTrend = (
   { label: "제출율", metric: "rate", value: forecast.submitRate },
 ];
 
-export const validateProjectPayload = (payload: InsertProject): ProjectValidationIssue[] => {
+export const validateProjectPayload = (
+  payload: InsertProject,
+  options: ValidateProjectPayloadOptions = {},
+): ProjectValidationIssue[] => {
   const issues: ProjectValidationIssue[] = [];
+  const isTemporaryDraft =
+    options.allowTemporaryDraft && payload.status === STATUS_TEMP;
 
   if (!normalizeOptionalString(payload.name)) {
     issues.push({ field: "name", code: "required", message: "프로젝트명을 입력하세요." });
   }
 
-  if (!normalizeOptionalString(payload.templateId)) {
+  if (!isTemporaryDraft && !normalizeOptionalString(payload.templateId)) {
     issues.push({
       field: "templateId",
       code: "required",
@@ -317,7 +326,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
     });
   }
 
-  if (!normalizeOptionalString(payload.trainingPageId)) {
+  if (!isTemporaryDraft && !normalizeOptionalString(payload.trainingPageId)) {
     issues.push({
       field: "trainingPageId",
       code: "required",
@@ -326,7 +335,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
   }
 
   const sendingDomain = normalizeOptionalString(payload.sendingDomain);
-  if (!sendingDomain) {
+  if (!isTemporaryDraft && !sendingDomain) {
     issues.push({
       field: "sendingDomain",
       code: "required",
@@ -335,7 +344,7 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
   }
 
   const fromName = normalizeOptionalString(payload.fromName);
-  if (!fromName) {
+  if (!isTemporaryDraft && !fromName) {
     issues.push({
       field: "fromName",
       code: "required",
@@ -344,13 +353,13 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
   }
 
   const fromEmail = normalizeOptionalString(payload.fromEmail);
-  if (!fromEmail) {
+  if (!isTemporaryDraft && !fromEmail) {
     issues.push({
       field: "fromEmail",
       code: "required",
       message: "발신 이메일을 입력하세요.",
     });
-  } else if (!fromEmail.includes("@")) {
+  } else if (fromEmail && !fromEmail.includes("@")) {
     issues.push({
       field: "fromEmail",
       code: "invalid",
@@ -368,7 +377,10 @@ export const validateProjectPayload = (payload: InsertProject): ProjectValidatio
   }
 
   const endDate = toSafeDate(payload.endDate);
-  if (startDate && endDate && startDate >= endDate) {
+  const hasInvalidEndDateRange = isTemporaryDraft
+    ? Boolean(startDate && endDate && startDate > endDate)
+    : Boolean(startDate && endDate && startDate >= endDate);
+  if (hasInvalidEndDateRange) {
     issues.push({
       field: "endDate",
       code: "invalid_range",

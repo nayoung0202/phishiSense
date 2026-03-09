@@ -24,6 +24,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const payload = await request.json();
     const { id } = await params;
+    if (typeof payload?.email === "string" && payload.email.trim().length > 0) {
+      const existing = await storage.findTargetByEmail(payload.email);
+      if (existing && existing.id !== id) {
+        return NextResponse.json(
+          { error: "duplicate_email", message: "이미 등록된 이메일입니다." },
+          { status: 409 },
+        );
+      }
+    }
     const target = await storage.updateTarget(id, payload);
     if (!target) {
       return NextResponse.json({ error: "Target not found" }, { status: 404 });

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { storage } from "@/server/storage";
 import {
   collectDepartmentTagsFromTargets,
+  normalizeProjectDate,
+  normalizeStringArray,
   projectCreateSchema,
   quarterNumbers,
   statusParamMap,
-  normalizeProjectDate,
-  normalizeStringArray,
   validateProjectPayload,
 } from "@/server/services/projectsShared";
 import { enqueueSendJobForProject } from "@/server/services/sendJobs";
@@ -17,6 +17,8 @@ import {
 } from "@shared/projectDepartment";
 import type { InsertProject } from "@shared/schema";
 import { ZodError } from "zod";
+
+const STATUS_RUNNING = "진행중";
 
 export async function GET(request: NextRequest) {
   try {
@@ -108,17 +110,6 @@ export async function POST(request: NextRequest) {
     );
     const derivedDepartmentTags =
       collectDepartmentTagsFromTargets(selectedTargets);
-    const issues = validateProjectPayload(projectPayload as InsertProject);
-    if (issues.length > 0) {
-      return NextResponse.json(
-        {
-          error: "validation_failed",
-          issues,
-        },
-        { status: 422 },
-      );
-    }
-
     const { departmentTags, notificationEmails, ...projectRest } =
       projectPayload;
     const normalizedDepartmentTags =
@@ -133,9 +124,23 @@ export async function POST(request: NextRequest) {
       }),
       departmentTags: normalizedDepartmentTags,
       notificationEmails: normalizeStringArray(notificationEmails),
+      endDate: projectRest.endDate ?? projectRest.startDate,
     };
 
-    if (sanitized.status === "진행중") {
+    const issues = validateProjectPayload(sanitized, {
+      allowTemporaryDraft: true,
+    });
+    if (issues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "validation_failed",
+          issues,
+        },
+        { status: 422 },
+      );
+    }
+
+    if (sanitized.status === STATUS_RUNNING) {
       if (!sanitized.templateId) {
         return NextResponse.json(
           {
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (project.status === "진행중") {
+    if (project.status === STATUS_RUNNING) {
       await enqueueSendJobForProject(project.id);
     }
     return NextResponse.json(project, { status: 201 });

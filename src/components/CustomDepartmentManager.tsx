@@ -1,4 +1,6 @@
-import { useState } from "react";
+"use client";
+
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +17,8 @@ type CustomDepartmentManagerProps = {
 };
 
 export function CustomDepartmentManager({
-  title = "새 조직/팀 추가",
-  description = "조직이나 팀이 아직 없다면 직접 입력해 목록에 추가하세요. 추가된 소속은 모든 입력창에서 바로 선택할 수 있습니다.",
+  title = "직접 조직/팀 추가",
+  description = "조직이나 팀이 목록에 없다면 직접 입력해 목록에 추가하세요. 추가한 소속은 모든 입력창에서 바로 선택할 수 있습니다.",
   customDepartments,
   onAdd,
   onRemove,
@@ -25,13 +27,14 @@ export function CustomDepartmentManager({
   const [organization, setOrganization] = useState("");
   const [team, setTeam] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const organizationInputRef = useRef<HTMLInputElement | null>(null);
 
   const buildLabel = () => {
     const org = organization.trim();
-    const t = team.trim();
-    if (!org && !t) return "";
-    if (org && t) return `${org} > ${t}`;
-    return org || t;
+    const teamName = team.trim();
+    if (!org && !teamName) return "";
+    if (org && teamName) return `${org} > ${teamName}`;
+    return org || teamName;
   };
 
   const handleAdd = () => {
@@ -47,11 +50,22 @@ export function CustomDepartmentManager({
     }
     setOrganization("");
     setTeam("");
+    organizationInputRef.current?.focus();
+  };
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
+    handleAdd();
   };
 
   return (
     <section
-      className={cn("rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 space-y-4", className)}
+      className={cn(
+        "space-y-4 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4",
+        className,
+      )}
     >
       <div>
         <h3 className="text-base font-semibold">{title}</h3>
@@ -59,12 +73,14 @@ export function CustomDepartmentManager({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
+          ref={organizationInputRef}
           placeholder="조직명 (예: 기획본부)"
           value={organization}
           onChange={(event) => {
             setOrganization(event.target.value);
             if (error) setError(null);
           }}
+          onKeyDown={handleInputKeyDown}
           aria-label="조직명"
         />
         <Input
@@ -74,16 +90,17 @@ export function CustomDepartmentManager({
             setTeam(event.target.value);
             if (error) setError(null);
           }}
+          onKeyDown={handleInputKeyDown}
           aria-label="팀명"
         />
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={handleAdd}>
-          새 소속 추가
+          소속 추가
         </Button>
         <p className="text-sm text-muted-foreground">
-          예: "기획본부 &gt; 전략팀" 또는 "보안실"
+          예: "기획본부 &gt; 전략팀" 또는 "보안팀"
         </p>
       </div>
       <div className="space-y-2">

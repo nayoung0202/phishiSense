@@ -16,6 +16,13 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json();
     const validated = insertTargetSchema.parse(payload);
+    const existing = await storage.findTargetByEmail(validated.email);
+    if (existing) {
+      return NextResponse.json(
+        { error: "duplicate_email", message: "이미 등록된 이메일입니다." },
+        { status: 409 },
+      );
+    }
     const target = await storage.createTarget(validated);
     return NextResponse.json(target, { status: 201 });
   } catch (error) {

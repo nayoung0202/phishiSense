@@ -12,6 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -178,6 +187,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
   const [isAdditionalOpen, setIsAdditionalOpen] = useState(false);
   const [mainQuery, setMainQuery] = useState("");
   const [additionalQuery, setAdditionalQuery] = useState("");
+  const [duplicateEmailMessage, setDuplicateEmailMessage] = useState<string | null>(null);
 
   const { data: target } = useQuery<Target>({
     queryKey: ["/api/targets", normalizedTargetId],
@@ -484,6 +494,27 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
       });
       router.push("/targets");
     },
+    onError: (error: unknown) => {
+      if (error instanceof Error && error.message.startsWith("409:")) {
+        const rawBody = error.message.slice(4).trim();
+        try {
+          const parsed = JSON.parse(rawBody) as { message?: string };
+          setDuplicateEmailMessage(
+            parsed.message ?? "이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요.",
+          );
+          return;
+        } catch {
+          setDuplicateEmailMessage("이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요.");
+          return;
+        }
+      }
+
+      toast({
+        title: "저장 실패",
+        description: "훈련대상 저장 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    },
   });
 
   const onSubmit = (data: TargetFormValues) => {
@@ -513,7 +544,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>이름</FormLabel>
+                  <FormLabel>이름<span className="ml-1 text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input placeholder="예: 김보안" {...field} data-testid="input-name" />
                   </FormControl>
@@ -527,7 +558,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>이메일</FormLabel>
+                  <FormLabel>이메일<span className="ml-1 text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input
                       placeholder="예: security@company.com"
@@ -547,7 +578,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
                 const selectedLabel = selectedMainOption?.label ?? "";
                 return (
                   <FormItem>
-                    <FormLabel>주 소속</FormLabel>
+                    <FormLabel>주 소속<span className="ml-1 text-destructive">*</span></FormLabel>
                     <Popover open={isMainOpen} onOpenChange={setIsMainOpen}>
                       <FormControl>
                         <PopoverTrigger asChild>
@@ -918,6 +949,28 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
           </form>
         </Form>
       </Card>
+      <AlertDialog
+        open={Boolean(duplicateEmailMessage)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDuplicateEmailMessage(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>중복 이메일 감지</AlertDialogTitle>
+            <AlertDialogDescription>
+              {duplicateEmailMessage ?? "이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setDuplicateEmailMessage(null)}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

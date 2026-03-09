@@ -27,7 +27,16 @@ import {
 import Link from "next/link";
 import { type Project } from "@shared/schema";
 import { format } from "date-fns";
-import { Users, BarChart3, Shield, TrendingUp, LineChart, Plus } from "lucide-react";
+import {
+  Users,
+  BarChart3,
+  Shield,
+  TrendingUp,
+  LineChart,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 type MonthlySummary = {
   key: string;
@@ -68,6 +77,29 @@ const toMonthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
 const toMonthLabel = (date: Date) => format(date, "yyyy년 MM월");
+const toMonthOptionLabel = (date: Date) => format(date, "MM월");
+const getMonthParts = (monthKey: string) => {
+  const [year = "", month = ""] = monthKey.split("-");
+  return { year, month };
+};
+const getInitialMonthKey = (availableMonthKeys: string[], now: Date) => {
+  if (availableMonthKeys.length === 0) return null;
+
+  const currentMonthKey = toMonthKey(now);
+  if (availableMonthKeys.includes(currentMonthKey)) {
+    return currentMonthKey;
+  }
+
+  const currentYearPrefix = `${now.getFullYear()}-`;
+  const monthsInCurrentYear = availableMonthKeys.filter((key) =>
+    key.startsWith(currentYearPrefix),
+  );
+  if (monthsInCurrentYear.length > 0) {
+    return monthsInCurrentYear[monthsInCurrentYear.length - 1] ?? null;
+  }
+
+  return availableMonthKeys[availableMonthKeys.length - 1] ?? null;
+};
 
 const getQuarterNumber = (date: Date) => Math.floor(date.getMonth() / 3) + 1;
 
@@ -239,18 +271,32 @@ export default function Dashboard() {
   );
 
   const monthYearMap = useMemo(() => {
-    const map = new Map<number, { value: string; label: string }[]>();
+    const map = new Map<number, { key: string; value: string; label: string; monthNumber: number }[]>();
     monthlySummaries.forEach((summary) => {
       const year = summary.monthDate.getFullYear();
       const list = map.get(year) ?? [];
+      const monthValue = String(summary.monthDate.getMonth() + 1).padStart(2, "0");
       list.push({
-        value: summary.key,
-        label: summary.monthLabel,
+        key: summary.key,
+        value: monthValue,
+        label: toMonthOptionLabel(summary.monthDate),
+        monthNumber: summary.monthDate.getMonth() + 1,
       });
-      map.set(year, list);
+      map.set(
+        year,
+        list.sort((a, b) => a.monthNumber - b.monthNumber),
+      );
     });
     return map;
   }, [monthlySummaries]);
+
+  const availableMonthKeys = useMemo(
+    () =>
+      [...monthlySummaries]
+        .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
+        .map((summary) => summary.key),
+    [monthlySummaries],
+  );
 
   const monthYearOptions = useMemo(
     () =>
@@ -263,30 +309,16 @@ export default function Dashboard() {
     [monthYearMap],
   );
 
-  const [selectedMonthYear, setSelectedMonthYear] = useState<string | null>(() => {
-    const currentYear = new Date().getFullYear();
-    if (monthYearMap.has(currentYear)) {
-      return String(currentYear);
-    }
-    const latestYear = Array.from(monthYearMap.keys()).sort((a, b) => b - a)[0];
-    return typeof latestYear === "number" ? String(latestYear) : null;
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(() => {
+    return getInitialMonthKey(availableMonthKeys, new Date());
   });
-
+  const selectedMonthYear = selectedMonthKey ? getMonthParts(selectedMonthKey).year : null;
   const monthOptions = useMemo(() => {
     if (!selectedMonthYear) return [];
     return monthYearMap.get(Number(selectedMonthYear)) ?? [];
   }, [monthYearMap, selectedMonthYear]);
-
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(() => {
-    const currentYear = new Date().getFullYear();
-    const year =
-      monthYearMap.has(currentYear)
-        ? currentYear
-        : Array.from(monthYearMap.keys()).sort((a, b) => b - a)[0];
-    if (typeof year !== "number") return null;
-    const months = monthYearMap.get(year) ?? [];
-    return months.length > 0 ? months[0].value : null;
-  });
+  const selectedMonthNumber = selectedMonthKey ? getMonthParts(selectedMonthKey).month : null;
+  const currentMonthIndex = selectedMonthKey ? availableMonthKeys.indexOf(selectedMonthKey) : -1;
 
   const [selectedYear, setSelectedYear] = useState<string | null>(() =>
     yearOptions.length > 0 ? yearOptions[0].value : null,
@@ -309,32 +341,28 @@ export default function Dashboard() {
   }, [quartersByYear, selectedYear]);
 
   useEffect(() => {
-    if (!monthYearOptions.length) {
-      setSelectedMonthYear(null);
-      return;
-    }
-
-    if (
-      !selectedMonthYear ||
-      !monthYearOptions.some((option) => option.value === selectedMonthYear)
-    ) {
-      const currentYear = String(new Date().getFullYear());
-      const fallbackYear = monthYearOptions.find((option) => option.value === currentYear)?.value
-        ?? monthYearOptions[0].value;
-      setSelectedMonthYear(fallbackYear);
-    }
-  }, [monthYearOptions, selectedMonthYear]);
-
-  useEffect(() => {
-    if (!monthOptions.length) {
+    if (!availableMonthKeys.length) {
       setSelectedMonthKey(null);
       return;
     }
 
-    if (!selectedMonthKey || !monthOptions.some((option) => option.value === selectedMonthKey)) {
-      setSelectedMonthKey(monthOptions[0].value);
+    if (!selectedMonthKey) {
+      setSelectedMonthKey(getInitialMonthKey(availableMonthKeys, new Date()));
+      return;
     }
-  }, [monthOptions, selectedMonthKey]);
+
+    if (!availableMonthKeys.includes(selectedMonthKey)) {
+      const selectedYear = getMonthParts(selectedMonthKey).year;
+      const fallbackInSameYear = availableMonthKeys.filter((key) =>
+        key.startsWith(`${selectedYear}-`),
+      );
+      setSelectedMonthKey(
+        fallbackInSameYear[fallbackInSameYear.length - 1] ??
+          availableMonthKeys[availableMonthKeys.length - 1] ??
+          null,
+      );
+    }
+  }, [availableMonthKeys, selectedMonthKey]);
 
   useEffect(() => {
     if (!yearOptions.length) {
@@ -412,6 +440,32 @@ export default function Dashboard() {
     return quarterComparisonData.reduce((max, item) => Math.max(max, item.targetCount), 0);
   }, [quarterComparisonData]);
 
+  const handleYearChange = (year: string) => {
+    const nextMonths = monthYearMap.get(Number(year)) ?? [];
+    if (!nextMonths.length) return;
+
+    const sameMonth = selectedMonthNumber
+      ? nextMonths.find((option) => option.value === selectedMonthNumber)
+      : null;
+
+    setSelectedMonthKey((sameMonth ?? nextMonths[nextMonths.length - 1]).key);
+  };
+
+  const handleMonthChange = (month: string) => {
+    if (!selectedMonthYear) return;
+    setSelectedMonthKey(`${selectedMonthYear}-${month}`);
+  };
+
+  const handlePrevMonth = () => {
+    if (currentMonthIndex <= 0) return;
+    setSelectedMonthKey(availableMonthKeys[currentMonthIndex - 1] ?? null);
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonthIndex < 0 || currentMonthIndex >= availableMonthKeys.length - 1) return;
+    setSelectedMonthKey(availableMonthKeys[currentMonthIndex + 1] ?? null);
+  };
+
   return (
     <div className="p-6 space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -430,12 +484,21 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-2xl font-semibold">월간 훈련 현황</h2>
           {monthYearOptions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 disabled:opacity-30"
+                disabled={currentMonthIndex <= 0}
+                onClick={handlePrevMonth}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <Select
                 value={selectedMonthYear ?? undefined}
-                onValueChange={(value) => setSelectedMonthYear(value)}
+                onValueChange={handleYearChange}
               >
-                <SelectTrigger className="w-[140px]" data-testid="select-dashboard-month-year">
+                <SelectTrigger className="w-[100px]" data-testid="select-dashboard-month-year">
                   <SelectValue placeholder="연도 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -447,21 +510,30 @@ export default function Dashboard() {
                 </SelectContent>
               </Select>
               <Select
-                value={selectedMonthKey ?? undefined}
-                onValueChange={(value) => setSelectedMonthKey(value)}
+                value={selectedMonthNumber ?? undefined}
+                onValueChange={handleMonthChange}
                 disabled={monthOptions.length === 0}
               >
-                <SelectTrigger className="w-[200px]" data-testid="select-dashboard-month">
+                <SelectTrigger className="w-[85px]" data-testid="select-dashboard-month">
                   <SelectValue placeholder="월 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   {monthOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.key} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 disabled:opacity-30"
+                disabled={currentMonthIndex < 0 || currentMonthIndex >= availableMonthKeys.length - 1}
+                onClick={handleNextMonth}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>

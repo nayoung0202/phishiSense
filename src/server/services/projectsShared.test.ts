@@ -121,6 +121,48 @@ describe("collectDepartmentTagsFromTargets", () => {
 
     expect(tags).toEqual(["영업본부", "인사팀", "플랫폼팀"]);
   });
+
+  it("임시 상태 프로젝트는 이름과 일정만 있으면 통과한다", () => {
+    const draftPayload = {
+      name: "임시 프로젝트",
+      templateId: "",
+      trainingPageId: "",
+      sendingDomain: "",
+      fromName: "",
+      fromEmail: "",
+      startDate: new Date("2026-03-06T00:00:00.000Z"),
+      endDate: new Date("2026-03-06T00:00:00.000Z"),
+      status: "임시",
+      targetCount: 0,
+    } as unknown as InsertProject;
+
+    const issues = validateProjectPayload(draftPayload, {
+      allowTemporaryDraft: true,
+    });
+
+    expect(issues).toEqual([]);
+  });
+
+  it("?꾩떆 ?곹깭 ?꾨줈?앺듃??媛숈? ?좎쭨濡?留덇컧?섏뿬??寃利??듦낵?쒕떎", () => {
+    const draftPayload = {
+      name: "?꾩떆 ?꾨줈?앺듃",
+      templateId: "",
+      trainingPageId: "",
+      sendingDomain: "",
+      fromName: "",
+      fromEmail: "",
+      startDate: new Date("2026-03-09T00:00:00.000Z"),
+      endDate: new Date("2026-03-09T00:00:00.000Z"),
+      status: "?꾩떆",
+      targetCount: 0,
+    } as unknown as InsertProject;
+
+    const issues = validateProjectPayload(draftPayload, {
+      allowTemporaryDraft: true,
+    });
+
+    expect(issues).toEqual([]);
+  });
 });
 
 describe("buildTestEmailHtml", () => {

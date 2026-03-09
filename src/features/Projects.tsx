@@ -779,6 +779,11 @@ export default function Projects() {
     deleteMutation.mutate(selectedProjects);
   };
 
+  const handleDeleteProject = (project: Project) => {
+    if (!confirm(`"${project.name}" 프로젝트를 삭제하시겠습니까?`)) return;
+    deleteMutation.mutate([project.id]);
+  };
+
   const openReport = (project: Project) => {
     setReportProject(project);
     setIsReportOpen(true);
@@ -946,17 +951,24 @@ export default function Projects() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {project.status === "임시" ? (
-                        <Link href={`/projects/${project.id}/edit`}>
-                          <Button variant="outline" size="sm">재개</Button>
-                        </Link>
+                        <>
+                          <Link href={`/projects/${project.id}/edit`}>
+                            <Button variant="outline" size="sm">재개</Button>
+                          </Link>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteProject(project)}>
+                            삭제
+                          </Button>
+                        </>
                       ) : (
-                        <Link href={`/projects/${project.id}`}>
-                          <Button variant="ghost" size="sm">상세</Button>
-                        </Link>
+                        <>
+                          <Link href={`/projects/${project.id}`}>
+                            <Button variant="ghost" size="sm">상세</Button>
+                          </Link>
+                          <Button variant="ghost" size="sm" onClick={() => openReport(project)}>
+                            보고서
+                          </Button>
+                        </>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => openReport(project)}>
-                        보고서
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1011,9 +1023,14 @@ export default function Projects() {
                     </div>
                     <div className="flex items-center gap-2">
                       {project.status === "임시" ? (
-                        <Link href={`/projects/${project.id}/edit`}>
-                          <Button variant="outline" size="sm">재개</Button>
-                        </Link>
+                        <>
+                          <Link href={`/projects/${project.id}/edit`}>
+                            <Button variant="outline" size="sm">재개</Button>
+                          </Link>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteProject(project)}>
+                            삭제
+                          </Button>
+                        </>
                       ) : (
                         <Link href={`/projects/${project.id}`}>
                           <Button variant="ghost" size="sm">상세</Button>
@@ -1311,9 +1328,14 @@ export default function Projects() {
             닫기
           </Button>
           {detailProject.status === "임시" ? (
-            <Link href={`/projects/${detailProject.id}/edit`}>
-              <Button>재개</Button>
-            </Link>
+            <>
+              <Link href={`/projects/${detailProject.id}/edit`}>
+                <Button>재개</Button>
+              </Link>
+              <Button variant="ghost" onClick={() => handleDeleteProject(detailProject)}>
+                삭제
+              </Button>
+            </>
           ) : (
             <Link href={`/projects/${detailProject.id}`}>
               <Button>상세 보기</Button>

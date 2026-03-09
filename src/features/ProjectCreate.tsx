@@ -195,6 +195,7 @@ const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
 };
 
 const asIsoString = (value: Date | undefined) => (value ? value.toISOString() : undefined);
+const STATUS_TEMP = "임시";
 
 const splitDepartmentTags = (value?: string | null): string[] => {
   if (!value) return [];
@@ -374,6 +375,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const projectName = form.watch("name");
   const startDateValue = form.watch("startDate");
   const endDateValue = form.watch("endDate");
+  const [savedProjectStatus, setSavedProjectStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditMode || !existingProject || !projectId) return;
@@ -409,6 +411,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
     });
 
     setTempProjectId(existingProject.id);
+    setSavedProjectStatus(existingProject.status ?? null);
     hydratedProjectIdRef.current = existingProject.id;
   }, [isEditMode, projectId, existingProject, existingProjectTargets, form]);
 
@@ -848,9 +851,11 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const buildProjectPayload = useCallback(
     (values: ProjectFormValues, status: string): CreateProjectRequest => {
       const startDateIso = asIsoString(values.startDate) ?? new Date().toISOString();
-      const fallbackEndDate = new Date(
-        new Date(startDateIso).getTime() + 7 * 24 * 60 * 60 * 1000,
-      ).toISOString();
+      const fallbackEndDate = status === STATUS_TEMP
+        ? startDateIso
+        : new Date(
+          new Date(startDateIso).getTime() + 7 * 24 * 60 * 60 * 1000,
+        ).toISOString();
       const endDateIso = asIsoString(values.endDate) ?? fallbackEndDate;
       const departmentTags = collectDepartmentTagsFromSelectedTargets(values.targetIds, targetLookup);
 
@@ -897,8 +902,20 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       }
       return data as { id: string };
     },
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      const isDraftSave = variables.payload.status === STATUS_TEMP;
+      setSavedProjectStatus(variables.payload.status);
+      if (isDraftSave) {
+        if (response?.id) {
+          setTempProjectId(response.id);
+        }
+        toast({
+          title: "임시 저장 완료",
+          description: "프로젝트를 임시 저장했습니다.",
+        });
+        return;
+      }
       toast({
         title: "프로젝트 생성 완료",
         description: "프로젝트가 저장되었습니다.",
@@ -953,12 +970,24 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
     },
     onSuccess: (response, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      const isDraftSave = variables.payload.status === STATUS_TEMP;
+      setSavedProjectStatus(variables.payload.status);
+      const projectId = response?.id ?? variables.id;
+      if (isDraftSave) {
+        if (projectId) {
+          setTempProjectId(projectId);
+        }
+        toast({
+          title: "임시 저장 완료",
+          description: "프로젝트를 임시 저장했습니다.",
+        });
+        return;
+      }
       toast({
         title: "프로젝트 저장 완료",
         description: "프로젝트가 저장되었습니다.",
       });
       setTempProjectId(null);
-      const projectId = response?.id ?? variables.id;
       if (projectId) {
         router.push(`/projects/${projectId}`);
       } else {
@@ -1057,14 +1086,41 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
     },
   });
 
+  const isDraftSaveEnabled =
+    projectName.trim().length > 0 &&
+    !createMutation.isPending &&
+    !updateMutation.isPending;
+  const isDraftProject = savedProjectStatus === STATUS_TEMP;
+  const pageTitle =
+    isDraftProject || !isEditMode ? "프로젝트 생성" : "프로젝트 이어 설정";
+
   const handleSubmitProject = useCallback(
     async (mode: "create" | "schedule" | "run") => {
       const values = form.getValues();
-      const withValidation = await form.trigger();
+      if (mode === "create") {
+        if (!values.name.trim()) {
+          form.setError("name", {
+            type: "manual",
+            message: "프로젝트명을 입력하세요.",
+          });
+          toast({
+            title: "입력값을 확인하세요",
+            description: "프로젝트명을 입력해야 임시 저장할 수 있습니다.",
+            variant: "destructive",
+          });
+          return;
+        }
+        form.clearErrors("name");
+      }
+
+      const withValidation = mode === "create" ? true : await form.trigger();
       if (!withValidation) {
         toast({
           title: "입력값을 확인하세요",
-          description: "필수 항목을 모두 채워야 합니다.",
+          description:
+            mode === "create"
+              ? "프로젝트명을 입력해야 임시 저장할 수 있습니다."
+              : "필수 항목을 모두 채워야 합니다.",
           variant: "destructive",
         });
         return;
@@ -1082,7 +1138,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         }
       }
 
-      const status = mode === "run" ? "진행중" : mode === "schedule" ? "예약" : "임시";
+      const status = mode === "run" ? "진행중" : mode === "schedule" ? "예약" : STATUS_TEMP;
       const payload = buildProjectPayload(values, status);
 
       if (tempProjectId) {
@@ -1141,6 +1197,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       const data = await res.json().catch(() => null);
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+        setSavedProjectStatus(STATUS_TEMP);
         return tempProjectId;
       }
       if (res.status === 404) {
@@ -1173,6 +1230,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
     if (createdId) {
       setTempProjectId(createdId);
     }
+    setSavedProjectStatus(STATUS_TEMP);
     queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     toast({
       title: "임시 저장 완료",
@@ -1225,7 +1283,10 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       <div className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center justify-between px-6 py-3">
           <div>
-            <h1 className="text-2xl font-semibold">{isEditMode ? "프로젝트 이어 설정" : "프로젝트 생성"}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">{pageTitle}</h1>
+              {isDraftProject ? <Badge variant="outline">임시</Badge> : null}
+            </div>
             <p className="text-sm text-muted-foreground">
               {isEditMode
                 ? "임시 저장된 프로젝트를 이어서 설정하고 예약/시작을 진행하세요."
@@ -1276,7 +1337,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                           프로젝트명<span className="ml-1 text-destructive">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="예: YYYY년 QN 전사 피싱 모의훈련" {...field} />
+                          <Input placeholder="예: YYYY년 전사 피싱 모의훈련" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1784,7 +1845,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
             </Button>
             <Button
               variant="secondary"
-              disabled={!isFormValid}
+              disabled={!isDraftSaveEnabled}
               onClick={() => handleSubmitProject("create")}
             >
               <Save className="mr-2 h-4 w-4" />
