@@ -16,6 +16,7 @@ export type AuthenticatedContext = {
   sessionId: string;
   user: AuthUserPrincipal;
   tenantId: string | null;
+  accessToken: string | null;
   idleExpiresAt: string;
   absoluteExpiresAt: string;
 };
@@ -41,6 +42,7 @@ export async function requireAuth(
       sessionId: "dev-bypass-session",
       user: devBypass.user,
       tenantId: process.env.DEV_TENANT_ID ?? "tenant-local-001",
+      accessToken: null,
       idleExpiresAt: new Date(
         now.getTime() + config.idleTtlSec * 1000,
       ).toISOString(),
@@ -73,6 +75,7 @@ export async function requireAuth(
   const config = getAuthSessionConfig();
 
   let nextAccessTokenExp = session.accessTokenExp;
+  let nextAccessTokenEnc = session.accessTokenEnc;
   let nextRefreshTokenEnc = session.refreshTokenEnc;
   let didRefresh = false;
 
@@ -89,6 +92,7 @@ export async function requireAuth(
       }
 
       const refreshed = await refreshAccessToken(refreshToken);
+      nextAccessTokenEnc = encryptAuthToken(refreshed.access_token);
       if (refreshed.expires_in) {
         nextAccessTokenExp = new Date(
           now.getTime() + refreshed.expires_in * 1000,
@@ -122,6 +126,7 @@ export async function requireAuth(
     await touchAuthSession({
       sessionId,
       idleExpiresAt: nextIdleExpiresAt,
+      accessTokenEnc: nextAccessTokenEnc,
       accessTokenExp: nextAccessTokenExp,
       refreshTokenEnc: nextRefreshTokenEnc,
     });
@@ -133,6 +138,9 @@ export async function requireAuth(
     sessionId,
     user: toPrincipal(session),
     tenantId: session.tenantId,
+    accessToken: nextAccessTokenEnc
+      ? decryptAuthToken(nextAccessTokenEnc)
+      : null,
     idleExpiresAt: idleExpiresAt.toISOString(),
     absoluteExpiresAt: session.absoluteExpiresAt.toISOString(),
   };

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,9 @@ const statusConfig: Record<string, { className: string }> = {
 };
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
+
+const toProjectEditRoute = (projectId: string) =>
+  `/projects/${projectId}/edit` as Route;
 
 type ActionLogEvent = {
   type: "OPEN" | "CLICK" | "SUBMIT";
@@ -375,7 +379,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </div>
         <div className="flex items-center gap-2">
           {project.status === "임시" ? (
-            <Link href={`/projects/${project.id}/edit`}>
+            <Link href={toProjectEditRoute(project.id)}>
               <Button variant="outline">
                 재개
               </Button>

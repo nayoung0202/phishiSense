@@ -14,9 +14,8 @@ import {
 } from "@/server/auth/oidc";
 import { createAuthSession } from "@/server/auth/sessionStore";
 import { decodeOidcTransaction } from "@/server/auth/transaction";
-import { buildReturnUrl, getAppOrigin } from "@/server/auth/redirect";
+import { buildReturnUrl } from "@/server/auth/redirect";
 import type { AuthUserPrincipal } from "@/server/auth/types";
-import { checkTenant } from "@/server/tenant/checkTenant";
 
 export const runtime = "nodejs";
 
@@ -114,18 +113,6 @@ export async function GET(request: NextRequest) {
       userInfo,
     });
 
-    // 테넌트 체크
-    let tenantId: string | null = null;
-    let isNewUser = false;
-    try {
-      const tenantResult = await checkTenant(user.sub);
-      tenantId = tenantResult.tenantId;
-      isNewUser = !tenantResult.exists;
-    } catch {
-      // 테넌트 API 실패 시에도 로그인은 허용 (신규 사용자로 간주)
-      isNewUser = true;
-    }
-
     const sessionId = createOpaqueSessionId();
     const now = new Date();
     const config = getAuthSessionConfig();
@@ -136,7 +123,8 @@ export async function GET(request: NextRequest) {
     await createAuthSession({
       sessionId,
       user,
-      tenantId,
+      tenantId: null,
+      accessTokenEnc: encryptAuthToken(token.access_token),
       accessTokenExp,
       refreshTokenEnc: token.refresh_token
         ? encryptAuthToken(token.refresh_token)
@@ -145,10 +133,7 @@ export async function GET(request: NextRequest) {
       absoluteExpiresAt: new Date(now.getTime() + config.absoluteTtlSec * 1000),
     });
 
-    // 신규 사용자(테넌트 없음) → /onboarding, 기존 사용자 → returnTo(기본 /)
-    const redirectTarget = isNewUser
-      ? new URL("/onboarding", getAppOrigin()).toString()
-      : buildReturnUrl(transaction.returnTo);
+    const redirectTarget = buildReturnUrl(transaction.returnTo);
 
     const response = NextResponse.redirect(redirectTarget);
     clearTransactionCookie(response);

@@ -179,6 +179,7 @@ export const authSessions = pgTable("auth_sessions", {
   email: text("email"),
   name: text("name"),
   tenantId: text("tenant_id"),
+  accessTokenEnc: text("access_token_enc"),
   accessTokenExp: timestamp("access_token_exp"),
   refreshTokenEnc: text("refresh_token_enc"),
   idleExpiresAt: timestamp("idle_expires_at").notNull(),

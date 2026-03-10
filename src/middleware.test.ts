@@ -11,31 +11,17 @@ beforeEach(() => {
   process.env.AUTH_SESSION_COOKIE_NAME = "ps_session";
   process.env.APP_BASE_URL = "https://app.phishsense.cloud";
   delete process.env.AUTH_DEV_BYPASS;
-  delete process.env.AUTH_DEV_USER_SUB;
-  delete process.env.AUTH_DEV_USER_EMAIL;
-  delete process.env.AUTH_DEV_USER_NAME;
 });
 
-describe("middleware 인증 게이트", () => {
-  it("AUTH_DEV_BYPASS가 undefined이면 보호 페이지 무세션 요청을 OIDC 로그인 시작점으로 리다이렉트한다", async () => {
-  it("AUTH_DEV_BYPASS가 undefined이면 보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
+describe("middleware 인증 및 플랫폼 게이트", () => {
+  it("보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
     const request = new NextRequest("http://localhost/projects?tab=list");
     const response = await middleware(request);
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
       "https://app.phishsense.cloud/login?returnTo=%2Fprojects%3Ftab%3Dlist",
     );
-  });
-
-  it("AUTH_DEV_BYPASS가 undefined이면 보호 API 무세션 요청에 401을 반환한다", async () => {
-    const request = new NextRequest("http://localhost/api/projects");
-    const response = await middleware(request);
-    const body = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(body).toEqual({ error: "Unauthorized" });
   });
 
   it("AUTH_DEV_BYPASS=true이면 보호 페이지 무세션 요청을 통과시킨다", async () => {
@@ -49,47 +35,14 @@ describe("middleware 인증 게이트", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("AUTH_DEV_BYPASS=true이면 보호 API 무세션 요청을 통과시킨다", async () => {
-    process.env.AUTH_DEV_BYPASS = "true";
-
-    const request = new NextRequest("http://localhost/api/projects");
-    const response = await middleware(request);
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("x-middleware-next")).toBe("1");
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("AUTH_DEV_BYPASS=false이면 보호 페이지 무세션 요청을 OIDC 로그인 시작점으로 리다이렉트한다", async () => {
-  it("AUTH_DEV_BYPASS=false이면 보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
-    process.env.AUTH_DEV_BYPASS = "false";
-
-    const request = new NextRequest("http://localhost/projects?tab=list");
-    const response = await middleware(request);
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost/api/auth/oidc/login?returnTo=%2Fprojects%3Ftab%3Dlist",
-      "https://app.phishsense.cloud/login?returnTo=%2Fprojects%3Ftab%3Dlist",
-    );
-  });
-
-  it("AUTH_DEV_BYPASS=false이면 보호 API 무세션 요청에 401을 반환한다", async () => {
-    process.env.AUTH_DEV_BYPASS = "false";
-
-    const request = new NextRequest("http://localhost/api/projects");
-    const response = await middleware(request);
-    const body = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(body).toEqual({ error: "Unauthorized" });
-  });
-
-  it("세션 검증이 성공하면 보호 페이지 요청을 통과시킨다", async () => {
+  it("플랫폼 컨텍스트가 ready이면 보호 페이지 요청을 통과시킨다", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           authenticated: true,
+          hasAccess: true,
+          onboardingRequired: false,
+          status: "ready",
         }),
         {
           status: 200,
@@ -110,29 +63,86 @@ describe("middleware 인증 게이트", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("세션 쿠키가 있어도 검증 실패면 보호 API에서 401을 반환한다", async () => {
+  it("플랫폼 온보딩이 필요하면 보호 페이지를 onboarding으로 리다이렉트한다", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          authenticated: false,
+          authenticated: true,
+          hasAccess: false,
+          onboardingRequired: true,
+          status: "tenant_selection_required",
         }),
         {
-          status: 401,
+          status: 200,
           headers: { "Content-Type": "application/json" },
         },
       ),
     );
 
-    const request = new NextRequest("http://localhost/api/projects", {
-      headers: {
-        cookie: "ps_session=session-1",
-      },
-    });
+    const request = new NextRequest("http://localhost/projects");
+    request.cookies.set("ps_session", "session-1");
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://app.phishsense.cloud/onboarding?reason=tenant_selection_required&returnTo=%2Fprojects",
+    );
+  });
+
+  it("플랫폼 온보딩이 필요하면 보호 API 요청에 403을 반환한다", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          authenticated: true,
+          hasAccess: false,
+          onboardingRequired: true,
+          status: "entitlement_pending",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    const request = new NextRequest("http://localhost/api/projects");
+    request.cookies.set("ps_session", "session-1");
 
     const response = await middleware(request);
     const body = await response.json();
 
-    expect(response.status).toBe(401);
-    expect(body).toEqual({ error: "Unauthorized" });
+    expect(response.status).toBe(403);
+    expect(body).toEqual({
+      error: "Forbidden",
+      reason: "entitlement_pending",
+    });
+  });
+
+  it("onboarding 페이지에서 ready 상태면 홈으로 리다이렉트한다", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          authenticated: true,
+          hasAccess: true,
+          onboardingRequired: false,
+          status: "ready",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    const request = new NextRequest("http://localhost/onboarding");
+    request.cookies.set("ps_session", "session-1");
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://app.phishsense.cloud/",
+    );
   });
 });

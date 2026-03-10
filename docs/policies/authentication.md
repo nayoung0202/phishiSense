@@ -9,6 +9,7 @@
 - **Redirect URI**: `https://app.phishsense.cloud/oidc/callback`
 - **스코프(Scope)**: `openid profile email offline_access`
 - **Prompt 정책**: `prompt_values_supported = ["none", "create"]`
+- **Platform API Audience**: `/platform/me` 호출에 사용하는 Access Token은 `platform-api` audience를 포함해야 하며, 현재 audience 결정은 product 앱 요청 파라미터가 아니라 `auth` 서버 설정으로 관리합니다.
 - **회원가입 진입 정책**: 앱에서 IdP `/signup`를 직접 호출하지 않고, 항상 `/oauth2/authorize` 시작점으로 진입합니다 (`prompt=create` 사용).
 - **기본 인증 UX 정책**: 보호된 페이지에 세션 없이 접근 시, 별도의 안내 화면 없이 즉시 IdP(Identity Provider)의 로그인 화면으로 리다이렉트 처리합니다.
 
@@ -30,13 +31,18 @@
 4. **IdP 연동**: 생성된 `code_challenge(S256)`를 포함하여 OIDC Discovery의 `authorization_endpoint`로 접속합니다.
    - 회원가입 유도 시 `prompt=create`를 함께 전달합니다.
    - `prompt=none`과 `prompt=create`를 동시에 전달하면 `invalid_request`로 간주합니다.
+   - product 앱은 authorize/token/refresh 요청에 audience/resource 파라미터를 별도로 붙이지 않습니다.
+   - `platform-api`용 Access Token audience는 `auth` 서버가 서버 설정값으로 결정해야 합니다.
 5. **콜백 및 토큰 교환**:
    - 사용자가 EVRIZ Auth 서버에서 로그인을 완료하면 `/oidc/callback`으로 리턴됩니다.
    - 전달받은 `state`를 트랜잭션 쿠키와 비교 검증한 후, 발급받은 Authorization Code를 Access/ID Token으로 교환합니다.
 6. **토큰 검증 및 사용자 인가**:
    - 수신한 `id_token`의 서명(JWKS) 및 클레임(Claim)을 검증하고 `userinfo`를 조회합니다.
-   - 검증이 완료되면 내부 DB의 `auth_sessions` 테이블에 세션 데이터를 기록하고, 클라이언트에 `HttpOnly` 속성의 세션 쿠키를 발급합니다.
-7. **복귀**: 최초 접근했던 `returnTo` 경로로 사용자를 최종 랜딩시킵니다.
+   - 검증이 완료되면 내부 DB의 `auth_sessions` 테이블에 `tenant_id`, `access_token_enc`, `refresh_token_enc`, 만료시각을 함께 기록하고, 클라이언트에 `HttpOnly` 속성의 세션 쿠키를 발급합니다.
+7. **플랫폼 컨텍스트 판정**:
+   - 로그인 직후 또는 보호 페이지 진입 시 내부 `/api/auth/platform-context` route가 `/platform/me` 호출 또는 로컬 entitlement 조회를 통해 onboarding 필요 여부를 판정합니다.
+   - 최종 제품 접근 허용 여부는 로컬 DB `platform_entitlements` 상태를 기준으로 결정합니다.
+8. **복귀**: 최초 접근했던 `returnTo` 경로로 사용자를 최종 랜딩시키고, onboarding 필요 시 `/onboarding`으로 유도합니다.
 
 ### 회원가입 후 복귀 흐름 (현재 구현)
 
@@ -49,6 +55,7 @@
 ## 4. 세션 관리 및 로그아웃 정책
 
 - **토큰 갱신**: Access Token 만료가 임박한 경우 Refresh Token을 이용해 세션을 연장합니다. 연장에 실패할 경우 즉시 세션을 폐기(revoke)하고 클라이언트에게 401을 반환합니다.
+- **세션 저장 토큰**: `/platform/me` 재호출을 위해 Access Token도 암호화(`access_token_enc`)하여 세션에 저장합니다.
 - **로그아웃**:
   - `POST /api/auth/logout` 엔드포인트를 통해 호출됩니다.
   - 내부 앱 세션을 폐기(revoke)하고 세션/트랜잭션 쿠키를 모두 즉시 삭제합니다.
@@ -65,6 +72,8 @@
 ## 6. 프로덕션 운영 필수 체크포인트
 
 - 프로덕션 배포 시 `AUTH_SESSION_SECRET`, `AUTH_TOKEN_ENC_KEY`, `OIDC_CLIENT_SECRET` 환경변수는 필수로 등록되어야 합니다.
+- `PLATFORM_API_BASE_URL`, `PHISHSENSE_CALLBACK_SECRET`, `PHISHSENSE_CALLBACK_KEY_ID` 값은 환경별로 정확히 분리해 주입해야 합니다.
+- `platform-api` audience는 애플리케이션 환경변수가 아니라 `auth` 서버 설정/배포 절차에서 환경별로 정확히 분리되어야 합니다.
 - 프로덕션은 **HTTPS + Secure 쿠키** 방식만 허용됩니다.
 - OIDC Redirect URI 설정값은 Auth 서버에 사전 등록된 값과 오차(Trailing Slash 등) 없이 **완전 일치**해야 합니다.
 - `APP_BASE_URL` 환경 변수를 프로덕션의 실제 도메인으로 필수 지정해야 하며, 모든 인증 리다이렉트는 해당 도메인 내에서만 동작하도록 제한해야 합니다 (오픈 리다이렉트 어택 방어).

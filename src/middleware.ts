@@ -59,9 +59,18 @@ const getSessionCheckOrigin = (request: NextRequest) => {
   return request.nextUrl.origin;
 };
 
-const hasValidSession = async (request: NextRequest) => {
+type PlatformContextMiddlewarePayload = {
+  authenticated: boolean;
+  hasAccess: boolean;
+  onboardingRequired: boolean;
+  status: string;
+};
+
+const getPlatformContext = async (
+  request: NextRequest,
+): Promise<PlatformContextMiddlewarePayload | null> => {
   const sessionUrl = new URL(
-    "/api/auth/session",
+    "/api/auth/platform-context",
     getSessionCheckOrigin(request),
   );
 
@@ -74,10 +83,24 @@ const hasValidSession = async (request: NextRequest) => {
       },
     });
 
-    return validationResponse.ok;
+    if (!validationResponse.ok) {
+      return null;
+    }
+
+    return (await validationResponse.json()) as PlatformContextMiddlewarePayload;
   } catch {
-    return false;
+    return null;
   }
+};
+
+const redirectToOnboarding = (request: NextRequest, reason: string) => {
+  const onboardingUrl = new URL("/onboarding", getAppOrigin());
+  const returnTo = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  onboardingUrl.searchParams.set("reason", reason);
+  if (returnTo && returnTo !== "/onboarding") {
+    onboardingUrl.searchParams.set("returnTo", returnTo);
+  }
+  return NextResponse.redirect(onboardingUrl);
 };
 
 export async function middleware(request: NextRequest) {
@@ -111,9 +134,29 @@ export async function middleware(request: NextRequest) {
     return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
   }
 
-  const valid = await hasValidSession(request);
-  if (!valid) {
+  const platformContext = await getPlatformContext(request);
+  if (!platformContext || !platformContext.authenticated) {
     return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
+  }
+
+  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) {
+    if (platformContext.hasAccess && !platformContext.onboardingRequired) {
+      return NextResponse.redirect(new URL("/", getAppOrigin()));
+    }
+    return NextResponse.next();
+  }
+
+  if (!platformContext.hasAccess || platformContext.onboardingRequired) {
+    if (isApiPath) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          reason: platformContext.status,
+        },
+        { status: 403 },
+      );
+    }
+    return redirectToOnboarding(request, platformContext.status);
   }
 
   return NextResponse.next();

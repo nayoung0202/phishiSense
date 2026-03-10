@@ -1,3 +1,5 @@
+import Onboarding from "@/features/Onboarding";
+
 export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -22,19 +24,16 @@ export default function OnboardingPage() {
           </div>
 
           <h1 className="mb-4 text-center text-xl font-semibold text-foreground">
-            설정 시작하기
+            이용 준비하기
           </h1>
 
           <p className="mb-8 text-center text-sm text-muted-foreground">
-            PhishSense를 처음 사용하시네요!
+            회사 또는 조직과 이용 권한을 확인한 뒤
             <br />
-            서비스를 시작하기 위한 초기 설정을 진행합니다.
+            PhishSense 이용 준비를 진행합니다.
           </p>
 
-          {/* TODO: 온보딩 단계별 UI 추가 */}
-          <div className="rounded-lg border border-border bg-muted/50 p-6 text-center text-sm text-muted-foreground">
-            온보딩 기능이 곧 추가됩니다.
-          </div>
+          <Onboarding />
         </div>
       </div>
     </div>

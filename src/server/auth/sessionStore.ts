@@ -7,6 +7,7 @@ type SessionCreateInput = {
   sessionId: string;
   user: AuthUserPrincipal;
   tenantId: string | null;
+  accessTokenEnc: string | null;
   accessTokenExp: Date | null;
   refreshTokenEnc: string | null;
   idleExpiresAt: Date;
@@ -27,6 +28,7 @@ const mapRow = (row: typeof authSessions.$inferSelect): AuthSessionRecord => ({
   email: row.email ?? null,
   name: row.name ?? null,
   tenantId: row.tenantId ?? null,
+  accessTokenEnc: row.accessTokenEnc ?? null,
   accessTokenExp: toDateOrNull(row.accessTokenExp),
   refreshTokenEnc: row.refreshTokenEnc ?? null,
   idleExpiresAt: toDateOrNull(row.idleExpiresAt) ?? new Date(0),
@@ -58,6 +60,7 @@ export async function createAuthSession(input: SessionCreateInput) {
     email: input.user.email,
     name: input.user.name,
     tenantId: input.tenantId,
+    accessTokenEnc: input.accessTokenEnc,
     accessTokenExp: input.accessTokenExp,
     refreshTokenEnc: input.refreshTokenEnc,
     idleExpiresAt: input.idleExpiresAt,
@@ -81,6 +84,8 @@ export async function revokeAuthSession(sessionId: string) {
 
 type TouchSessionInput = {
   sessionId: string;
+  tenantId?: string | null;
+  accessTokenEnc?: string | null;
   idleExpiresAt?: Date;
   accessTokenExp?: Date | null;
   refreshTokenEnc?: string | null;
@@ -95,6 +100,14 @@ export async function touchAuthSession(input: TouchSessionInput) {
     updates.idleExpiresAt = input.idleExpiresAt;
   }
 
+  if (Object.prototype.hasOwnProperty.call(input, "tenantId")) {
+    updates.tenantId = input.tenantId ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "accessTokenEnc")) {
+    updates.accessTokenEnc = input.accessTokenEnc ?? null;
+  }
+
   if (Object.prototype.hasOwnProperty.call(input, "accessTokenExp")) {
     updates.accessTokenExp = input.accessTokenExp ?? null;
   }
@@ -107,4 +120,14 @@ export async function touchAuthSession(input: TouchSessionInput) {
     .update(authSessions)
     .set(updates)
     .where(eq(authSessions.sessionId, input.sessionId));
+}
+
+export async function setAuthSessionTenant(
+  sessionId: string,
+  tenantId: string | null,
+) {
+  await touchAuthSession({
+    sessionId,
+    tenantId,
+  });
 }

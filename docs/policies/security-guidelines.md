@@ -31,3 +31,25 @@ PhishSense는 이메일 발송 템플릿과 악성 링크 교육 페이지에서
 
 - **주기적 점검**: 패키지 의존성은 수시로 `npm audit`을 통해 감시되며, 취약점이 도출될 경우 즉각적으로 마이너/패치 버전 업데이트를 강제 진행해야 합니다.
 - **예외 처리 규칙**: 하위 패키지(예: Drizzle ORM 내부 번들러 등)의 충돌로 인해 즉각적인 버전 오버라이딩이 호환성 파괴를 일으킨다면, 테스트 스위트 (Vitest 등) 전체를 통과하는 선에서 안정화 패치를 구성하고 관련 리포트를 `CHANGELOG` 및 Audit 기록 문서에 별도 보관합니다 (예: `docs/logs/npm-audit-log-*` 참조).
+
+## 3. Platform Callback 및 Resource Token 보안 정책
+
+`platform-api` 연동은 일반 사용자 Bearer 인증과 product-side HMAC callback이 혼합되므로, 두 흐름을 분리해 관리해야 합니다.
+
+### callback 서명 검증
+
+- `POST /webhooks/platform/entitlements` 는 `X-Platform-Timestamp`, `X-Platform-Key-Id`, `X-Platform-Signature` 를 모두 검증해야 합니다.
+- HMAC 서명 원문은 `<timestamp>\n<body>` 형식으로 고정합니다.
+- callback 비밀값(`PHISHSENSE_CALLBACK_SECRET`)과 key id(`PHISHSENSE_CALLBACK_KEY_ID`)는 절대 로그에 남기지 않습니다.
+- timestamp 허용 오차를 두고 replay 위험을 낮춥니다.
+
+### access token audience 정책
+
+- `/platform/me` 호출에는 `id_token`이 아니라 `platform-api` audience를 포함한 사용자 `access_token`만 사용합니다.
+- product 앱은 audience/resource 요청 파라미터로 토큰 `aud`를 제어하지 않으며, 필요한 audience는 `auth` 서버 설정으로 보장해야 합니다.
+- `wrong aud`, `iss`, 서명 오류로 `/platform/me`가 401을 반환하면 제품 접근을 허용하지 않습니다.
+
+### 로컬 entitlement 판정
+
+- 제품 접근 허용의 최종 기준은 로컬 DB의 `platform_entitlements` 입니다.
+- 동일 callback 재전송은 정상 상황으로 간주하고 `eventId` 기준 멱등 처리해야 합니다.
