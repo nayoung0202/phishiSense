@@ -111,8 +111,16 @@ const toQuarterLabel = (date: Date) =>
 const toQuarterStartDate = (date: Date) =>
   new Date(date.getFullYear(), (getQuarterNumber(date) - 1) * 3, 1);
 
-const formatPercent = (value: number | null) =>
+const RATE_DATA_KEYS = new Set(["openRate", "clickRate", "submitRate"]);
+
+export const formatPercent = (value: number | null) =>
   value === null ? "-" : `${Math.round(value)}%`;
+
+export const formatCount = (value: number | null | undefined) =>
+  Number(value ?? 0).toLocaleString();
+
+export const isRateDataKey = (dataKey: unknown): dataKey is "openRate" | "clickRate" | "submitRate" =>
+  typeof dataKey === "string" && RATE_DATA_KEYS.has(dataKey);
 
 const formatProjectLabel = (name: string | null | undefined) => name ?? "무제 프로젝트";
 
@@ -647,7 +655,7 @@ export default function Dashboard() {
                 <YAxis
                   yAxisId="count"
                   stroke="hsl(var(--muted-foreground))"
-                  tickFormatter={(value) => `${value}`}
+                  tickFormatter={(value) => formatCount(Number(value))}
                   width={60}
                   domain={[0, Math.max(maxQuarterTarget, 10)]}
                 />
@@ -656,7 +664,7 @@ export default function Dashboard() {
                   orientation="right"
                   domain={[0, 100]}
                   stroke="hsl(var(--muted-foreground))"
-                  tickFormatter={(value) => `${value}%`}
+                  tickFormatter={(value) => formatPercent(Number(value))}
                   width={60}
                 />
                 <Tooltip
@@ -669,12 +677,12 @@ export default function Dashboard() {
                     const entry = quarterComparisonData.find((item) => item.index === value);
                     return entry?.projectName ?? "";
                   }}
-                  formatter={(value, name) => {
+                  formatter={(value, name, item) => {
                     const label = String(name);
-                    if (label.toLowerCase().includes("rate")) {
-                      return [`${Math.round(Number(value))}%`, label];
+                    if (isRateDataKey(item?.dataKey)) {
+                      return [formatPercent(Number(value)), label];
                     }
-                    return [value, label];
+                    return [formatCount(Number(value)), label];
                   }}
                 />
                 <Legend />
