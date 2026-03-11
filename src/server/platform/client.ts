@@ -1,6 +1,8 @@
 import { getPlatformClientConfig } from "./config";
 import {
+  platformCreateTenantResponseSchema,
   platformMeResponseSchema,
+  type PlatformCreateTenantResponse,
   type PlatformMeResponse,
 } from "./types";
 
@@ -17,6 +19,25 @@ const parseJson = async <T>(response: Response) => {
   }
 };
 
+const extractPlatformErrorDetail = async (response: Response) => {
+  const text = await response.text();
+  if (!text) return "";
+
+  try {
+    const parsed = JSON.parse(text) as { message?: unknown; error?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return parsed.error.trim();
+    }
+  } catch {
+    // ignore JSON parsing errors and fallback to raw text
+  }
+
+  return text.slice(0, 240);
+};
+
 export class PlatformApiError extends Error {
   status: number;
 
@@ -25,6 +46,16 @@ export class PlatformApiError extends Error {
     this.status = status;
   }
 }
+
+const createPlatformApiError = async (response: Response, path: string) => {
+  const detail = await extractPlatformErrorDetail(response);
+  throw new PlatformApiError(
+    response.status,
+    `[platform] ${path} 호출 실패 (${response.status})${
+      detail ? `: ${detail}` : ""
+    }`,
+  );
+};
 
 export async function fetchPlatformMe(options: {
   accessToken: string;
@@ -46,13 +77,36 @@ export async function fetchPlatformMe(options: {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new PlatformApiError(
-      response.status,
-      `[platform] /platform/me 호출 실패 (${response.status}): ${errorText.slice(0, 240)}`,
-    );
+    await createPlatformApiError(response, "/platform/me");
   }
 
   const parsed = await parseJson<unknown>(response);
   return platformMeResponseSchema.parse(parsed);
+}
+
+export async function createPlatformTenant(options: {
+  accessToken: string;
+  name: string;
+}): Promise<PlatformCreateTenantResponse> {
+  const { baseUrl } = getPlatformClientConfig();
+  const url = new URL("/tenants", baseUrl);
+
+  const response = await fetch(url, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${options.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: options.name,
+    }),
+  });
+
+  if (!response.ok) {
+    await createPlatformApiError(response, "/tenants");
+  }
+
+  const parsed = await parseJson<unknown>(response);
+  return platformCreateTenantResponseSchema.parse(parsed);
 }

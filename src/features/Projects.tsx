@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import type { Route } from "next";
 import {
   Card,
   CardContent,
@@ -92,6 +93,9 @@ type QuarterStatsItem = {
   avg_click_rate: number;
   avg_report_rate: number;
 };
+
+const toProjectEditRoute = (projectId: string) =>
+  `/projects/${projectId}/edit` as Route;
 
 type CalendarProjectSummary = {
   id: string;

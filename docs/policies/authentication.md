@@ -15,11 +15,11 @@
 
 ## 2. 보안 접근(Routing) 정책
 
-시스템 내의 모든 라우트는 인증 여부에 따라 엄격하게 분리됩니다.
+시스템 내 라우트는 공개(`public`), 로그인 세션만 필요한(`session`), tenant/entitlement 준비까지 끝나야 하는(`ready`) 세 수준으로 분리됩니다.
 
-- **보호 페이지 (세션 필수)**: `/`, `/projects/**`, `/targets/**`, `/templates/**`, `/training-pages/**`, `/admin/**`
-- **보호 API (세션 필수)**: `/api/**` (단, `/api/auth/**` 경로 제외)
-- **공개 페이지 (세션 불필요)**: `/p/**`, `/t/**` (공개 훈련 링크 등), `/oidc/callback`
+- **공개 페이지/공개 API (세션 불필요)**: `/p/**`, `/t/**` (공개 훈련 링크 등), `/oidc/callback`, `/login`, `GET /api/auth/oidc/login`
+- **세션 페이지/세션 API (로그인 세션 필수)**: `/onboarding/**`, `/api/auth/platform-context`, `/api/auth/session/**`, `POST /api/auth/logout`, `POST /api/platform/tenants`
+- **Ready 페이지/Ready API (세션 + tenant/entitlement 준비 필수)**: `/`, `/projects/**`, `/targets/**`, `/templates/**`, `/training-pages/**`, `/admin/**`, 그 외 일반 `/api/**`
 
 > **※ API 응답 정책**: API(`fetch` 등) 호출 시 세션이 만료되거나 없는 경우, 라우트 리다이렉트를 시도하지 않고 HTTP `401 Unauthorized` JSON 상태 코드를 즉시 반환하여 클라이언트 단에서 처리하도록 합니다.
 
@@ -40,7 +40,10 @@
    - 수신한 `id_token`의 서명(JWKS) 및 클레임(Claim)을 검증하고 `userinfo`를 조회합니다.
    - 검증이 완료되면 내부 DB의 `auth_sessions` 테이블에 `tenant_id`, `access_token_enc`, `refresh_token_enc`, 만료시각을 함께 기록하고, 클라이언트에 `HttpOnly` 속성의 세션 쿠키를 발급합니다.
 7. **플랫폼 컨텍스트 판정**:
-   - 로그인 직후 또는 보호 페이지 진입 시 내부 `/api/auth/platform-context` route가 `/platform/me` 호출 또는 로컬 entitlement 조회를 통해 onboarding 필요 여부를 판정합니다.
+   - 로그인 직후 또는 `ready` 수준 보호 페이지/보호 API 진입 시 내부 `/api/auth/platform-context` route가 `/platform/me` 호출 또는 로컬 entitlement 조회를 통해 onboarding 필요 여부를 판정합니다.
+   - `tenant_missing` 인 경우 `/onboarding` 화면에서 BFF `POST /api/platform/tenants` 를 호출해 첫 회사/조직을 생성하고, 성공 직후 `/platform/me`를 다시 조회해 세션 tenant 및 entitlement 상태를 재평가합니다.
+   - 조직 생성 또는 tenant 선택 후 entitlement callback 반영을 기다리는 동안, `/onboarding`은 입력 폼 대신 로딩 상태를 노출하고 내부 `/api/auth/platform-context`를 자동 polling 하다가 `ready`가 되면 원래 페이지로 자동 복귀합니다.
+   - polling 지연 또는 `platform_unavailable` 상태에서는 예외적으로 수동 `상태 다시 확인` 액션만 노출합니다.
    - 최종 제품 접근 허용 여부는 로컬 DB `platform_entitlements` 상태를 기준으로 결정합니다.
 8. **복귀**: 최초 접근했던 `returnTo` 경로로 사용자를 최종 랜딩시키고, onboarding 필요 시 `/onboarding`으로 유도합니다.
 

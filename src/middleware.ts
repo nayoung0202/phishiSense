@@ -11,7 +11,22 @@ const PROTECTED_PAGE_PREFIXES = [
   "/templates",
   "/training-pages",
   "/admin",
-  "/onboarding",
+];
+
+const SESSION_PAGE_PREFIXES = ["/onboarding"];
+
+const PUBLIC_API_ROUTES = [
+  {
+    method: "GET",
+    pathname: "/api/auth/oidc/login",
+  },
+];
+
+const SESSION_API_ROUTES = [
+  {
+    method: "POST",
+    pathname: "/api/platform/tenants",
+  },
 ];
 
 /** 인증 없이 접근 가능한 페이지 경로 */
@@ -24,10 +39,41 @@ const isProtectedPagePath = (pathname: string) => {
   );
 };
 
+const isSessionPagePath = (pathname: string) =>
+  SESSION_PAGE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
 const isPublicPagePath = (pathname: string) =>
   PUBLIC_PAGE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 const isAuthApiPath = (pathname: string) => pathname.startsWith("/api/auth/");
+
+const isPublicApiRoute = (pathname: string, method: string) =>
+  PUBLIC_API_ROUTES.some(
+    (route) => route.method === method && route.pathname === pathname,
+  );
+
+const isSessionApiRoute = (pathname: string, method: string) =>
+  SESSION_API_ROUTES.some(
+    (route) => route.method === method && route.pathname === pathname,
+  );
+
+type RouteAccessLevel = "public" | "session" | "ready" | null;
+
+const getRouteAccessLevel = (
+  pathname: string,
+  method: string,
+): RouteAccessLevel => {
+  if (isPublicPagePath(pathname)) return "public";
+  if (isPublicApiRoute(pathname, method)) return "public";
+  if (isSessionPagePath(pathname)) return "session";
+  if (isAuthApiPath(pathname)) return "session";
+  if (isSessionApiRoute(pathname, method)) return "session";
+  if (pathname.startsWith("/api/")) return "ready";
+  if (isProtectedPagePath(pathname)) return "ready";
+  return null;
+};
 
 const unauthorizedApiResponse = () =>
   NextResponse.json(
@@ -105,21 +151,10 @@ const redirectToOnboarding = (request: NextRequest, reason: string) => {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
   const isApiPath = pathname.startsWith("/api/");
-  const isProtectedPage = isProtectedPagePath(pathname);
-  const isPublicPage = isPublicPagePath(pathname);
+  const accessLevel = getRouteAccessLevel(pathname, request.method);
 
-  // 공개 페이지는 그대로 통과
-  if (isPublicPage) {
-    return NextResponse.next();
-  }
-
-  if (!isApiPath && !isProtectedPage) {
-    return NextResponse.next();
-  }
-
-  if (isApiPath && isAuthApiPath(pathname)) {
+  if (!accessLevel || accessLevel === "public") {
     return NextResponse.next();
   }
 
@@ -134,16 +169,19 @@ export async function middleware(request: NextRequest) {
     return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
   }
 
+  if (accessLevel === "session") {
+    if (isSessionPagePath(pathname)) {
+      const platformContext = await getPlatformContext(request);
+      if (platformContext?.hasAccess && !platformContext.onboardingRequired) {
+        return NextResponse.redirect(new URL("/", getAppOrigin()));
+      }
+    }
+    return NextResponse.next();
+  }
+
   const platformContext = await getPlatformContext(request);
   if (!platformContext || !platformContext.authenticated) {
     return isApiPath ? unauthorizedApiResponse() : redirectToLogin(request);
-  }
-
-  if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) {
-    if (platformContext.hasAccess && !platformContext.onboardingRequired) {
-      return NextResponse.redirect(new URL("/", getAppOrigin()));
-    }
-    return NextResponse.next();
   }
 
   if (!platformContext.hasAccess || platformContext.onboardingRequired) {

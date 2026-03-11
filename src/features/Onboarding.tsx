@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import React, { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const CONTROL_CHAR_PATTERN = /[\u0000-\u001f\u007f]/;
 const ENCODED_SLASH_PATTERN = /%2f/i;
 const ENCODED_BACKSLASH_PATTERN = /%5c/i;
+const PROVISIONING_POLL_INTERVAL_MS = 2000;
+const PROVISIONING_POLL_TIMEOUT_MS = 1000 * 30;
+const PLATFORM_CONTEXT_QUERY_KEY = ["auth-platform-context"] as const;
 
 type PlatformContextResponse = {
   authenticated: boolean;
@@ -53,6 +59,14 @@ type PlatformContextResponse = {
     seatLimit?: number | null;
     expiresAt?: string | null;
   } | null;
+};
+
+type PlatformTenantMutationResponse = PlatformContextResponse & {
+  createdTenant?: {
+    tenantId: string;
+    name: string;
+    role: string;
+  };
 };
 
 const roleLabelMap: Record<string, string> = {
@@ -107,10 +121,33 @@ const updateTenantContext = async (tenantId: string): Promise<PlatformContextRes
   return body;
 };
 
+const createTenantContext = async (
+  name: string,
+): Promise<PlatformTenantMutationResponse> => {
+  const response = await fetch("/api/platform/tenants", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  const body = (await response.json()) as PlatformTenantMutationResponse & {
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(body.error || "회사 또는 조직을 생성하지 못했습니다.");
+  }
+
+  return body;
+};
+
 const statusMessageMap: Record<PlatformContextResponse["status"], string> = {
   ready: "이용 준비가 완료되었습니다.",
   dev_bypass: "개발 환경에서 바로 이용할 수 있습니다.",
-  tenant_missing: "소속된 회사 또는 조직 정보가 없어 PhishSense를 시작할 수 없습니다.",
+  tenant_missing: "아직 소속된 회사 또는 조직이 없습니다. 먼저 회사 또는 조직을 만들어 주세요.",
   tenant_selection_required: "이용할 회사 또는 조직을 선택해 주세요.",
   entitlement_pending: "이용 권한 정보를 확인하는 중입니다. 잠시 후 다시 시도해 주세요.",
   entitlement_inactive:
@@ -125,15 +162,21 @@ const statusMessageMap: Record<PlatformContextResponse["status"], string> = {
 const getStatusMessage = (status: PlatformContextResponse["status"]) =>
   statusMessageMap[status] || "이용 상태를 확인해 주세요.";
 
-const getStatusMessageByReason = (reason: string | null) => {
-  if (!reason) return null;
-  return statusMessageMap[reason as PlatformContextResponse["status"]] ?? null;
-};
-
 const formatRoleLabel = (role: string) => roleLabelMap[role] ?? role;
 
 const formatEntitlementStatus = (status: string) =>
   entitlementStatusLabelMap[status] ?? status;
+
+const isProvisioningStatus = (status: PlatformContextResponse["status"]) =>
+  status === "entitlement_pending";
+
+export const shouldContinueProvisioningPolling = (
+  startedAt: number | null,
+  now = Date.now(),
+) => {
+  if (startedAt === null) return false;
+  return now - startedAt < PROVISIONING_POLL_TIMEOUT_MS;
+};
 
 export const normalizeReturnTo = (candidate: string | null) => {
   if (!candidate) return "/";
@@ -149,36 +192,79 @@ export const normalizeReturnTo = (candidate: string | null) => {
 };
 
 export default function Onboarding() {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const returnTo = normalizeReturnTo(searchParams.get("returnTo"));
-  const reason = searchParams.get("reason");
+  const [tenantName, setTenantName] = useState("");
+  const [provisioningStartedAt, setProvisioningStartedAt] = useState<number | null>(
+    null,
+  );
 
   const moveToReturnTo = () => {
     window.location.assign(returnTo);
   };
 
+  const isProvisioning = shouldContinueProvisioningPolling(provisioningStartedAt);
+  const provisioningTimedOut =
+    provisioningStartedAt !== null && !shouldContinueProvisioningPolling(provisioningStartedAt);
+
   const contextQuery = useQuery({
-    queryKey: ["auth-platform-context"],
+    queryKey: PLATFORM_CONTEXT_QUERY_KEY,
     queryFn: fetchPlatformContext,
     retry: false,
+    refetchInterval: isProvisioning ? PROVISIONING_POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: true,
   });
+
+  const handleContextUpdate = (data: PlatformContextResponse) => {
+    queryClient.setQueryData(PLATFORM_CONTEXT_QUERY_KEY, data);
+
+    if (data.hasAccess && !data.onboardingRequired) {
+      setProvisioningStartedAt(null);
+      moveToReturnTo();
+      return;
+    }
+
+    setProvisioningStartedAt(isProvisioningStatus(data.status) ? Date.now() : null);
+  };
 
   const selectTenantMutation = useMutation({
     mutationFn: updateTenantContext,
     onSuccess: (data) => {
-      if (data.hasAccess && !data.onboardingRequired) {
-        moveToReturnTo();
-      } else {
-        void contextQuery.refetch();
-      }
+      handleContextUpdate(data);
     },
   });
 
+  const createTenantMutation = useMutation({
+    mutationFn: createTenantContext,
+    onSuccess: (data) => {
+      setTenantName("");
+      handleContextUpdate(data);
+    },
+  });
+
+  const isSubmitting =
+    selectTenantMutation.isPending || createTenantMutation.isPending || isProvisioning;
+
   useEffect(() => {
     if (contextQuery.data?.hasAccess && !contextQuery.data.onboardingRequired) {
+      setProvisioningStartedAt(null);
       moveToReturnTo();
     }
   }, [contextQuery.data, returnTo]);
+
+  useEffect(() => {
+    if (!contextQuery.data) return;
+
+    if (isProvisioningStatus(contextQuery.data.status) && provisioningStartedAt === null) {
+      setProvisioningStartedAt(Date.now());
+      return;
+    }
+
+    if (provisioningStartedAt !== null && !isProvisioningStatus(contextQuery.data.status)) {
+      setProvisioningStartedAt(null);
+    }
+  }, [contextQuery.data?.status, provisioningStartedAt]);
 
   if (contextQuery.isLoading) {
     return (
@@ -206,88 +292,156 @@ export default function Onboarding() {
   const data = contextQuery.data;
   const tenantOptions = data.tenants ?? [];
   const message = getStatusMessage(data.status);
-  const reasonMessage = getStatusMessageByReason(reason);
+  const trimmedTenantName = tenantName.trim();
+  const isMutating = createTenantMutation.isPending || selectTenantMutation.isPending;
+  const showProvisioningPanel =
+    isMutating || isProvisioning || provisioningTimedOut || isProvisioningStatus(data.status);
+  const showManualRefreshButton =
+    provisioningTimedOut || data.status === "platform_unavailable";
+  const provisioningTitle = createTenantMutation.isPending
+    ? "회사 또는 조직을 만드는 중입니다."
+    : selectTenantMutation.isPending
+      ? "회사 또는 조직을 연결하는 중입니다."
+      : "이용 권한을 연결하는 중입니다.";
+  const provisioningDescription = provisioningTimedOut
+    ? "연결이 지연되고 있습니다. 잠시 후 상태를 다시 확인해 주세요."
+    : "이용 권한이 연결되면 자동으로 다음 화면으로 이동합니다.";
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-border bg-muted/40 p-5 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">현재 상태</p>
-        <p className="mt-2">{message}</p>
-        {reasonMessage ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            이 페이지로 이동한 이유: {reasonMessage}
-          </p>
-        ) : null}
-      </div>
-
-      {data.platformProduct ? (
-        <div className="rounded-lg border border-border bg-card p-5 text-sm">
-          <p className="font-medium text-foreground">구독 정보</p>
-          <div className="mt-3 space-y-1 text-muted-foreground">
-            <p>상태: {formatEntitlementStatus(data.platformProduct.status)}</p>
-            <p>플랜: {data.platformProduct.plan || "-"}</p>
-            <p>좌석 수: {data.platformProduct.seatLimit ?? "-"}</p>
-            <p>만료일: {data.platformProduct.expiresAt || "-"}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {data.localEntitlement ? (
-        <div className="rounded-lg border border-border bg-card p-5 text-sm">
-          <p className="font-medium text-foreground">이용 권한 정보</p>
-          <div className="mt-3 space-y-1 text-muted-foreground">
-            <p>상태: {formatEntitlementStatus(data.localEntitlement.status)}</p>
-            <p>플랜: {data.localEntitlement.planCode || "-"}</p>
-            <p>좌석 수: {data.localEntitlement.seatLimit ?? "-"}</p>
-            <p>만료일: {data.localEntitlement.expiresAt || "-"}</p>
-          </div>
-        </div>
-      ) : null}
-
-      {data.status === "tenant_selection_required" ? (
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="font-medium text-foreground">회사 또는 조직 선택</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            계속하려면 이용할 회사 또는 조직을 선택해 주세요.
-          </p>
-          <div className="mt-4 space-y-3">
-            {tenantOptions.map((tenant) => (
-              <button
-                key={tenant.tenantId}
-                type="button"
-                onClick={() => selectTenantMutation.mutate(tenant.tenantId)}
-                className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-left transition-colors hover:bg-muted"
-                disabled={selectTenantMutation.isPending}
-              >
-                <span>
-                  <span className="block font-medium text-foreground">{tenant.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {formatRoleLabel(tenant.role)}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">선택</span>
-              </button>
-            ))}
-          </div>
-          {selectTenantMutation.isError ? (
-            <p className="mt-3 text-sm text-red-300">
-              회사 또는 조직을 선택하지 못했습니다. 잠시 후 다시 시도해 주세요.
-            </p>
+      {showProvisioningPanel ? (
+        <div className="rounded-lg border border-border bg-card p-6 text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-4 text-base font-medium text-foreground">{provisioningTitle}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{provisioningDescription}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{message}</p>
+          {showManualRefreshButton ? (
+            <div className="mt-5 flex justify-center">
+              <Button variant="outline" onClick={() => void contextQuery.refetch()}>
+                상태 다시 확인
+              </Button>
+            </div>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="rounded-lg border border-border bg-muted/40 p-5 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">현재 상태</p>
+            <p className="mt-2">{message}</p>
+          </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button variant="outline" onClick={() => void contextQuery.refetch()}>
-          상태 새로고침
-        </Button>
-        <Button
-          onClick={moveToReturnTo}
-          disabled={data.onboardingRequired}
-        >
-          계속 진행
-        </Button>
-      </div>
+          {data.platformProduct ? (
+            <div className="rounded-lg border border-border bg-card p-5 text-sm">
+              <p className="font-medium text-foreground">구독 정보</p>
+              <div className="mt-3 space-y-1 text-muted-foreground">
+                <p>상태: {formatEntitlementStatus(data.platformProduct.status)}</p>
+                <p>플랜: {data.platformProduct.plan || "-"}</p>
+                <p>좌석 수: {data.platformProduct.seatLimit ?? "-"}</p>
+                <p>만료일: {data.platformProduct.expiresAt || "-"}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {data.localEntitlement ? (
+            <div className="rounded-lg border border-border bg-card p-5 text-sm">
+              <p className="font-medium text-foreground">이용 권한 정보</p>
+              <div className="mt-3 space-y-1 text-muted-foreground">
+                <p>상태: {formatEntitlementStatus(data.localEntitlement.status)}</p>
+                <p>플랜: {data.localEntitlement.planCode || "-"}</p>
+                <p>좌석 수: {data.localEntitlement.seatLimit ?? "-"}</p>
+                <p>만료일: {data.localEntitlement.expiresAt || "-"}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {data.status === "tenant_missing" ? (
+            <div className="rounded-lg border border-border bg-card p-5">
+              <p className="font-medium text-foreground">회사 또는 조직 만들기</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                사용할 회사 또는 조직 이름을 입력해 주세요. 생성 후 이용 권한을 다시 확인합니다.
+              </p>
+              <form
+                className="mt-4 space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!trimmedTenantName || createTenantMutation.isPending) {
+                    return;
+                  }
+                  createTenantMutation.mutate(trimmedTenantName);
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="tenant-name">회사 또는 조직 이름</Label>
+                  <Input
+                    id="tenant-name"
+                    name="tenantName"
+                    value={tenantName}
+                    onChange={(event) => setTenantName(event.target.value)}
+                    placeholder="예: EVRIZ"
+                    autoComplete="organization"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {createTenantMutation.isError ? (
+                  <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                    {createTenantMutation.error.message}
+                  </div>
+                ) : null}
+
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={!trimmedTenantName || isSubmitting}>
+                    {createTenantMutation.isPending
+                      ? "회사 또는 조직을 만드는 중..."
+                      : "회사 또는 조직 만들기"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {data.status === "tenant_selection_required" ? (
+            <div className="rounded-lg border border-border bg-card p-5">
+              <p className="font-medium text-foreground">회사 또는 조직 선택</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                계속하려면 이용할 회사 또는 조직을 선택해 주세요.
+              </p>
+              <div className="mt-4 space-y-3">
+                {tenantOptions.map((tenant) => (
+                  <button
+                    key={tenant.tenantId}
+                    type="button"
+                    onClick={() => selectTenantMutation.mutate(tenant.tenantId)}
+                    className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-left transition-colors hover:bg-muted"
+                    disabled={isSubmitting}
+                  >
+                    <span>
+                      <span className="block font-medium text-foreground">{tenant.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {formatRoleLabel(tenant.role)}
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">선택</span>
+                  </button>
+                ))}
+              </div>
+              {selectTenantMutation.isError ? (
+                <p className="mt-3 text-sm text-red-300">
+                  회사 또는 조직을 선택하지 못했습니다. 잠시 후 다시 시도해 주세요.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showManualRefreshButton ? (
+            <div className="flex justify-center">
+              <Button variant="outline" onClick={() => void contextQuery.refetch()}>
+                상태 다시 확인
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

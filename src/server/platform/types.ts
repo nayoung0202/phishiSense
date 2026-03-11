@@ -26,6 +26,12 @@ export const platformMeTenantSchema = z.object({
   role: z.string().trim().min(1),
 });
 
+export const platformCreateTenantResponseSchema = z.object({
+  tenantId: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  role: z.string().trim().min(1),
+});
+
 export const platformMeProductSchema = z.object({
   tenantId: z.string().trim().min(1),
   productId: z.string().trim().min(1),
@@ -50,6 +56,9 @@ export type PlatformEntitlementCallbackPayload = z.infer<
 export type PlatformMeTenant = z.infer<typeof platformMeTenantSchema>;
 export type PlatformMeProduct = z.infer<typeof platformMeProductSchema>;
 export type PlatformMeResponse = z.infer<typeof platformMeResponseSchema>;
+export type PlatformCreateTenantResponse = z.infer<
+  typeof platformCreateTenantResponseSchema
+>;
 
 export type PlatformContextStatus =
   | "ready"

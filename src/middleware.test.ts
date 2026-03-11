@@ -14,6 +14,16 @@ beforeEach(() => {
 });
 
 describe("middleware 인증 및 플랫폼 게이트", () => {
+  it("OIDC 로그인 시작 API는 무세션이어도 통과시킨다", async () => {
+    const request = new NextRequest("http://localhost/api/auth/oidc/login");
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("보호 페이지 무세션 요청을 로그인 페이지로 리다이렉트한다", async () => {
     const request = new NextRequest("http://localhost/projects?tab=list");
     const response = await middleware(request);
@@ -116,6 +126,35 @@ describe("middleware 인증 및 플랫폼 게이트", () => {
     expect(body).toEqual({
       error: "Forbidden",
       reason: "entitlement_pending",
+    });
+  });
+
+  it("tenant_missing 상태에서도 온보딩용 tenant 생성 API는 통과시킨다", async () => {
+    const request = new NextRequest("http://localhost/api/platform/tenants", {
+      method: "POST",
+      headers: {
+        cookie: "ps_session=session-1",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("tenant 생성 API도 무세션 요청이면 401을 반환한다", async () => {
+    const request = new NextRequest("http://localhost/api/platform/tenants", {
+      method: "POST",
+    });
+
+    const response = await middleware(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      error: "Unauthorized",
     });
   });
 

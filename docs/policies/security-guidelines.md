@@ -46,6 +46,7 @@ PhishSense는 이메일 발송 템플릿과 악성 링크 교육 페이지에서
 ### access token audience 정책
 
 - `/platform/me` 호출에는 `id_token`이 아니라 `platform-api` audience를 포함한 사용자 `access_token`만 사용합니다.
+- tenant 생성 같은 사용자 주도 platform API 호출도 브라우저에서 직접 수행하지 않고, 앱 서버의 BFF route를 통해 수행해 access token을 클라이언트에 노출하지 않습니다.
 - product 앱은 audience/resource 요청 파라미터로 토큰 `aud`를 제어하지 않으며, 필요한 audience는 `auth` 서버 설정으로 보장해야 합니다.
 - `wrong aud`, `iss`, 서명 오류로 `/platform/me`가 401을 반환하면 제품 접근을 허용하지 않습니다.
 
