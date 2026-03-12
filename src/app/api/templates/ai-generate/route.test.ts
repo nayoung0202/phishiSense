@@ -13,17 +13,16 @@ describe("POST /api/templates/ai-generate", () => {
     generateTemplateAiCandidatesMock.mockReset();
   });
 
-  it("validates payload and returns generated candidates", async () => {
+  it("name 없이 생성된 후보를 반환한다", async () => {
     generateTemplateAiCandidatesMock.mockResolvedValue({
       candidates: [
         {
           id: "candidate-1",
-          name: "Mail Notice Draft",
-          subject: "Security Check Notice",
-          body: '<a href="{{LANDING_URL}}">Open</a>',
+          subject: "보안 점검 안내",
+          body: '<style>body{font-family:sans-serif;}</style><a href="{{LANDING_URL}}">확인</a>',
           maliciousPageContent:
-            '<form action="{{TRAINING_URL}}"><input name="email" /><button type="submit">Submit</button></form>',
-          summary: "Security notice candidate",
+            '<style>body{background:#fff;}</style><form action="{{TRAINING_URL}}"><input name="email" /><button type="submit">제출</button></form>',
+          summary: "보안 공지형 후보",
         },
       ],
       usage: {
@@ -44,7 +43,7 @@ describe("POST /api/templates/ai-generate", () => {
           difficulty: "easy",
           prompt: "",
           generateCount: 1,
-          preservedCandidates: [],
+          preservedCandidates: [{ id: "keep-1", subject: "기존 후보 제목" }],
         }),
       }),
     );
@@ -52,10 +51,15 @@ describe("POST /api/templates/ai-generate", () => {
 
     expect(response.status).toBe(200);
     expect(body.candidates).toHaveLength(1);
-    expect(generateTemplateAiCandidatesMock).toHaveBeenCalledTimes(1);
+    expect(body.candidates[0]).not.toHaveProperty("name");
+    expect(generateTemplateAiCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preservedCandidates: [{ id: "keep-1", subject: "기존 후보 제목" }],
+      }),
+    );
   });
 
-  it("returns 400 for invalid payload", async () => {
+  it("잘못된 요청 본문이면 400을 반환한다", async () => {
     const response = await POST(
       new Request("http://localhost/api/templates/ai-generate", {
         method: "POST",

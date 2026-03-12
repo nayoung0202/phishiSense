@@ -96,7 +96,6 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         generateCount: 4 - preservedCandidates.length,
         preservedCandidates: preservedCandidates.map((candidate) => ({
           id: candidate.id,
-          name: candidate.name,
           subject: candidate.subject,
         })),
       });
@@ -111,6 +110,11 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   });
 
   const handleGenerate = () => {
+    setSelectedCandidateId(null);
+    generateMutation.mutate([]);
+  };
+
+  const handleRegenerateAll = () => {
     setSelectedCandidateId(null);
     generateMutation.mutate([]);
   };
@@ -148,19 +152,16 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
-            <DialogTitle>AI Template Generator</DialogTitle>
-            <DialogDescription>
-              Each candidate is generated as a paired mail body and malicious page. Only one selected candidate is applied to the new template editor.
-            </DialogDescription>
+            <DialogTitle>AI 템플릿 생성</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Card className="space-y-4 p-4">
               <div className="space-y-2">
-                <Label>Topic</Label>
+                <Label>주제</Label>
                 <Select value={topic} onValueChange={(value) => setTopic(value as typeof topic)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select topic" />
+                    <SelectValue placeholder="주제를 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
                     {templateAiTopicOptions.map((option) => (
@@ -173,10 +174,10 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
               </div>
 
               <div className="space-y-2">
-                <Label>Tone</Label>
+                <Label>톤</Label>
                 <Select value={tone} onValueChange={(value) => setTone(value as typeof tone)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select tone" />
+                    <SelectValue placeholder="톤을 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
                     {templateAiToneOptions.map((option) => (
@@ -189,13 +190,13 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
               </div>
 
               <div className="space-y-2">
-                <Label>Difficulty</Label>
+                <Label>난이도</Label>
                 <Select
                   value={difficulty}
                   onValueChange={(value) => setDifficulty(value as typeof difficulty)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select difficulty" />
+                    <SelectValue placeholder="난이도를 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
                     {templateAiDifficultyOptions.map((option) => (
@@ -208,22 +209,22 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
               </div>
 
               <div className="space-y-2">
-                <Label>Additional Prompt</Label>
+                <Label>추가 프롬프트</Label>
                 <Textarea
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Describe the mood, target audience, and extra details."
+                  placeholder="원하는 분위기, 대상자 특성, 추가 요구사항을 입력하세요"
                   className="min-h-[160px]"
                   maxLength={800}
                 />
-                <p className="text-xs text-muted-foreground">{prompt.length}/800 chars</p>
+                <p className="text-xs text-muted-foreground">{prompt.length}/800자</p>
               </div>
 
               <div className="rounded-md border bg-muted/30 p-3 text-sm">
-                <p className="font-medium">Estimated AI Credits</p>
-                <p className="mt-1 text-2xl font-semibold">{estimatedCredits} credits</p>
+                <p className="font-medium">예상 AI 크레딧 소모</p>
+                <p className="mt-1 text-2xl font-semibold">{estimatedCredits} 크레딧</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Actual usage may vary depending on the generated result length.
+                  실제 소모량은 생성 결과 길이에 따라 달라질 수 있습니다.
                 </p>
               </div>
 
@@ -234,7 +235,15 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                   ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
                   )}
-                  Generate 4 candidates
+                  후보 4개 생성
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRegenerateAll}
+                  disabled={generateMutation.isPending || candidates.length === 0}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  전체 재생성
                 </Button>
                 <Button
                   variant="outline"
@@ -242,38 +251,34 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                   disabled={generateMutation.isPending || !selectedCandidate}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  Regenerate unselected candidates
+                  선택 제외 나머지 재생성
                 </Button>
                 <Button
                   variant="secondary"
                   onClick={handleApply}
                   disabled={!selectedCandidate || generateMutation.isPending}
                 >
-                  Apply selected candidate
+                  선택한 후보 반영
                 </Button>
               </div>
 
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                AI output is a draft. Review the preview and content before saving it as a real template.
+                AI가 생성한 내용은 초안입니다. 템플릿 작성 화면에서 미리보기와 내용을 반드시
+                검토한 뒤 저장하세요.
               </div>
 
               {generateMutation.error ? (
                 <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                   {generateMutation.error instanceof Error
                     ? generateMutation.error.message
-                    : "Failed to generate AI templates."}
+                    : "AI 템플릿 생성 중 오류가 발생했습니다."}
                 </div>
               ) : null}
             </Card>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Candidate Comparison</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Each candidate set contains a mail body and a malicious page.
-                  </p>
-                </div>
+                <h3 className="text-lg font-semibold">후보 비교</h3>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -281,7 +286,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                     onClick={() => setPairPage((current) => Math.max(0, current - 1))}
                     disabled={pairPage === 0}
                   >
-                    Prev 2
+                    이전 2개
                   </Button>
                   <span className="text-sm text-muted-foreground">
                     {candidates.length === 0 ? "0/0" : `${pairPage + 1}/${maxPairPage + 1}`}
@@ -292,14 +297,14 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                     onClick={() => setPairPage((current) => Math.min(maxPairPage, current + 1))}
                     disabled={pairPage >= maxPairPage}
                   >
-                    Next 2
+                    다음 2개
                   </Button>
                 </div>
               </div>
 
               {visibleCandidates.length === 0 ? (
                 <Card className="p-8 text-center text-sm text-muted-foreground">
-                  Fill in the conditions and generate candidates.
+                  조건을 입력하고 후보를 생성하세요.
                 </Card>
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -319,7 +324,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-lg font-semibold">{candidate.name}</p>
+                            <p className="text-lg font-semibold">{candidate.subject}</p>
                             <p className="text-sm text-muted-foreground">{candidate.summary}</p>
                           </div>
                           <Button
@@ -327,19 +332,14 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                             size="sm"
                             onClick={() => setSelectedCandidateId(candidate.id)}
                           >
-                            {isSelected ? "Selected" : "Select"}
+                            {isSelected ? "선택됨" : "이 후보 선택"}
                           </Button>
-                        </div>
-
-                        <div className="rounded-md border bg-muted/20 p-3">
-                          <p className="text-xs text-muted-foreground">Mail Subject</p>
-                          <p className="mt-1 text-sm font-medium">{candidate.subject}</p>
                         </div>
 
                         <Tabs defaultValue="body" className="w-full">
                           <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="body">Mail Body</TabsTrigger>
-                            <TabsTrigger value="malicious">Malicious Page</TabsTrigger>
+                            <TabsTrigger value="body">메일본문</TabsTrigger>
+                            <TabsTrigger value="malicious">악성메일본문</TabsTrigger>
                           </TabsList>
                           <TabsContent value="body" className="space-y-3">
                             <div className={previewSurfaceClass}>
@@ -360,9 +360,13 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                         </Tabs>
 
                         <div className="flex justify-end">
-                          <Button variant="ghost" size="sm" onClick={() => setFocusedCandidate(candidate)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFocusedCandidate(candidate)}
+                          >
                             <Eye className="mr-2 h-4 w-4" />
-                            Expand
+                            크게 보기
                           </Button>
                         </div>
                       </Card>
@@ -381,14 +385,14 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
       >
         <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>{focusedCandidate?.name ?? "Candidate Preview"}</DialogTitle>
+            <DialogTitle>{focusedCandidate?.subject ?? "후보 미리보기"}</DialogTitle>
             <DialogDescription>{focusedCandidate?.summary ?? ""}</DialogDescription>
           </DialogHeader>
           {focusedCandidate ? (
             <Tabs defaultValue="body" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="body">Mail Body</TabsTrigger>
-                <TabsTrigger value="malicious">Malicious Page</TabsTrigger>
+                <TabsTrigger value="body">메일본문</TabsTrigger>
+                <TabsTrigger value="malicious">악성메일본문</TabsTrigger>
               </TabsList>
               <TabsContent value="body">
                 <div className={cn(previewSurfaceClass, "max-h-[70vh]")}>

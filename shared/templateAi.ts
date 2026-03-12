@@ -22,28 +22,28 @@ export const templateAiToneOptions = [
 export const templateAiDifficultyOptions = ["easy", "medium", "hard"] as const;
 
 export const templateAiTopicLabels: Record<(typeof templateAiTopicOptions)[number], string> = {
-  shipping: "Shipping",
-  "account-security": "Account Security",
-  "payroll-benefits": "Payroll / Benefits",
-  "hr-announcement": "HR Announcement",
-  approval: "Approval",
-  "it-maintenance": "IT Maintenance",
+  shipping: "배송",
+  "account-security": "계정 보안",
+  "payroll-benefits": "급여/복지",
+  "hr-announcement": "인사 공지",
+  approval: "전자결재",
+  "it-maintenance": "IT 점검",
 };
 
 export const templateAiToneLabels: Record<(typeof templateAiToneOptions)[number], string> = {
-  formal: "Formal",
-  informational: "Informational",
-  "internal-notice": "Internal Notice",
-  "urgent-request": "Urgent Request",
+  formal: "공식형",
+  informational: "안내형",
+  "internal-notice": "자연스러운 내부 공지형",
+  "urgent-request": "긴급 요청형",
 };
 
 export const templateAiDifficultyLabels: Record<
   (typeof templateAiDifficultyOptions)[number],
   string
 > = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Hard",
+  easy: "쉬움",
+  medium: "보통",
+  hard: "어려움",
 };
 
 export const templateAiRequestSchema = z.object({
@@ -53,14 +53,13 @@ export const templateAiRequestSchema = z.object({
   prompt: z
     .string()
     .trim()
-    .max(800, "Additional prompt must be 800 characters or fewer.")
+    .max(800, "추가 프롬프트는 800자 이하로 입력하세요.")
     .default(""),
   generateCount: z.number().int().min(1).max(4).default(4),
   preservedCandidates: z
     .array(
       z.object({
         id: z.string().min(1),
-        name: z.string().min(1),
         subject: z.string().min(1),
       }),
     )
@@ -72,7 +71,6 @@ export type TemplateAiRequest = z.infer<typeof templateAiRequestSchema>;
 
 export const templateAiCandidateSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),
   maliciousPageContent: z.string().min(1),
@@ -129,14 +127,14 @@ export const estimateTemplateAiCredits = (args: {
 export const findUnsafeTemplateHtmlIssues = (html: string) => {
   const issues: string[] = [];
   const rules: Array<[RegExp, string]> = [
-    [/<script[\s\S]*?>/i, "Script tags are not allowed."],
-    [/<iframe[\s\S]*?>/i, "iframe tags are not allowed."],
-    [/<object[\s\S]*?>/i, "object tags are not allowed."],
-    [/<embed[\s\S]*?>/i, "embed tags are not allowed."],
-    [/<link[\s\S]*?>/i, "External CSS link tags are not allowed."],
-    [/\son[a-z]+\s*=/i, "Inline event handlers are not allowed."],
-    [/\s(?:src|href)\s*=\s*["']\s*(?:https?:)?\/\//i, "External resource URLs are not allowed."],
-    [/\s(?:src|href)\s*=\s*["']\s*javascript:/i, "javascript: URLs are not allowed."],
+    [/<script[\s\S]*?>/i, "스크립트 태그는 허용되지 않습니다."],
+    [/<iframe[\s\S]*?>/i, "iframe 태그는 허용되지 않습니다."],
+    [/<object[\s\S]*?>/i, "object 태그는 허용되지 않습니다."],
+    [/<embed[\s\S]*?>/i, "embed 태그는 허용되지 않습니다."],
+    [/<link[\s\S]*?>/i, "외부 CSS link 태그는 허용되지 않습니다."],
+    [/\son[a-z]+\s*=/i, "인라인 이벤트 핸들러는 허용되지 않습니다."],
+    [/\s(?:src|href)\s*=\s*["']\s*(?:https?:)?\/\//i, "외부 리소스 URL은 허용되지 않습니다."],
+    [/\s(?:src|href)\s*=\s*["']\s*javascript:/i, "javascript: URL은 허용되지 않습니다."],
   ];
 
   rules.forEach(([pattern, message]) => {

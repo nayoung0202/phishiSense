@@ -199,7 +199,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
     }
 
     form.reset({
-      name: draft.name,
+      name: draft.subject,
       subject: draft.subject,
       body: draft.body,
       maliciousPageContent: draft.maliciousPageContent,

@@ -31,13 +31,12 @@ const responseSchema = {
       items: {
         type: "OBJECT",
         properties: {
-          name: { type: "STRING" },
           subject: { type: "STRING" },
           body: { type: "STRING" },
           maliciousPageContent: { type: "STRING" },
           summary: { type: "STRING" },
         },
-        required: ["name", "subject", "body", "maliciousPageContent", "summary"],
+        required: ["subject", "body", "maliciousPageContent", "summary"],
       },
     },
   },
@@ -74,19 +73,19 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   }
 
   if (!/\{\{\s*LANDING_URL\s*\}\}/i.test(candidate.body)) {
-    throw new Error("Mail body must include {{LANDING_URL}}.");
+    throw new Error("메일본문에 {{LANDING_URL}}가 포함되어야 합니다.");
   }
 
   if (!/\{\{\s*TRAINING_URL\s*\}\}/i.test(candidate.maliciousPageContent)) {
-    throw new Error("Malicious page must include {{TRAINING_URL}}.");
+    throw new Error("악성메일본문에 {{TRAINING_URL}}가 포함되어야 합니다.");
   }
 
   if (!/<form[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
-    throw new Error("Malicious page must include a form.");
+    throw new Error("악성메일본문에는 입력 폼이 포함되어야 합니다.");
   }
 
   if (!/<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
-    throw new Error("Malicious page must include a submit button.");
+    throw new Error("악성메일본문에는 제출 버튼이 포함되어야 합니다.");
   }
 
   return {
@@ -99,7 +98,7 @@ const buildPrompt = (request: TemplateAiRequest) => {
   const preservedText =
     request.preservedCandidates.length > 0
       ? `Preserved candidates:\n${request.preservedCandidates
-          .map((item, index) => `${index + 1}. name: ${item.name} / subject: ${item.subject}`)
+          .map((item, index) => `${index + 1}. subject: ${item.subject}`)
           .join("\n")}\nAvoid generating results that are too similar to these preserved candidates.`
       : "There are no preserved candidates.";
 
@@ -116,8 +115,9 @@ Rules:
 - The malicious page must redirect or submit to {{TRAINING_URL}} after submission.
 - Do not use JavaScript, external CSS, external scripts, or external images/resources.
 - Inline CSS and style tags are allowed.
-- body and maliciousPageContent must be usable HTML strings for this product.
-- name should be a short template name and summary should be a one-line differentiator.
+- body must be a complete mail-body HTML string for this product and may include inline CSS or style tags.
+- maliciousPageContent must be a complete malicious-page HTML string for this product and may include inline CSS or style tags.
+- summary should be a one-line differentiator shown under the subject.
 
 Generation inputs:
 - topic: ${request.topic}
@@ -132,7 +132,6 @@ JSON format:
 {
   "candidates": [
     {
-      "name": "string",
       "subject": "string",
       "body": "string",
       "maliciousPageContent": "string",
