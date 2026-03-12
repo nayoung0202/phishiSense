@@ -43,6 +43,65 @@ const responseSchema = {
   required: ["candidates"],
 };
 
+const referenceMailBodyHtml = `
+<div style="max-width:640px;margin:0 auto;padding:32px 24px;font-family:Arial,sans-serif;color:#111827;line-height:1.6">
+  <p style="margin:0 0 12px"><strong>[Address Confirmation Required]</strong></p>
+  <p style="margin:0 0 12px">The shipment needs to be reassigned due to a delivery failure.</p>
+  <p style="margin:0 0 12px">The parcel is currently on <strong>temporary hold</strong> because the address could not be verified.</p>
+  <ul style="margin:0 0 16px 18px;padding:0">
+    <li>Reason: incomplete unit number or unreachable phone number</li>
+    <li>Deadline: <strong>today by 5:00 PM</strong></li>
+    <li>If not confirmed, the parcel may be returned automatically.</li>
+  </ul>
+  <hr style="margin:20px 0;border:none;border-top:1px solid #e5e7eb" />
+  <p style="margin:0 0 8px"><strong>Confirm delivery details</strong></p>
+  <p style="margin:0 0 16px">Use the button below to review and resubmit the delivery information.</p>
+  <div style="text-align:center">
+    <a href="{{LANDING_URL}}" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:999px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700">
+      Confirm address and request reassignment
+    </a>
+  </div>
+</div>
+`.trim();
+
+const referenceMaliciousPageHtml = `
+<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:24px">
+  <div style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid #e5e7eb">
+      <p style="margin:0 0 6px;font-size:18px;font-weight:800;color:#111827">Delivery details confirmation</p>
+      <p style="margin:0;color:#374151">Enter the details below and submit the form to continue the reassignment process.</p>
+    </div>
+    <div style="padding:18px 22px 10px">
+      <form method="POST" action="{{TRAINING_URL}}">
+        <div style="display:grid;gap:10px">
+          <div>
+            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Recipient name</label>
+            <input type="text" name="receiver_name" placeholder="Hong Gil-dong" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
+          </div>
+          <div>
+            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Phone number</label>
+            <input type="tel" name="phone" placeholder="010-0000-0000" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
+          </div>
+          <div>
+            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Primary address</label>
+            <input type="text" name="address1" placeholder="123 Teheran-ro, Gangnam-gu, Seoul" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;margin:18px 0 6px">
+          <button type="submit" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 18px;border:none;border-radius:999px;background:#2563eb;color:#ffffff;font-weight:700;cursor:pointer">
+            Confirm address and request reassignment
+          </button>
+        </div>
+      </form>
+      <p style="margin:10px 0 0;font-size:12px;color:#6b7280;text-align:center">
+        This is an automated notice for shipment reassignment.<br />
+        Support desk: 1588-0000
+      </p>
+    </div>
+  </div>
+</div>
+`.trim();
+
 const extractJsonText = (payload: unknown) => {
   if (!payload || typeof payload !== "object") {
     throw new Error("invalid_ai_response");
@@ -94,7 +153,7 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   };
 };
 
-const buildPrompt = (request: TemplateAiRequest) => {
+export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
   const preservedText =
     request.preservedCandidates.length > 0
       ? `Preserved candidates:\n${request.preservedCandidates
@@ -118,6 +177,12 @@ Rules:
 - body must be a complete mail-body HTML string for this product and may include inline CSS or style tags.
 - maliciousPageContent must be a complete malicious-page HTML string for this product and may include inline CSS or style tags.
 - summary should be a one-line differentiator shown under the subject.
+- Use the reference composition below as the baseline visual language for both outputs.
+- Do not copy the reference verbatim; adapt the wording, labels, and scenario details to the requested topic and tone.
+- Keep the same level of inline styling, spacing, and structural clarity shown in the reference.
+- body should feel like an operational notice email: alert headline, short explanation, 2-3 bullet points, a divider, and a single clear CTA.
+- maliciousPageContent should feel like a focused modal/card UI: dimmed background, centered white panel, short header, stacked inputs, and one strong primary submit button.
+- For maliciousPageContent, prefer a form action that points to {{TRAINING_URL}}.
 
 Generation inputs:
 - topic: ${request.topic}
@@ -127,6 +192,12 @@ Generation inputs:
 
 Variation instructions:
 ${preservedText}
+
+Reference mail-body HTML shape:
+${referenceMailBodyHtml}
+
+Reference malicious-page HTML shape:
+${referenceMaliciousPageHtml}
 
 JSON format:
 {
@@ -175,7 +246,7 @@ export async function generateTemplateAiCandidates(
         contents: [
           {
             role: "user",
-            parts: [{ text: buildPrompt(request) }],
+            parts: [{ text: buildTemplateAiPrompt(request) }],
           },
         ],
         generationConfig: {

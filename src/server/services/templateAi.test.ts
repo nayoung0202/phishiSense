@@ -5,6 +5,7 @@ import {
   templateAiCandidateSchema,
   templateAiRequestSchema,
 } from "@shared/templateAi";
+import { buildTemplateAiPrompt } from "./templateAi";
 
 describe("templateAi helpers", () => {
   it("프롬프트가 길고 후보 수가 많을수록 예상 크레딧이 증가한다", () => {
@@ -67,5 +68,23 @@ describe("templateAi helpers", () => {
     expect(payload.preservedCandidates).toEqual([
       { id: "keep-1", subject: "배송 일정 재확인 요청" },
     ]);
+  });
+
+  it("프롬프트에 배송 재확인형 레퍼런스 HTML을 포함한다", () => {
+    const prompt = buildTemplateAiPrompt({
+      topic: "shipping",
+      tone: "formal",
+      difficulty: "medium",
+      prompt: "배송 실패 안내처럼 보이게 해 주세요.",
+      generateCount: 2,
+      preservedCandidates: [],
+    });
+
+    expect(prompt).toContain("Reference mail-body HTML shape:");
+    expect(prompt).toContain('href="{{LANDING_URL}}"');
+    expect(prompt).toContain("Reference malicious-page HTML shape:");
+    expect(prompt).toContain('action="{{TRAINING_URL}}"');
+    expect(prompt).toContain("position:fixed;inset:0;z-index:9999");
+    expect(prompt).toContain("Do not copy the reference verbatim");
   });
 });
