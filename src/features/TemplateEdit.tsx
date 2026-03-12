@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -47,6 +47,10 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { cn } from "@/lib/utils";
+import {
+  TEMPLATE_AI_DRAFT_SESSION_KEY,
+  type TemplateAiDraft,
+} from "@shared/templateAi";
 
 export default function TemplateEdit({ templateId }: { templateId?: string }) {
   const router = useRouter();
@@ -55,6 +59,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
   const normalizedTemplateId = templateId ?? "";
   const isNew = normalizedTemplateId.length === 0;
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [appliedAiDraftId, setAppliedAiDraftId] = useState<string | null>(null);
   const [trainingLinkLabel, setTrainingLinkLabel] = useState("훈련 안내 페이지로 이동");
   const [trainingLinkKind, setTrainingLinkKind] = useState<"link" | "button">("link");
   const [trainingLinkNewTab, setTrainingLinkNewTab] = useState(true);
@@ -160,6 +165,56 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
     const nextBody = currentBody ? `${currentBody}${separator}${block}` : block;
     form.setValue("maliciousPageContent", nextBody, { shouldDirty: true, shouldTouch: true });
   };
+
+  useEffect(() => {
+    if (!isNew || typeof window === "undefined" || appliedAiDraftId) {
+      return;
+    }
+
+    const rawDraft = window.sessionStorage.getItem(TEMPLATE_AI_DRAFT_SESSION_KEY);
+    if (!rawDraft) {
+      return;
+    }
+
+    let draft: TemplateAiDraft;
+    try {
+      draft = JSON.parse(rawDraft) as TemplateAiDraft;
+    } catch {
+      window.sessionStorage.removeItem(TEMPLATE_AI_DRAFT_SESSION_KEY);
+      return;
+    }
+
+    const hasExistingContent = [
+      form.getValues("name"),
+      form.getValues("subject"),
+      form.getValues("body"),
+      form.getValues("maliciousPageContent"),
+    ].some((value) => String(value ?? "").trim().length > 0);
+
+    if (
+      hasExistingContent &&
+      !window.confirm("현재 작성 중인 제목과 본문 내용이 AI 생성 결과로 대체됩니다. 계속하시겠습니까?")
+    ) {
+      return;
+    }
+
+    form.reset({
+      name: draft.name,
+      subject: draft.subject,
+      body: draft.body,
+      maliciousPageContent: draft.maliciousPageContent,
+      autoInsertLandingEnabled: true,
+      autoInsertLandingLabel: "문서 확인하기",
+      autoInsertLandingKind: "link",
+      autoInsertLandingNewTab: true,
+    });
+    setAppliedAiDraftId(draft.id);
+    window.sessionStorage.removeItem(TEMPLATE_AI_DRAFT_SESSION_KEY);
+    toast({
+      title: "AI 템플릿 초안 반영 완료",
+      description: "AI가 생성한 제목과 본문이 편집 화면에 반영되었습니다. 저장 전 내용을 검토하세요.",
+    });
+  }, [appliedAiDraftId, form, isNew, toast]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
