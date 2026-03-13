@@ -169,6 +169,11 @@ type MonthOption = {
   quarter?: Quarter;
 };
 
+type BoardColumn = {
+  status: StatusFilter;
+  projects: Project[];
+};
+
 /* -------------------------------------------------------------------------- */
 /*                                 Constants                                  */
 /* -------------------------------------------------------------------------- */
@@ -238,6 +243,7 @@ const quarterStartMonth: Record<Quarter, string> = {
 };
 const QUARTER_ALL_VALUE = "all";
 const MONTH_CARD_HEIGHT = 420;
+const boardColumnOrder: StatusFilter[] = ["예약", "진행중", "완료", "임시"];
 
 /* -------------------------------------------------------------------------- */
 /*                               Util Functions                               */
@@ -317,7 +323,7 @@ const toSortableTime = (value: Date | string | null | undefined) => {
   return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
 };
 
-function compareProjectsBySchedule(
+export function compareProjectsBySchedule(
   a: Pick<Project, "startDate" | "endDate" | "name">,
   b: Pick<Project, "startDate" | "endDate" | "name">,
 ) {
@@ -330,7 +336,7 @@ function compareProjectsBySchedule(
   return (a.name ?? "").localeCompare(b.name ?? "", "ko");
 }
 
-function buildVisibleProjectsByMonth(quarterProjects: Project[], selectedMonthNumber: number) {
+export function buildVisibleProjectsByMonth(quarterProjects: Project[], selectedMonthNumber: number) {
   const filtered = Number.isNaN(selectedMonthNumber)
     ? quarterProjects
     : quarterProjects.filter((project) => {
@@ -345,7 +351,7 @@ function buildVisibleProjectsByMonth(quarterProjects: Project[], selectedMonthNu
   return [...filtered].sort(compareProjectsBySchedule);
 }
 
-function resolveCalendarTargetMonthNumber(selectedMonth: string, selectedQuarter: Quarter) {
+export function resolveCalendarTargetMonthNumber(selectedMonth: string, selectedQuarter: Quarter) {
   if (selectedMonth === QUARTER_ALL_VALUE) {
     return Number(quarterStartMonth[selectedQuarter]);
   }
@@ -353,7 +359,7 @@ function resolveCalendarTargetMonthNumber(selectedMonth: string, selectedQuarter
   return Number.isNaN(parsed) ? Number(quarterStartMonth[selectedQuarter]) : parsed;
 }
 
-function findCalendarMonthIndex(months: CalendarMonthSummary[], targetMonthNumber: number) {
+export function findCalendarMonthIndex(months: CalendarMonthSummary[], targetMonthNumber: number) {
   if (months.length === 0) return 0;
   const index = months.findIndex((month) => {
     const monthDate = toDate(month.month);
@@ -368,6 +374,45 @@ function formatPercent(value: number) {
 
 function getDepartmentLabel(project: Pick<Project, "department" | "departmentTags">, fallback = "-") {
   return getProjectDepartmentDisplay(project, fallback);
+}
+
+export function buildVisibleBoardColumns(projects: Project[]): BoardColumn[] {
+  const columns = new Map<StatusFilter, Project[]>();
+
+  boardColumnOrder.forEach((status) => {
+    columns.set(status, []);
+  });
+
+  projects.forEach((project) => {
+    if (!boardColumnOrder.includes(project.status as StatusFilter)) {
+      return;
+    }
+
+    columns.get(project.status as StatusFilter)?.push(project);
+  });
+
+  return boardColumnOrder
+    .map((status) => ({
+      status,
+      projects: columns.get(status) ?? [],
+    }))
+    .filter((column) => column.projects.length > 0);
+}
+
+export function getBoardGridClassName(columnCount: number) {
+  if (columnCount >= 4) {
+    return "grid gap-4 md:grid-cols-2";
+  }
+
+  if (columnCount === 3) {
+    return "grid gap-4 xl:grid-cols-3";
+  }
+
+  if (columnCount === 2) {
+    return "grid gap-4 md:grid-cols-2";
+  }
+
+  return "grid gap-4";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -990,19 +1035,19 @@ export default function Projects() {
   );
 
   const renderBoardView = () => {
-    const columns: Record<string, Project[]> = {
-      예약: [],
-      진행중: [],
-      완료: [],
-    };
-    projects.forEach((project) => {
-      if (!columns[project.status]) columns[project.status] = [];
-      columns[project.status].push(project);
-    });
+    const columns = buildVisibleBoardColumns(projects);
+
+    if (columns.length === 0) {
+      return (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          표시할 프로젝트가 없습니다. 조건을 변경해보세요.
+        </Card>
+      );
+    }
 
     return (
-      <div className="grid gap-4 lg:grid-cols-3">
-        {Object.entries(columns).map(([status, list]) => (
+      <div className={getBoardGridClassName(columns.length)}>
+        {columns.map(({ status, projects: list }) => (
           <Card key={status} className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">{status}</h3>
@@ -1044,11 +1089,6 @@ export default function Projects() {
                   </Card>
                 );
               })}
-              {list.length === 0 ? (
-                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-                  해당 상태의 프로젝트가 없습니다.
-                </div>
-              ) : null}
             </div>
           </Card>
         ))}

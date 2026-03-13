@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
 import { buildMailHtml } from "@shared/templateMail";
 import { cn } from "@/lib/utils";
+import { TemplateAiGenerateDialog } from "@/components/TemplateAiGenerateDialog";
 import {
   neutralizePreviewModalHtml,
   TEMPLATE_PREVIEW_SANDBOX_CLASS,
@@ -38,6 +39,7 @@ export default function Templates() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isAiGenerateOpen, setIsAiGenerateOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
 
@@ -222,6 +224,10 @@ export default function Templates() {
           </div>
         </DialogContent>
       </Dialog>
+      <TemplateAiGenerateDialog
+        open={isAiGenerateOpen}
+        onOpenChange={setIsAiGenerateOpen}
+      />
       <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -232,6 +238,7 @@ export default function Templates() {
             type="button"
             variant="default"
             data-testid="button-ai-template-create"
+            onClick={() => setIsAiGenerateOpen(true)}
           >
             <Sparkles className="w-4 h-4 mr-2" />
             AI 템플릿 생성

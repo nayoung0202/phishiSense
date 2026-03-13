@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { Project } from "@shared/schema";
 import {
   buildVisibleProjectsByMonth,
+  buildVisibleBoardColumns,
   compareProjectsBySchedule,
   findCalendarMonthIndex,
+  getBoardGridClassName,
   resolveCalendarTargetMonthNumber,
 } from "./Projects";
 
@@ -108,6 +110,28 @@ describe("Projects calendar month sync helpers", () => {
     expect(findCalendarMonthIndex(months, 2)).toBe(1);
     expect(findCalendarMonthIndex(months, 7)).toBe(0);
     expect(findCalendarMonthIndex([], 1)).toBe(0);
+  });
+});
+
+describe("Projects board helpers", () => {
+  it("프로젝트가 있는 상태 컬럼만 순서대로 노출한다", () => {
+    const boardProjects = [
+      buildProject("p1", "임시 프로젝트", "2025-04-01T00:00:00.000Z", "2025-04-01T00:00:00.000Z", "임시"),
+      buildProject("p2", "완료 프로젝트", "2025-04-02T00:00:00.000Z", "2025-04-03T00:00:00.000Z", "완료"),
+    ];
+
+    const columns = buildVisibleBoardColumns(boardProjects);
+
+    expect(columns.map((column) => column.status)).toEqual(["완료", "임시"]);
+    expect(columns.map((column) => column.projects.length)).toEqual([1, 1]);
+  });
+
+  it("상태 컬럼이 4개면 2열 보드 레이아웃을 사용한다", () => {
+    expect(getBoardGridClassName(4)).toBe("grid gap-4 md:grid-cols-2");
+  });
+
+  it("상태 컬럼이 3개면 3열 레이아웃을 유지한다", () => {
+    expect(getBoardGridClassName(3)).toBe("grid gap-4 xl:grid-cols-3");
   });
 });
 
