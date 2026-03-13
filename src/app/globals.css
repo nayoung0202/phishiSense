@@ -37,6 +37,15 @@
   overflow: visible !important;
 }
 
+.template-preview-sandbox > :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
+  display: contents !important;
+}
+
+.template-preview-sandbox > :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) > * {
+  max-width: min(100%, 720px) !important;
+  margin: 12px auto !important;
+}
+
 .template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"], [style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
   position: static !important;
   inset: auto !important;
@@ -83,6 +92,64 @@
 .template-preview-sandbox :is([class*="backdrop"], [class*="Backdrop"], [id*="backdrop"], [id*="Backdrop"], [class*="overlay"], [class*="Overlay"], [id*="overlay"], [id*="Overlay"], [class*="scrim"], [class*="Scrim"], [class*="dimmer"], [class*="Dimmer"]) {
   display: none !important;
   pointer-events: none !important;
+}
+
+.dark .template-editor-dark-readable {
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+}
+
+.dark .template-editor-dark-readable :is(
+  [style*="color:#000"],
+  [style*="color: #000"],
+  [style*="color:#000000"],
+  [style*="color: #000000"],
+  [style*="color:black"],
+  [style*="color: black"],
+  [style*="color:#0f172a"],
+  [style*="color: #0f172a"],
+  [style*="color:#111827"],
+  [style*="color: #111827"],
+  [style*="color:#1f2937"],
+  [style*="color: #1f2937"],
+  [style*="color:#334155"],
+  [style*="color: #334155"],
+  [style*="color:#374151"],
+  [style*="color: #374151"],
+  [style*="color:#475569"],
+  [style*="color: #475569"]
+) {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .template-editor-malicious-modal {
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+}
+
+.dark .template-editor-malicious-modal > [style*="background:#f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background: #f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background:#ffffff"],
+.dark .template-editor-malicious-modal > [style*="background: #ffffff"],
+.dark .template-editor-malicious-modal > [style*="background-color:#f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background-color: #f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background-color:#ffffff"],
+.dark .template-editor-malicious-modal > [style*="background-color: #ffffff"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.dark .template-editor-malicious-modal :is(
+  [style*="background:#fff"],
+  [style*="background: #fff"],
+  [style*="background:#ffffff"],
+  [style*="background: #ffffff"],
+  [style*="background-color:#fff"],
+  [style*="background-color: #fff"],
+  [style*="background-color:#ffffff"],
+  [style*="background-color: #ffffff"]
+) {
+  color: #0f172a !important;
 }
 
 .editor-scrollbar a {

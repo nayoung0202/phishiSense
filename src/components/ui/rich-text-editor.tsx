@@ -33,6 +33,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   previewHtml?: string;
+  editTheme?: "default" | "mail-dark-readable" | "malicious-modal";
 }
 
 interface ToolbarItem {
@@ -59,6 +60,7 @@ export function RichTextEditor({
   placeholder,
   className,
   previewHtml,
+  editTheme = "default",
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<EditorMode>("edit");
@@ -126,6 +128,13 @@ export function RichTextEditor({
 
     onChange(editor.innerHTML);
   };
+
+  const editSurfaceClassName =
+    editTheme === "mail-dark-readable"
+      ? "template-editor-dark-readable"
+      : editTheme === "malicious-modal"
+        ? "template-editor-malicious-modal"
+        : "";
 
   return (
     <div className={cn("overflow-visible rounded-md border border-border bg-background", className)}>
@@ -209,6 +218,7 @@ export function RichTextEditor({
       </div>
       {mode === "html" ? (
         <textarea
+          key="rich-text-html"
           className="editor-scrollbar min-h-[300px] max-h-[600px] w-full resize-none border-t border-border bg-background p-4 font-mono text-sm focus:outline-none"
           value={value}
           spellCheck={false}
@@ -217,7 +227,7 @@ export function RichTextEditor({
           placeholder={placeholder}
         />
       ) : mode === "preview" ? (
-        <div className="border-t border-border bg-muted/30 p-2 overflow-visible">
+        <div key="rich-text-preview" className="border-t border-border bg-muted/30 p-2 overflow-visible">
           {(previewHtml ?? value).trim().length > 0 ? (
             <TemplatePreviewFrame
               html={previewHtml ?? value}
@@ -229,9 +239,11 @@ export function RichTextEditor({
         </div>
       ) : (
         <div
+          key="rich-text-edit"
           ref={editorRef}
           className={cn(
             "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
+            editSurfaceClassName,
             TEMPLATE_PREVIEW_SANDBOX_CLASS,
           )}
           contentEditable

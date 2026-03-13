@@ -10,6 +10,7 @@ export const templateAiTopicOptions = [
   "hr-announcement",
   "approval",
   "it-maintenance",
+  "other",
 ] as const;
 
 export const templateAiToneOptions = [
@@ -28,6 +29,7 @@ export const templateAiTopicLabels: Record<(typeof templateAiTopicOptions)[numbe
   "hr-announcement": "인사 공지",
   approval: "전자결재",
   "it-maintenance": "IT 점검",
+  other: "기타",
 };
 
 export const templateAiToneLabels: Record<(typeof templateAiToneOptions)[number], string> = {
@@ -46,26 +48,52 @@ export const templateAiDifficultyLabels: Record<
   hard: "어려움",
 };
 
-export const templateAiRequestSchema = z.object({
-  topic: z.enum(templateAiTopicOptions),
-  tone: z.enum(templateAiToneOptions),
-  difficulty: z.enum(templateAiDifficultyOptions),
-  prompt: z
-    .string()
-    .trim()
-    .max(800, "추가 프롬프트는 800자 이하로 입력하세요.")
-    .default(""),
-  generateCount: z.number().int().min(1).max(4).default(4),
-  preservedCandidates: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        subject: z.string().min(1),
-      }),
-    )
-    .max(3)
-    .default([]),
-});
+export const resolveTemplateAiTopicText = (args: {
+  topic: (typeof templateAiTopicOptions)[number];
+  customTopic?: string;
+}) => {
+  if (args.topic === "other") {
+    return args.customTopic?.trim() ?? "";
+  }
+
+  return templateAiTopicLabels[args.topic];
+};
+
+export const templateAiRequestSchema = z
+  .object({
+    topic: z.enum(templateAiTopicOptions),
+    customTopic: z
+      .string()
+      .trim()
+      .max(60, "직접 입력하는 주제는 60자 이하로 입력해 주세요.")
+      .default(""),
+    tone: z.enum(templateAiToneOptions),
+    difficulty: z.enum(templateAiDifficultyOptions),
+    prompt: z
+      .string()
+      .trim()
+      .max(800, "추가 요청사항은 800자 이하로 입력해 주세요.")
+      .default(""),
+    generateCount: z.number().int().min(1).max(4).default(4),
+    preservedCandidates: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          subject: z.string().min(1),
+        }),
+      )
+      .max(3)
+      .default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.topic === "other" && value.customTopic.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customTopic"],
+        message: "기타를 선택한 경우 주제를 직접 입력해 주세요.",
+      });
+    }
+  });
 
 export type TemplateAiRequest = z.infer<typeof templateAiRequestSchema>;
 
@@ -113,9 +141,9 @@ export const estimateTemplateAiCredits = (args: {
   prompt: string;
   candidateCount: number;
 }) => {
-  const promptTokenCount = estimateTokenCountFromText(
-    `${args.topic} ${args.tone} ${args.difficulty} ${args.prompt}`,
-  ) + 2200;
+  const promptTokenCount =
+    estimateTokenCountFromText(`${args.topic} ${args.tone} ${args.difficulty} ${args.prompt}`) +
+    2200;
   const candidateTokenCount = Math.max(1, args.candidateCount) * 2600;
   const estimatedCostUsd =
     (promptTokenCount / 1_000_000) * TEMPLATE_AI_INPUT_COST_PER_MILLION +
@@ -127,14 +155,14 @@ export const estimateTemplateAiCredits = (args: {
 export const findUnsafeTemplateHtmlIssues = (html: string) => {
   const issues: string[] = [];
   const rules: Array<[RegExp, string]> = [
-    [/<script[\s\S]*?>/i, "스크립트 태그는 허용되지 않습니다."],
-    [/<iframe[\s\S]*?>/i, "iframe 태그는 허용되지 않습니다."],
-    [/<object[\s\S]*?>/i, "object 태그는 허용되지 않습니다."],
-    [/<embed[\s\S]*?>/i, "embed 태그는 허용되지 않습니다."],
-    [/<link[\s\S]*?>/i, "외부 CSS link 태그는 허용되지 않습니다."],
-    [/\son[a-z]+\s*=/i, "인라인 이벤트 핸들러는 허용되지 않습니다."],
-    [/\s(?:src|href)\s*=\s*["']\s*(?:https?:)?\/\//i, "외부 리소스 URL은 허용되지 않습니다."],
-    [/\s(?:src|href)\s*=\s*["']\s*javascript:/i, "javascript: URL은 허용되지 않습니다."],
+    [/<script[\s\S]*?>/i, "script 태그는 사용할 수 없습니다."],
+    [/<iframe[\s\S]*?>/i, "iframe 태그는 사용할 수 없습니다."],
+    [/<object[\s\S]*?>/i, "object 태그는 사용할 수 없습니다."],
+    [/<embed[\s\S]*?>/i, "embed 태그는 사용할 수 없습니다."],
+    [/<link[\s\S]*?>/i, "외부 CSS link 태그는 사용할 수 없습니다."],
+    [/\son[a-z]+\s*=/i, "인라인 이벤트 핸들러는 사용할 수 없습니다."],
+    [/\s(?:src|href)\s*=\s*["']\s*(?:https?:)?\/\//i, "외부 리소스 URL은 사용할 수 없습니다."],
+    [/\s(?:src|href)\s*=\s*["']\s*javascript:/i, "javascript: URL은 사용할 수 없습니다."],
   ];
 
   rules.forEach(([pattern, message]) => {
