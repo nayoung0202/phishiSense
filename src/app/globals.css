@@ -37,6 +37,15 @@
   overflow: visible !important;
 }
 
+.template-preview-sandbox > :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
+  display: contents !important;
+}
+
+.template-preview-sandbox > :is([style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) > * {
+  max-width: min(100%, 720px) !important;
+  margin: 12px auto !important;
+}
+
 .template-preview-sandbox :is(dialog, [role="dialog"], [aria-modal="true"], [class*="modal"], [class*="Modal"], [id*="modal"], [id*="Modal"], [class*="popup"], [class*="Popup"], [id*="popup"], [id*="Popup"], [style*="position:fixed"], [style*="position: fixed"], [class~="fixed"], [class*=":fixed"], [class~="inset-0"], [class*=":inset-0"]) {
   position: static !important;
   inset: auto !important;
