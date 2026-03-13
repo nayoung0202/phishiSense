@@ -8,6 +8,7 @@ import {
   type TemplateAiCandidate,
   TEMPLATE_AI_DRAFT_SESSION_KEY,
   estimateTemplateAiCredits,
+  resolveTemplateAiTopicText,
   templateAiDifficultyLabels,
   templateAiDifficultyOptions,
   templateAiToneLabels,
@@ -31,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -69,6 +71,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<DialogStep>("options");
   const [topic, setTopic] = useState<(typeof templateAiTopicOptions)[number]>(DEFAULT_TOPIC);
+  const [customTopic, setCustomTopic] = useState("");
   const [tone, setTone] = useState<(typeof templateAiToneOptions)[number]>(DEFAULT_TONE);
   const [difficulty, setDifficulty] =
     useState<(typeof templateAiDifficultyOptions)[number]>(DEFAULT_DIFFICULTY);
@@ -78,16 +81,24 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   const [pairPage, setPairPage] = useState(0);
   const [focusedCandidate, setFocusedCandidate] = useState<TemplateAiCandidate | null>(null);
 
+  const resolvedTopicText = useMemo(() => {
+    const value = resolveTemplateAiTopicText({ topic, customTopic });
+    return value || templateAiTopicLabels[topic];
+  }, [customTopic, topic]);
+
+  const requiresCustomTopic = topic === "other";
+  const canGenerate = !requiresCustomTopic || customTopic.trim().length > 0;
+
   const estimatedCredits = useMemo(
     () =>
       estimateTemplateAiCredits({
-        topic,
-        tone,
-        difficulty,
+        topic: resolvedTopicText,
+        tone: templateAiToneLabels[tone],
+        difficulty: templateAiDifficultyLabels[difficulty],
         prompt,
         candidateCount: 4,
       }),
-    [difficulty, prompt, tone, topic],
+    [difficulty, prompt, resolvedTopicText, tone],
   );
 
   const visibleCandidates = candidates.slice(pairPage * 2, pairPage * 2 + 2);
@@ -98,6 +109,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   const resetDialogState = () => {
     setStep("options");
     setTopic(DEFAULT_TOPIC);
+    setCustomTopic("");
     setTone(DEFAULT_TONE);
     setDifficulty(DEFAULT_DIFFICULTY);
     setPrompt("");
@@ -117,6 +129,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     mutationFn: async (preservedCandidates: TemplateAiCandidate[]) => {
       const response = await apiRequest("POST", "/api/templates/ai-generate", {
         topic,
+        customTopic,
         tone,
         difficulty,
         prompt,
@@ -126,6 +139,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
           subject: candidate.subject,
         })),
       });
+
       return (await response.json()) as GenerateResponse;
     },
     onSuccess: (response, preservedCandidates) => {
@@ -139,6 +153,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   });
 
   const handleGenerate = () => {
+    if (!canGenerate) return;
     setSelectedCandidateId(null);
     setFocusedCandidate(null);
     setPairPage(0);
@@ -183,10 +198,6 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     router.push("/templates/new?source=ai");
   };
 
-  const handleDialogOpenChange = (nextOpen: boolean) => {
-    onOpenChange(nextOpen);
-  };
-
   const renderError = () => {
     if (!generateMutation.error) return null;
 
@@ -205,7 +216,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">1단계. 생성 조건 설정</h3>
           <p className="text-sm text-muted-foreground">
-            주제와 톤을 정한 뒤 AI 후보 4개를 생성합니다.
+            생성 조건을 입력하고 템플릿을 생성합니다.
           </p>
         </div>
 
@@ -225,11 +236,28 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
           </Select>
         </div>
 
+        {requiresCustomTopic ? (
+          <div className="space-y-2">
+            <Label htmlFor="template-ai-custom-topic">주제 직접 입력</Label>
+            <Input
+              id="template-ai-custom-topic"
+              aria-label="주제 직접 입력"
+              value={customTopic}
+              onChange={(event) => setCustomTopic(event.target.value)}
+              placeholder="예: 사내 행사 안내, 정산 마감 안내"
+              maxLength={60}
+            />
+            <p className="text-xs text-muted-foreground">
+              기존 목록에 없는 시나리오를 만들고 싶을 때 직접 입력해 주세요.
+            </p>
+          </div>
+        ) : null}
+
         <div className="space-y-2">
-          <Label>톤</Label>
+          <Label>문체</Label>
           <Select value={tone} onValueChange={(value) => setTone(value as typeof tone)}>
             <SelectTrigger>
-              <SelectValue placeholder="톤을 선택하세요" />
+              <SelectValue placeholder="문체를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
               {templateAiToneOptions.map((option) => (
@@ -242,13 +270,13 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         </div>
 
         <div className="space-y-2">
-          <Label>난이도</Label>
+          <Label>구분 난이도</Label>
           <Select
             value={difficulty}
             onValueChange={(value) => setDifficulty(value as typeof difficulty)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="난이도를 선택하세요" />
+              <SelectValue placeholder="구분 난이도를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
               {templateAiDifficultyOptions.map((option) => (
@@ -261,12 +289,12 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         </div>
 
         <div className="space-y-2">
-          <Label>추가 프롬프트</Label>
+          <Label>추가 요청사항</Label>
           <Textarea
-            aria-label="추가 프롬프트"
+            aria-label="추가 요청사항"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="원하는 분위기, 대상자 특성, 추가 요구사항을 입력하세요"
+            placeholder="원하는 분위기, 대상자 특성, 추가 요구사항을 입력해 주세요."
             className="min-h-[180px]"
             maxLength={800}
           />
@@ -286,19 +314,22 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         </Card>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-          AI가 생성한 내용은 초안입니다. 템플릿 작성 화면에서 미리보기와 내용을 반드시 검토한 뒤
-          저장하세요.
+          AI가 생성한 내용은 초안입니다. 템플릿 작성 화면에서 미리보기와 내용을 반드시
+          검토한 뒤 반영해 주세요.
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
+          <Button onClick={handleGenerate} disabled={generateMutation.isPending || !canGenerate}>
             {generateMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            후보 4개 생성
+            템플릿 생성
           </Button>
+          {requiresCustomTopic && !canGenerate ? (
+            <p className="text-xs text-destructive">기타를 선택한 경우 주제를 직접 입력해 주세요.</p>
+          ) : null}
           {candidates.length > 0 ? (
             <Button
               variant="outline"
@@ -322,7 +353,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">2단계. 후보 비교 및 선택</h3>
           <p className="text-sm text-muted-foreground">
-            후보 4개를 비교한 뒤 하나를 선택해 현재 템플릿 작성 화면에 반영합니다.
+            후보 4개를 비교하고 하나를 선택해 현재 템플릿 작성 화면에 반영합니다.
           </p>
         </div>
 
@@ -385,7 +416,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
       {visibleCandidates.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          생성된 후보가 없습니다. 옵션을 다시 설정한 뒤 후보를 생성하세요.
+          생성된 후보가 없습니다. 옵션을 다시 설정하고 새 템플릿을 생성해 주세요.
         </Card>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -437,11 +468,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                 </Tabs>
 
                 <div className="flex justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFocusedCandidate(candidate)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setFocusedCandidate(candidate)}>
                     <Eye className="mr-2 h-4 w-4" />
                     크게 보기
                   </Button>
@@ -456,13 +483,13 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className={step === "options" ? "max-w-3xl" : "max-w-6xl"}>
           <DialogHeader>
             <DialogTitle>AI 템플릿 생성</DialogTitle>
             <DialogDescription>
               {step === "options"
-                ? "생성 조건을 입력하고 후보 4개를 만듭니다."
+                ? "생성 조건을 입력하고 템플릿을 생성합니다."
                 : "후보를 비교하고 하나를 선택해 템플릿 작성 화면에 반영합니다."}
             </DialogDescription>
           </DialogHeader>

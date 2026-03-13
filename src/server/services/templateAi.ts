@@ -4,6 +4,9 @@ import {
   type TemplateAiCandidate,
   type TemplateAiRequest,
   findUnsafeTemplateHtmlIssues,
+  resolveTemplateAiTopicText,
+  templateAiDifficultyLabels,
+  templateAiToneLabels,
 } from "@shared/templateAi";
 
 type GeminiUsageMetadata = {
@@ -132,18 +135,22 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   }
 
   if (!/\{\{\s*LANDING_URL\s*\}\}/i.test(candidate.body)) {
-    throw new Error("메일본문에 {{LANDING_URL}}가 포함되어야 합니다.");
+    throw new Error("메일본문에는 {{LANDING_URL}}가 포함되어야 합니다.");
   }
 
   if (!/\{\{\s*TRAINING_URL\s*\}\}/i.test(candidate.maliciousPageContent)) {
-    throw new Error("악성메일본문에 {{TRAINING_URL}}가 포함되어야 합니다.");
+    throw new Error("악성메일본문에는 {{TRAINING_URL}}가 포함되어야 합니다.");
   }
 
   if (!/<form[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
     throw new Error("악성메일본문에는 입력 폼이 포함되어야 합니다.");
   }
 
-  if (!/<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
+  if (
+    !/<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i.test(
+      candidate.maliciousPageContent,
+    )
+  ) {
     throw new Error("악성메일본문에는 제출 버튼이 포함되어야 합니다.");
   }
 
@@ -154,6 +161,9 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
 };
 
 export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
+  const topicText = resolveTemplateAiTopicText(request);
+  const toneText = templateAiToneLabels[request.tone];
+  const difficultyText = templateAiDifficultyLabels[request.difficulty];
   const preservedText =
     request.preservedCandidates.length > 0
       ? `Preserved candidates:\n${request.preservedCandidates
@@ -185,9 +195,9 @@ Rules:
 - For maliciousPageContent, prefer a form action that points to {{TRAINING_URL}}.
 
 Generation inputs:
-- topic: ${request.topic}
-- tone: ${request.tone}
-- difficulty: ${request.difficulty}
+- topic: ${topicText}
+- tone: ${toneText}
+- difficulty: ${difficultyText}
 - extra requirements: ${request.prompt || "none"}
 
 Variation instructions:
@@ -217,7 +227,9 @@ const estimateCreditsFromUsage = (usage: GeminiUsageMetadata) => {
   const promptTokenCount = usage.promptTokenCount ?? 0;
   const candidatesTokenCount = usage.candidatesTokenCount ?? 0;
   const totalTokenCount = usage.totalTokenCount ?? promptTokenCount + candidatesTokenCount;
-  const estimatedCostUsd = promptTokenCount * (0.1 / 1_000_000) + candidatesTokenCount * (0.4 / 1_000_000);
+  const estimatedCostUsd =
+    promptTokenCount * (0.1 / 1_000_000) + candidatesTokenCount * (0.4 / 1_000_000);
+
   return {
     promptTokenCount,
     candidatesTokenCount,
@@ -276,7 +288,9 @@ export async function generateTemplateAiCandidates(
   }
 
   const candidates = rawCandidates.map(sanitizeCandidate);
-  const usage = estimateCreditsFromUsage((payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {});
+  const usage = estimateCreditsFromUsage(
+    (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
+  );
 
   return {
     candidates,
