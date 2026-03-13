@@ -231,7 +231,7 @@ export function RichTextEditor({
         <div
           ref={editorRef}
           className={cn(
-            "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
+            "editor-scrollbar min-h-[300px] overflow-visible bg-white p-4 text-sm text-slate-900 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.15)] focus:outline-none dark:bg-white dark:text-slate-900",
             TEMPLATE_PREVIEW_SANDBOX_CLASS,
           )}
           contentEditable

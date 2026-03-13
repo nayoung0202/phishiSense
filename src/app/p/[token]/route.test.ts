@@ -113,4 +113,30 @@ describe("GET /p/[trackingToken]", () => {
     expect(project.openCount).toBe(1);
     expect(project.clickCount).toBe(1);
   });
+
+  it("고정 모달 래퍼가 있는 악성본문은 내부 카드만 렌더링한다", async () => {
+    storageMock.getTemplate.mockResolvedValueOnce({
+      id: "template-1",
+      name: "템플릿",
+      subject: "테스트",
+      body: "<p>테스트</p>",
+      maliciousPageContent:
+        '<div style="position:fixed;inset:0;display:flex"><section class="card"><form action="{{TRAINING_URL}}"><button type="submit">제출</button></form></section></div>',
+      autoInsertLandingEnabled: true,
+      autoInsertLandingLabel: "문서 확인하기",
+      autoInsertLandingKind: "link",
+      autoInsertLandingNewTab: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const response = await GET(new Request("http://localhost/p/track-1"), {
+      params: Promise.resolve({ token: "track-1" }),
+    });
+    const html = await response.text();
+
+    expect(html).toContain('<section class="card">');
+    expect(html).not.toContain("position:fixed");
+    expect(html).not.toContain("inset:0");
+  });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { neutralizePreviewModalHtml } from "@/lib/templatePreview";
 import { storage } from "@/server/storage";
 import {
   buildSubmitFormUrl,
@@ -61,7 +62,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     const maliciousHtml = template.maliciousPageContent?.trim() ?? "";
     const isFallback = maliciousHtml.length === 0;
-    const baseHtml = isFallback ? template.body || "" : maliciousHtml;
+    const baseHtml = neutralizePreviewModalHtml(isFallback ? template.body || "" : maliciousHtml);
     const trainingUrl = buildTrainingLinkUrl(normalized);
     const submitUrl = buildSubmitFormUrl(normalized);
     const hasTrainingToken = trainingTokenMatcher.test(baseHtml);
