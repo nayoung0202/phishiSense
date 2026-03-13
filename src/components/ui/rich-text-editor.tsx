@@ -33,6 +33,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   previewHtml?: string;
+  editTheme?: "default" | "mail-dark-readable" | "malicious-modal";
 }
 
 interface ToolbarItem {
@@ -59,6 +60,7 @@ export function RichTextEditor({
   placeholder,
   className,
   previewHtml,
+  editTheme = "default",
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<EditorMode>("edit");
@@ -126,6 +128,13 @@ export function RichTextEditor({
 
     onChange(editor.innerHTML);
   };
+
+  const editSurfaceClassName =
+    editTheme === "mail-dark-readable"
+      ? "template-editor-dark-readable"
+      : editTheme === "malicious-modal"
+        ? "template-editor-malicious-modal"
+        : "";
 
   return (
     <div className={cn("overflow-visible rounded-md border border-border bg-background", className)}>
@@ -233,7 +242,8 @@ export function RichTextEditor({
           key="rich-text-edit"
           ref={editorRef}
           className={cn(
-            "editor-scrollbar template-editor-dark-readable min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
+            "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
+            editSurfaceClassName,
             TEMPLATE_PREVIEW_SANDBOX_CLASS,
           )}
           contentEditable

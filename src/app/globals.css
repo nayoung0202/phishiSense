@@ -122,6 +122,36 @@
   color: hsl(var(--foreground)) !important;
 }
 
+.dark .template-editor-malicious-modal {
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+}
+
+.dark .template-editor-malicious-modal > [style*="background:#f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background: #f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background:#ffffff"],
+.dark .template-editor-malicious-modal > [style*="background: #ffffff"],
+.dark .template-editor-malicious-modal > [style*="background-color:#f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background-color: #f3f4f6"],
+.dark .template-editor-malicious-modal > [style*="background-color:#ffffff"],
+.dark .template-editor-malicious-modal > [style*="background-color: #ffffff"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.dark .template-editor-malicious-modal :is(
+  [style*="background:#fff"],
+  [style*="background: #fff"],
+  [style*="background:#ffffff"],
+  [style*="background: #ffffff"],
+  [style*="background-color:#fff"],
+  [style*="background-color: #fff"],
+  [style*="background-color:#ffffff"],
+  [style*="background-color: #ffffff"]
+) {
+  color: #0f172a !important;
+}
+
 .editor-scrollbar a {
   color: hsl(var(--primary));
   text-decoration: underline;
