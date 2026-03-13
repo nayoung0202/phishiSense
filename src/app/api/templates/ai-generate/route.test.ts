@@ -39,6 +39,7 @@ describe("POST /api/templates/ai-generate", () => {
         method: "POST",
         body: JSON.stringify({
           topic: "shipping",
+          customTopic: "",
           tone: "formal",
           difficulty: "easy",
           prompt: "",
@@ -54,12 +55,77 @@ describe("POST /api/templates/ai-generate", () => {
     expect(body.candidates[0]).not.toHaveProperty("name");
     expect(generateTemplateAiCandidatesMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        topic: "shipping",
+        customTopic: "",
         preservedCandidates: [{ id: "keep-1", subject: "기존 후보 제목" }],
       }),
     );
   });
 
-  it("잘못된 요청 본문이면 400을 반환한다", async () => {
+  it("기타 주제와 직접 입력 주제를 함께 전달할 수 있다", async () => {
+    generateTemplateAiCandidatesMock.mockResolvedValue({
+      candidates: [
+        {
+          id: "candidate-1",
+          subject: "사내 행사 참가 신청 안내",
+          body: '<a href="{{LANDING_URL}}">확인</a>',
+          maliciousPageContent:
+            '<form action="{{TRAINING_URL}}"><input name="name" /><button type="submit">제출</button></form>',
+          summary: "사내 행사 안내형 후보",
+        },
+      ],
+      usage: {
+        promptTokenCount: 120,
+        candidatesTokenCount: 240,
+        totalTokenCount: 360,
+        estimatedCredits: 1,
+        model: "gemini-2.5-flash-lite",
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/templates/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "other",
+          customTopic: "사내 행사 안내",
+          tone: "informational",
+          difficulty: "medium",
+          prompt: "행사 신청 독려 문구를 넣어 주세요.",
+          generateCount: 1,
+          preservedCandidates: [],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateTemplateAiCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "other",
+        customTopic: "사내 행사 안내",
+      }),
+    );
+  });
+
+  it("기타 주제를 선택하고 직접 입력이 없으면 400을 반환한다", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/templates/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "other",
+          customTopic: "",
+          tone: "formal",
+          difficulty: "easy",
+          prompt: "",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(generateTemplateAiCandidatesMock).not.toHaveBeenCalled();
+  });
+
+  it("잘못된 주제 값이면 400을 반환한다", async () => {
     const response = await POST(
       new Request("http://localhost/api/templates/ai-generate", {
         method: "POST",

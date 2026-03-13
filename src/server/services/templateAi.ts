@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { neutralizePreviewModalHtml } from "@/lib/templatePreview";
 import {
   DEFAULT_TEMPLATE_AI_MODEL,
   type TemplateAiCandidate,
   type TemplateAiRequest,
   findUnsafeTemplateHtmlIssues,
+  resolveTemplateAiTopicText,
+  templateAiDifficultyLabels,
+  templateAiToneLabels,
 } from "@shared/templateAi";
 
 type GeminiUsageMetadata = {
@@ -65,7 +69,7 @@ const referenceMailBodyHtml = `
 `.trim();
 
 const referenceMaliciousPageHtml = `
-<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:24px">
+<div style="display:flex;justify-content:center;padding:48px 24px;background:#f3f4f6">
   <div style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
     <div style="padding:20px 22px 14px;border-bottom:1px solid #e5e7eb">
       <p style="margin:0 0 6px;font-size:18px;font-weight:800;color:#111827">Delivery details confirmation</p>
@@ -124,36 +128,50 @@ const extractJsonText = (payload: unknown) => {
 };
 
 const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
-  const mailIssues = findUnsafeTemplateHtmlIssues(candidate.body);
-  const maliciousIssues = findUnsafeTemplateHtmlIssues(candidate.maliciousPageContent);
+  const normalizedCandidate = {
+    ...candidate,
+    subject: candidate.subject.trim(),
+    body: candidate.body.trim(),
+    maliciousPageContent: neutralizePreviewModalHtml(candidate.maliciousPageContent).trim(),
+    summary: candidate.summary.trim(),
+  };
+  const mailIssues = findUnsafeTemplateHtmlIssues(normalizedCandidate.body);
+  const maliciousIssues = findUnsafeTemplateHtmlIssues(normalizedCandidate.maliciousPageContent);
 
   if (mailIssues.length > 0 || maliciousIssues.length > 0) {
     throw new Error([...mailIssues, ...maliciousIssues].join(" "));
   }
 
-  if (!/\{\{\s*LANDING_URL\s*\}\}/i.test(candidate.body)) {
-    throw new Error("메일본문에 {{LANDING_URL}}가 포함되어야 합니다.");
+  if (!/\{\{\s*LANDING_URL\s*\}\}/i.test(normalizedCandidate.body)) {
+    throw new Error("메일본문에는 {{LANDING_URL}}가 포함되어야 합니다.");
   }
 
-  if (!/\{\{\s*TRAINING_URL\s*\}\}/i.test(candidate.maliciousPageContent)) {
-    throw new Error("악성메일본문에 {{TRAINING_URL}}가 포함되어야 합니다.");
+  if (!/\{\{\s*TRAINING_URL\s*\}\}/i.test(normalizedCandidate.maliciousPageContent)) {
+    throw new Error("악성메일본문에는 {{TRAINING_URL}}가 포함되어야 합니다.");
   }
 
-  if (!/<form[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
+  if (!/<form[\s\S]*?>/i.test(normalizedCandidate.maliciousPageContent)) {
     throw new Error("악성메일본문에는 입력 폼이 포함되어야 합니다.");
   }
 
-  if (!/<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i.test(candidate.maliciousPageContent)) {
+  if (
+    !/<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i.test(
+      normalizedCandidate.maliciousPageContent,
+    )
+  ) {
     throw new Error("악성메일본문에는 제출 버튼이 포함되어야 합니다.");
   }
 
   return {
     id: randomUUID(),
-    ...candidate,
+    ...normalizedCandidate,
   };
 };
 
 export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
+  const topicText = resolveTemplateAiTopicText(request);
+  const toneText = templateAiToneLabels[request.tone];
+  const difficultyText = templateAiDifficultyLabels[request.difficulty];
   const preservedText =
     request.preservedCandidates.length > 0
       ? `Preserved candidates:\n${request.preservedCandidates
@@ -173,6 +191,7 @@ Rules:
 - The malicious page must be a static landing page with a form and a submit button.
 - The malicious page must redirect or submit to {{TRAINING_URL}} after submission.
 - Do not use JavaScript, external CSS, external scripts, or external images/resources.
+- Do not render the malicious page as a fixed-position modal, dialog, or overlay.
 - Inline CSS and style tags are allowed.
 - body must be a complete mail-body HTML string for this product and may include inline CSS or style tags.
 - maliciousPageContent must be a complete malicious-page HTML string for this product and may include inline CSS or style tags.
@@ -181,13 +200,13 @@ Rules:
 - Do not copy the reference verbatim; adapt the wording, labels, and scenario details to the requested topic and tone.
 - Keep the same level of inline styling, spacing, and structural clarity shown in the reference.
 - body should feel like an operational notice email: alert headline, short explanation, 2-3 bullet points, a divider, and a single clear CTA.
-- maliciousPageContent should feel like a focused modal/card UI: dimmed background, centered white panel, short header, stacked inputs, and one strong primary submit button.
+- maliciousPageContent should feel like a focused inline card UI shown directly on the page: soft page background, centered white panel, short header, stacked inputs, and one strong primary submit button.
 - For maliciousPageContent, prefer a form action that points to {{TRAINING_URL}}.
 
 Generation inputs:
-- topic: ${request.topic}
-- tone: ${request.tone}
-- difficulty: ${request.difficulty}
+- topic: ${topicText}
+- tone: ${toneText}
+- difficulty: ${difficultyText}
 - extra requirements: ${request.prompt || "none"}
 
 Variation instructions:
@@ -217,7 +236,9 @@ const estimateCreditsFromUsage = (usage: GeminiUsageMetadata) => {
   const promptTokenCount = usage.promptTokenCount ?? 0;
   const candidatesTokenCount = usage.candidatesTokenCount ?? 0;
   const totalTokenCount = usage.totalTokenCount ?? promptTokenCount + candidatesTokenCount;
-  const estimatedCostUsd = promptTokenCount * (0.1 / 1_000_000) + candidatesTokenCount * (0.4 / 1_000_000);
+  const estimatedCostUsd =
+    promptTokenCount * (0.1 / 1_000_000) + candidatesTokenCount * (0.4 / 1_000_000);
+
   return {
     promptTokenCount,
     candidatesTokenCount,
@@ -276,7 +297,9 @@ export async function generateTemplateAiCandidates(
   }
 
   const candidates = rawCandidates.map(sanitizeCandidate);
-  const usage = estimateCreditsFromUsage((payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {});
+  const usage = estimateCreditsFromUsage(
+    (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
+  );
 
   return {
     candidates,
