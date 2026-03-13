@@ -233,7 +233,7 @@ export function RichTextEditor({
           key="rich-text-edit"
           ref={editorRef}
           className={cn(
-            "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
+            "editor-scrollbar template-editor-dark-readable min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
             TEMPLATE_PREVIEW_SANDBOX_CLASS,
           )}
           contentEditable

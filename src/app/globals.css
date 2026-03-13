@@ -94,6 +94,34 @@
   pointer-events: none !important;
 }
 
+.dark .template-editor-dark-readable {
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+}
+
+.dark .template-editor-dark-readable :is(
+  [style*="color:#000"],
+  [style*="color: #000"],
+  [style*="color:#000000"],
+  [style*="color: #000000"],
+  [style*="color:black"],
+  [style*="color: black"],
+  [style*="color:#0f172a"],
+  [style*="color: #0f172a"],
+  [style*="color:#111827"],
+  [style*="color: #111827"],
+  [style*="color:#1f2937"],
+  [style*="color: #1f2937"],
+  [style*="color:#334155"],
+  [style*="color: #334155"],
+  [style*="color:#374151"],
+  [style*="color: #374151"],
+  [style*="color:#475569"],
+  [style*="color: #475569"]
+) {
+  color: hsl(var(--foreground)) !important;
+}
+
 .editor-scrollbar a {
   color: hsl(var(--primary));
   text-decoration: underline;
