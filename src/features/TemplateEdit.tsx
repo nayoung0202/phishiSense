@@ -410,6 +410,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
                         onBlur={field.onBlur}
                         placeholder="메일 본문을 자유롭게 작성하세요."
                         previewHtml={previewMailHtml}
+                        editTheme="mail-dark-readable"
                       />
                     </div>
                   </FormControl>
@@ -522,6 +523,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
                           onBlur={field.onBlur}
                           placeholder="실제 악성 메일 페이지 본문을 작성하세요."
                           previewHtml={previewMaliciousHtml}
+                          editTheme="malicious-modal"
                         />
                       </div>
                     </FormControl>
