@@ -209,6 +209,7 @@ export function RichTextEditor({
       </div>
       {mode === "html" ? (
         <textarea
+          key="rich-text-html"
           className="editor-scrollbar min-h-[300px] max-h-[600px] w-full resize-none border-t border-border bg-background p-4 font-mono text-sm focus:outline-none"
           value={value}
           spellCheck={false}
@@ -217,7 +218,7 @@ export function RichTextEditor({
           placeholder={placeholder}
         />
       ) : mode === "preview" ? (
-        <div className="border-t border-border bg-muted/30 p-2 overflow-visible">
+        <div key="rich-text-preview" className="border-t border-border bg-muted/30 p-2 overflow-visible">
           {(previewHtml ?? value).trim().length > 0 ? (
             <TemplatePreviewFrame
               html={previewHtml ?? value}
@@ -229,6 +230,7 @@ export function RichTextEditor({
         </div>
       ) : (
         <div
+          key="rich-text-edit"
           ref={editorRef}
           className={cn(
             "editor-scrollbar min-h-[300px] overflow-visible bg-background p-4 text-sm focus:outline-none",
