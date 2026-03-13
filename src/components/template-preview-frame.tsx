@@ -10,12 +10,14 @@ interface TemplatePreviewFrameProps {
   html: string;
   className?: string;
   minHeight?: number;
+  interactive?: boolean;
 }
 
 export function TemplatePreviewFrame({
   html,
   className,
   minHeight = 240,
+  interactive = false,
 }: TemplatePreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contentHeight, setContentHeight] = useState(minHeight);
@@ -36,6 +38,12 @@ export function TemplatePreviewFrame({
         "input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }",
         "label { display: block; margin-bottom: 0.35rem; font-weight: 600; }",
         "table { border-collapse: collapse; width: 100%; }",
+        !interactive
+          ? [
+              "a, a *, button, button *, input, select, textarea, label, form { pointer-events: none !important; }",
+              "a, button { cursor: default !important; }",
+            ].join("")
+          : "",
         TEMPLATE_PREVIEW_SANDBOX_CSS,
         "</style>",
         "</head>",
@@ -44,7 +52,7 @@ export function TemplatePreviewFrame({
         "</body>",
         "</html>",
       ].join(""),
-    [safeHtml],
+    [interactive, safeHtml],
   );
 
   useEffect(() => {
