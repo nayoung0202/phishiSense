@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { extractBodyHtml } from "@/lib/html";
 import { cn } from "@/lib/utils";
 import {
   neutralizePreviewModalHtml,
@@ -11,6 +12,7 @@ interface TemplatePreviewFrameProps {
   className?: string;
   minHeight?: number;
   interactive?: boolean;
+  theme?: "light" | "dark";
 }
 
 export function TemplatePreviewFrame({
@@ -18,10 +20,17 @@ export function TemplatePreviewFrame({
   className,
   minHeight = 240,
   interactive = false,
+  theme = "light",
 }: TemplatePreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contentHeight, setContentHeight] = useState(minHeight);
-  const safeHtml = useMemo(() => neutralizePreviewModalHtml(html), [html]);
+  const safeHtml = useMemo(
+    () => neutralizePreviewModalHtml(extractBodyHtml(html)),
+    [html],
+  );
+  const bodyBackground = theme === "dark" ? "#020617" : "#ffffff";
+  const bodyTextColor = theme === "dark" ? "#f8fafc" : "#0f172a";
+  const linkColor = theme === "dark" ? "#38bdf8" : "#0284c7";
 
   const srcDoc = useMemo(
     () =>
@@ -31,8 +40,8 @@ export function TemplatePreviewFrame({
         "<head>",
         '<meta charset="utf-8" />',
         "<style>",
-        "body { margin: 0; padding: 1rem; background: #ffffff; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }",
-        "a { color: #0284c7; text-decoration: underline; }",
+        `body { margin: 0; padding: 1rem; background: ${bodyBackground}; color: ${bodyTextColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }`,
+        `a { color: ${linkColor}; text-decoration: underline; }`,
         "*, *::before, *::after { box-sizing: border-box; }",
         "img { max-width: 100%; height: auto; display: block; }",
         "input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }",
@@ -52,7 +61,7 @@ export function TemplatePreviewFrame({
         "</body>",
         "</html>",
       ].join(""),
-    [interactive, safeHtml],
+    [bodyBackground, bodyTextColor, interactive, linkColor, safeHtml],
   );
 
   useEffect(() => {
@@ -77,7 +86,7 @@ export function TemplatePreviewFrame({
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full border-0 bg-white", className)}
+      className={cn("w-full border-0", theme === "dark" ? "bg-slate-950" : "bg-white", className)}
       style={{ height: `${contentHeight}px` }}
       srcDoc={srcDoc}
       sandbox="allow-same-origin"

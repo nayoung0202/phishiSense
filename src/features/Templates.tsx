@@ -18,17 +18,13 @@ import { type Template } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
-import { extractBodyHtml } from "@/lib/html";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SafeText } from "@/components/security/SafeText";
 import { buildMailHtml } from "@shared/templateMail";
 import { cn } from "@/lib/utils";
 import { TemplateAiGenerateDialog } from "@/components/TemplateAiGenerateDialog";
-import {
-  neutralizePreviewModalHtml,
-  TEMPLATE_PREVIEW_SANDBOX_CLASS,
-} from "@/lib/templatePreview";
+import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 import {
   countTokenOccurrences,
   MAIL_LANDING_TOKENS,
@@ -118,18 +114,10 @@ export default function Templates() {
   const previewMalicious = previewMaliciousRaw
     .replace(previewTrainingTokenReplacer, previewTrainingUrl)
     .replace(previewSubmitTokenReplacer, previewSubmitUrl);
-  const previewBodyHtml = extractBodyHtml(neutralizePreviewModalHtml(previewBody));
-  const previewMaliciousHtml = extractBodyHtml(neutralizePreviewModalHtml(previewMalicious));
   const previewSurfaceClass =
     previewTheme === "dark"
-      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
-      : "site-scrollbar rounded-md border border-slate-200 bg-white p-4 text-slate-900";
-  const previewProseClass =
-    previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
-  const previewContentClass =
-    previewTheme === "light"
-      ? `${previewProseClass} template-preview--light`
-      : previewProseClass;
+      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-50"
+      : "site-scrollbar rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-900";
   const previewScrollableSurfaceClass = cn(
     previewSurfaceClass,
     "max-h-[60vh] overflow-y-auto",
@@ -183,9 +171,10 @@ export default function Templates() {
                 <div className={previewScrollableSurfaceClass}>
                   {previewTemplate ? (
                     previewBody.trim().length > 0 ? (
-                      <div
-                        className={cn(previewContentClass, TEMPLATE_PREVIEW_SANDBOX_CLASS)}
-                        dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
+                      <TemplatePreviewFrame
+                        html={previewBody}
+                        theme={previewTheme}
+                        className="rounded-md shadow-sm"
                       />
                     ) : (
                       <p className={`text-sm ${previewMutedClass}`}>메일 본문이 없습니다.</p>
@@ -204,13 +193,10 @@ export default function Templates() {
                 <div className={previewScrollableSurfaceClass}>
                   {previewTemplate ? (
                     previewMalicious.trim().length > 0 ? (
-                      <div
-                        className={cn(
-                          previewContentClass,
-                          TEMPLATE_PREVIEW_SANDBOX_CLASS,
-                          "site-scrollbar",
-                        )}
-                        dangerouslySetInnerHTML={{ __html: previewMaliciousHtml }}
+                      <TemplatePreviewFrame
+                        html={previewMalicious}
+                        theme={previewTheme}
+                        className="rounded-md shadow-sm"
                       />
                     ) : (
                       <p className={`text-sm ${previewMutedClass}`}>악성 메일 본문이 없습니다.</p>
