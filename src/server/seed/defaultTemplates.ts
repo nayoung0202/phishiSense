@@ -1,10 +1,12 @@
 import type { Template } from "@shared/schema";
 
 const now = () => new Date("2024-01-01T00:00:00.000Z");
+const DEFAULT_DEV_TENANT_ID = process.env.DEV_TENANT_ID ?? "tenant-local-001";
 
 export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: "tmpl-shipping-alert",
+    tenantId: DEFAULT_DEV_TENANT_ID,
     name: "택배 보류 알림",
     subject: "[CJ대한통운] 배송 주소 확인 미완료",
     body: [
@@ -52,6 +54,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
   },
   {
     id: "tmpl-m365-lock",
+    tenantId: DEFAULT_DEV_TENANT_ID,
     name: "계정 잠금 해제 요청",
     subject: "[M365] 비정상 로그인 차단 - 본인 확인 필요",
     body: [
@@ -95,6 +98,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
   },
   {
     id: "tmpl-tax-refund",
+    tenantId: DEFAULT_DEV_TENANT_ID,
     name: "연말정산 환급 서류 보완",
     subject: "[국세청] 추가 환급 대상 서류 제출 안내",
     body: [

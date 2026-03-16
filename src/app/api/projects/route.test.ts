@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TENANT_A_ID } from "@/test/tenantFixtures";
 
-const storageMock = vi.hoisted(() => ({
-  getProjects: vi.fn(),
+const currentTenantMock = vi.hoisted(() => ({
+  requireReadyTenant: vi.fn(),
+  buildReadyTenantErrorResponse: vi.fn((_error, message: string, status = 500) =>
+    Response.json({ error: message }, { status }),
+  ),
 }));
 
-vi.mock("@/server/storage", () => ({
-  storage: storageMock,
+const tenantStorageMock = vi.hoisted(() => ({
+  getProjectsForTenant: vi.fn(),
 }));
+
+vi.mock("@/server/tenant/currentTenant", () => currentTenantMock);
+vi.mock("@/server/tenant/tenantStorage", () => tenantStorageMock);
 
 import { GET } from "./route";
 
@@ -18,6 +25,7 @@ const buildProject = (
   status: string = "예약",
 ) => ({
   id,
+  tenantId: TENANT_A_ID,
   name,
   description: "",
   department: "보안팀",
@@ -50,11 +58,13 @@ const buildProject = (
 
 describe("GET /api/projects sorting", () => {
   beforeEach(() => {
-    storageMock.getProjects.mockReset();
+    currentTenantMock.requireReadyTenant.mockReset();
+    tenantStorageMock.getProjectsForTenant.mockReset();
+    currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: TENANT_A_ID });
   });
 
   it("분기 조회 시 수행 일정(startDate) 오름차순으로 정렬한다", async () => {
-    storageMock.getProjects.mockResolvedValue([
+    tenantStorageMock.getProjectsForTenant.mockResolvedValue([
       buildProject("p3", "세 번째", "2025-03-10T00:00:00.000Z", "2025-03-12T00:00:00.000Z"),
       buildProject("p1", "첫 번째", "2025-01-02T00:00:00.000Z", "2025-01-04T00:00:00.000Z"),
       buildProject("p2", "두 번째", "2025-02-01T00:00:00.000Z", "2025-02-03T00:00:00.000Z"),
@@ -70,7 +80,7 @@ describe("GET /api/projects sorting", () => {
   });
 
   it("같은 시작일이면 종료일, 이름 순서로 정렬한다", async () => {
-    storageMock.getProjects.mockResolvedValue([
+    tenantStorageMock.getProjectsForTenant.mockResolvedValue([
       buildProject("p3", "다", "2025-01-01T00:00:00.000Z", "2025-01-05T00:00:00.000Z"),
       buildProject("p2", "가", "2025-01-01T00:00:00.000Z", "2025-01-02T00:00:00.000Z"),
       buildProject("p1", "나", "2025-01-01T00:00:00.000Z", "2025-01-02T00:00:00.000Z"),
@@ -86,19 +96,16 @@ describe("GET /api/projects sorting", () => {
   });
 
   it("잘못된 날짜 항목은 목록의 뒤로 정렬한다", async () => {
-    storageMock.getProjects.mockResolvedValue([
+    tenantStorageMock.getProjectsForTenant.mockResolvedValue([
       buildProject("p2", "유효-뒤", "2025-01-02T00:00:00.000Z", "2025-01-03T00:00:00.000Z"),
       buildProject("p3", "비정상", "invalid-date", "invalid-date"),
       buildProject("p1", "유효-앞", "2025-01-01T00:00:00.000Z", "2025-01-01T00:00:00.000Z"),
     ]);
 
-    const response = await GET(
-      new Request("http://localhost/api/projects") as never,
-    );
+    const response = await GET(new Request("http://localhost/api/projects") as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.map((project: { id: string }) => project.id)).toEqual(["p1", "p2", "p3"]);
   });
 });
-

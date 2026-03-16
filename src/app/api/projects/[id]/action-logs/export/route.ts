@@ -1,7 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { storage } from "@/server/storage";
 import type { ProjectTarget, Target } from "@shared/schema";
+import {
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getTargetsForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -10,13 +18,7 @@ type RouteContext = {
 };
 
 type ActionEventType = "OPEN" | "CLICK" | "SUBMIT";
-
-type ActionEvent = {
-  type: ActionEventType;
-  label: string;
-  at: string;
-};
-
+type ActionEvent = { type: ActionEventType; label: string; at: string };
 type ActionLogItem = {
   projectTargetId: string;
   targetId: string;
@@ -27,7 +29,6 @@ type ActionLogItem = {
   status: string;
   events: ActionEvent[];
 };
-
 type TimelineRow = {
   targetName: string;
   targetEmail: string;
@@ -67,17 +68,9 @@ const buildEvents = (projectTarget: ProjectTarget): ActionEvent[] => {
   const openedAt = toIsoString(projectTarget.openedAt);
   const clickedAt = toIsoString(projectTarget.clickedAt);
   const submittedAt = toIsoString(projectTarget.submittedAt);
-
-  if (openedAt) {
-    events.push({ type: "OPEN", label: "열람", at: openedAt });
-  }
-  if (clickedAt) {
-    events.push({ type: "CLICK", label: "클릭", at: clickedAt });
-  }
-  if (submittedAt) {
-    events.push({ type: "SUBMIT", label: "제출", at: submittedAt });
-  }
-
+  if (openedAt) events.push({ type: "OPEN", label: "열람", at: openedAt });
+  if (clickedAt) events.push({ type: "CLICK", label: "클릭", at: clickedAt });
+  if (submittedAt) events.push({ type: "SUBMIT", label: "제출", at: submittedAt });
   return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 };
 
@@ -92,7 +85,6 @@ const sanitizeFileSegment = (value: string) => {
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
   return normalized.length > 0 ? normalized.slice(0, 40) : "project";
 };
 
@@ -101,8 +93,8 @@ const buildContentDisposition = (filename: string) => {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 };
 
-const buildTimelineRows = (items: ActionLogItem[]): TimelineRow[] => {
-  return items
+const buildTimelineRows = (items: ActionLogItem[]): TimelineRow[] =>
+  items
     .flatMap((item) =>
       item.events.map((event) => ({
         targetName: item.name,
@@ -116,44 +108,39 @@ const buildTimelineRows = (items: ActionLogItem[]): TimelineRow[] => {
       })),
     )
     .sort((a, b) => new Date(b.eventAt).getTime() - new Date(a.eventAt).getTime());
-};
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const project = await storage.getProject(id);
+    const project = await getProjectForTenant(tenantId, id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     const [projectTargets, targets] = await Promise.all([
-      storage.getProjectTargets(id),
-      storage.getTargets(),
+      getProjectTargetsForTenant(tenantId, id),
+      getTargetsForTenant(tenantId),
     ]);
-
     const targetMap = new Map(targets.map((target) => [target.id, target]));
     const items: ActionLogItem[] = projectTargets
-      .filter((projectTarget) => projectTarget.projectId === id)
       .filter((projectTarget) => projectTarget.status !== "test")
       .map((projectTarget) => {
         const target = targetMap.get(projectTarget.targetId);
         const statusCode = resolveStatusCode(projectTarget);
-        const status = statusLabelMap[statusCode] ?? statusCode;
         return {
           projectTargetId: projectTarget.id,
           targetId: projectTarget.targetId,
           sentAt: toIsoString(projectTarget.sentAt),
           ...resolveTargetInfo(target),
-          status,
+          status: statusLabelMap[statusCode] ?? statusCode,
           events: buildEvents(projectTarget),
         };
       });
 
     const rows = buildTimelineRows(items);
-
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("이벤트 타임라인");
-
     worksheet.columns = [
       { header: "번호", key: "index", width: 8 },
       { header: "대상자", key: "targetName", width: 18 },
@@ -165,33 +152,26 @@ export async function GET(_request: Request, { params }: RouteContext) {
       { header: "발송 시각(ISO)", key: "sentAt", width: 28 },
       { header: "상태", key: "status", width: 12 },
     ];
-
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true };
+    worksheet.getRow(1).font = { bold: true };
 
     if (rows.length === 0) {
-      worksheet.addRow({
-        index: 1,
-        targetName: "이벤트 데이터가 없습니다.",
-      });
+      worksheet.addRow({ index: 1, targetName: "이벤트 데이터가 없습니다." });
     } else {
-      rows.forEach((row, index) => {
-        worksheet.addRow({ index: index + 1, ...row });
-      });
+      rows.forEach((row, index) => worksheet.addRow({ index: index + 1, ...row }));
     }
 
     const projectName = sanitizeFileSegment(project.name ?? project.id);
     const filename = `${projectName}_event_timeline.xlsx`;
     const buffer = await workbook.xlsx.writeBuffer();
-
     return new NextResponse(Buffer.from(buffer), {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": buildContentDisposition(filename),
         "Cache-Control": "no-store",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "Failed to export action logs" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to export action logs");
   }
 }

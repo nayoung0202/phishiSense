@@ -1,9 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TENANT_A_ID } from "@/test/tenantFixtures";
+
+const currentTenantMock = vi.hoisted(() => ({
+  requireReadyTenant: vi.fn(),
+  buildReadyTenantErrorResponse: vi.fn((_error, message: string, status = 500) =>
+    Response.json({ error: message }, { status }),
+  ),
+}));
 
 const generatorMock = vi.hoisted(() => ({
   generateProjectReport: vi.fn(),
 }));
 
+vi.mock("@/server/tenant/currentTenant", () => currentTenantMock);
 vi.mock("@/server/services/reportGenerator", () => ({
   generateProjectReport: generatorMock.generateProjectReport,
 }));
@@ -12,7 +21,9 @@ import { POST } from "./route";
 
 describe("POST /api/reports/generate", () => {
   beforeEach(() => {
+    currentTenantMock.requireReadyTenant.mockReset();
     generatorMock.generateProjectReport.mockReset();
+    currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: TENANT_A_ID });
   });
 
   it("reportSettingId가 없으면 400을 반환한다", async () => {
@@ -22,17 +33,17 @@ describe("POST /api/reports/generate", () => {
       body: JSON.stringify({ projectId: "project-1" }),
     });
 
-    const response = await POST(request);
+    const response = await POST(request as never);
 
     expect(response.status).toBe(400);
     expect(generatorMock.generateProjectReport).not.toHaveBeenCalled();
   });
 
-  it("유효한 요청이면 reportSettingId를 포함해 생성 함수를 호출한다", async () => {
+  it("유효한 요청이면 tenantId와 함께 생성 함수를 호출한다", async () => {
     generatorMock.generateProjectReport.mockResolvedValue({
       instanceId: "instance-1",
       downloadUrl: "/api/reports/instance-1/download",
-      fileKey: "reports/generated/instance-1.docx",
+      fileKey: "tenants/tenant-a/reports/generated/instance-1.docx",
     });
 
     const request = new Request("http://localhost/api/reports/generate", {
@@ -44,11 +55,11 @@ describe("POST /api/reports/generate", () => {
       }),
     });
 
-    const response = await POST(request);
+    const response = await POST(request as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(generatorMock.generateProjectReport).toHaveBeenCalledWith("project-1", {
+    expect(generatorMock.generateProjectReport).toHaveBeenCalledWith(TENANT_A_ID, "project-1", {
       templateId: undefined,
       reportSettingId: "setting-1",
     });

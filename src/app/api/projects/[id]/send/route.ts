@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { enqueueSendJobForProject } from "@/server/services/sendJobs";
 import { SendValidationError } from "@/server/services/templateSendValidation";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -8,10 +12,11 @@ type RouteContext = {
   }>;
 };
 
-export async function POST(_request: Request, { params }: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const { job, created } = await enqueueSendJobForProject(id);
+    const { job, created } = await enqueueSendJobForProject(tenantId, id);
     return NextResponse.json(job, { status: created ? 201 : 200 });
   } catch (error) {
     if (error instanceof SendValidationError) {
@@ -20,6 +25,6 @@ export async function POST(_request: Request, { params }: RouteContext) {
         { status: 422 },
       );
     }
-    return NextResponse.json({ error: "Failed to enqueue send job" }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "Failed to enqueue send job");
   }
 }

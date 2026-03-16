@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import {
+  getPublicProjectContextByTrackingToken,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+} from "@/server/tenant/tenantStorage";
 import { buildSubmitUrl } from "@/server/lib/trainingLink";
 
 type RouteContext = {
@@ -33,11 +37,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const projectTarget = await storage.getProjectTargetByTrackingToken(normalized);
-    if (!projectTarget) {
+    const context = await getPublicProjectContextByTrackingToken(normalized);
+    if (!context) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
+    const { tenantId, projectTarget, project } = context;
     await request.formData().catch(() => undefined);
 
     if (!projectTarget.submittedAt) {
@@ -48,7 +53,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       const shouldIncrementOpen = !projectTarget.openedAt;
       const shouldIncrementClick = !projectTarget.clickedAt;
 
-      await storage.updateProjectTarget(projectTarget.id, {
+      await updateProjectTargetForTenant(tenantId, projectTarget.id, {
         openedAt: shouldIncrementOpen ? openedAt : projectTarget.openedAt,
         clickedAt: shouldIncrementClick ? clickedAt : projectTarget.clickedAt,
         submittedAt,
@@ -56,14 +61,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       });
 
       if (projectTarget.status !== "test") {
-        const project = await storage.getProject(projectTarget.projectId);
-        if (project) {
-          await storage.updateProject(project.id, {
-            openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
-            clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
-            submitCount: (project.submitCount ?? 0) + 1,
-          });
-        }
+        await updateProjectForTenant(tenantId, project.id, {
+          openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
+          clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
+          submitCount: (project.submitCount ?? 0) + 1,
+        });
       }
     }
 

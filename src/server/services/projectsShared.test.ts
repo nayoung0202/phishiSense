@@ -143,17 +143,17 @@ describe("collectDepartmentTagsFromTargets", () => {
     expect(issues).toEqual([]);
   });
 
-  it("?꾩떆 ?곹깭 ?꾨줈?앺듃??媛숈? ?좎쭨濡?留덇컧?섏뿬??寃利??듦낵?쒕떎", () => {
+  it("임시 상태 프로젝트는 종료일이 시작일보다 빠르면 실패한다", () => {
     const draftPayload = {
-      name: "?꾩떆 ?꾨줈?앺듃",
+      name: "임시 프로젝트",
       templateId: "",
       trainingPageId: "",
       sendingDomain: "",
       fromName: "",
       fromEmail: "",
       startDate: new Date("2026-03-09T00:00:00.000Z"),
-      endDate: new Date("2026-03-09T00:00:00.000Z"),
-      status: "?꾩떆",
+      endDate: new Date("2026-03-08T00:00:00.000Z"),
+      status: "임시",
       targetCount: 0,
     } as unknown as InsertProject;
 
@@ -161,7 +161,13 @@ describe("collectDepartmentTagsFromTargets", () => {
       allowTemporaryDraft: true,
     });
 
-    expect(issues).toEqual([]);
+    expect(issues).toEqual([
+      {
+        field: "endDate",
+        code: "invalid_range",
+        message: "종료일은 시작일보다 늦어야 합니다.",
+      },
+    ]);
   });
 });
 

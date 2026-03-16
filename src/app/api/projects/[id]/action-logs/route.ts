@@ -1,6 +1,14 @@
-import { NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import { NextRequest, NextResponse } from "next/server";
 import type { ProjectTarget, Target } from "@shared/schema";
+import {
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getTargetsForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -9,13 +17,7 @@ type RouteContext = {
 };
 
 type ActionEventType = "OPEN" | "CLICK" | "SUBMIT";
-
-type ActionEvent = {
-  type: ActionEventType;
-  label: string;
-  at: string;
-};
-
+type ActionEvent = { type: ActionEventType; label: string; at: string };
 type ActionLogItem = {
   projectTargetId: string;
   targetId: string;
@@ -57,17 +59,9 @@ const buildEvents = (projectTarget: ProjectTarget): ActionEvent[] => {
   const openedAt = toIsoString(projectTarget.openedAt);
   const clickedAt = toIsoString(projectTarget.clickedAt);
   const submittedAt = toIsoString(projectTarget.submittedAt);
-
-  if (openedAt) {
-    events.push({ type: "OPEN", label: "열람", at: openedAt });
-  }
-  if (clickedAt) {
-    events.push({ type: "CLICK", label: "클릭", at: clickedAt });
-  }
-  if (submittedAt) {
-    events.push({ type: "SUBMIT", label: "제출", at: submittedAt });
-  }
-
+  if (openedAt) events.push({ type: "OPEN", label: "열람", at: openedAt });
+  if (clickedAt) events.push({ type: "CLICK", label: "클릭", at: clickedAt });
+  if (submittedAt) events.push({ type: "SUBMIT", label: "제출", at: submittedAt });
   return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 };
 
@@ -77,41 +71,39 @@ const resolveTargetInfo = (target: Target | undefined) => ({
   department: target?.department ?? null,
 });
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const project = await storage.getProject(id);
+    const project = await getProjectForTenant(tenantId, id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     const [projectTargets, targets] = await Promise.all([
-      storage.getProjectTargets(id),
-      storage.getTargets(),
+      getProjectTargetsForTenant(tenantId, id),
+      getTargetsForTenant(tenantId),
     ]);
-
     const targetMap = new Map(targets.map((target) => [target.id, target]));
     const items: ActionLogItem[] = projectTargets
-      .filter((projectTarget) => projectTarget.projectId === id)
       .filter((projectTarget) => projectTarget.status !== "test")
       .map((projectTarget) => {
         const target = targetMap.get(projectTarget.targetId);
         const statusCode = resolveStatusCode(projectTarget);
-        const status = statusLabelMap[statusCode] ?? statusCode;
         return {
           projectTargetId: projectTarget.id,
           targetId: projectTarget.targetId,
           trackingToken: projectTarget.trackingToken ?? null,
           sentAt: toIsoString(projectTarget.sentAt),
           ...resolveTargetInfo(target),
-          status,
+          status: statusLabelMap[statusCode] ?? statusCode,
           statusCode,
           events: buildEvents(projectTarget),
         };
       });
 
     return NextResponse.json({ items });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch action logs" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch action logs");
   }
 }

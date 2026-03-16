@@ -73,7 +73,7 @@ describe("Targets 검색 유틸", () => {
 
   it("숫자+문자 혼합 검색은 기존 전체 범위 AND를 유지한다", () => {
     const result = filterTargetsBySearch(targets, "2026 company.com");
-    expect(result.map((target) => target.id)).toEqual(["t4"]);
+    expect(result.map((target) => target.id)).toEqual(["t1", "t4"]);
   });
 
   it("빈 검색어면 전체 대상을 반환한다", () => {

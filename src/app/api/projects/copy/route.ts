@@ -1,29 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z, ZodError } from "zod";
-import { storage } from "@/server/storage";
-
-const copySchema = z.object({
-  ids: z.array(z.string().min(1)).min(1),
-});
+import { copyProjectsForTenant } from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 export async function POST(request: NextRequest) {
   try {
-    const { ids } = copySchema.parse(await request.json());
-    const projects = await storage.copyProjects(ids);
-    return NextResponse.json(projects, { status: 201 });
+    const { tenantId } = await requireReadyTenant(request);
+    const payload = await request.json();
+    const ids = Array.isArray(payload?.ids)
+      ? payload.ids.filter((id: unknown): id is string => typeof id === "string")
+      : [];
+    const projects = await copyProjectsForTenant(tenantId, ids);
+    return NextResponse.json(projects);
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        {
-          error: "validation_error",
-          details: error.issues.map((issue) => ({
-            field: issue.path.join("."),
-            message: issue.message,
-          })),
-        },
-        { status: 422 },
-      );
-    }
-    return NextResponse.json({ error: "Failed to copy projects" }, { status: 400 });
+    return buildReadyTenantErrorResponse(error, "Failed to copy projects");
   }
 }

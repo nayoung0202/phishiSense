@@ -1,8 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { storage } from "@/server/storage";
+import {
+  createReportTemplateForTenant,
+  getActiveReportTemplateInTenant,
+  getReportTemplatesForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 import {
   buildTemplateFileKey,
   ensureDirectoryForFile,
@@ -16,13 +24,19 @@ const ALLOWED_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-export async function GET() {
-  const templates = await storage.getReportTemplates();
-  return NextResponse.json({ templates });
+export async function GET(request: NextRequest) {
+  try {
+    const { tenantId } = await requireReadyTenant(request);
+    const templates = await getReportTemplatesForTenant(tenantId);
+    return NextResponse.json({ templates });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch report templates");
+  }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const formData = await request.formData();
     const file = formData.get("file");
     const nameRaw = formData.get("name");
@@ -50,19 +64,20 @@ export async function POST(request: Request) {
         ? nameRaw.trim()
         : path.parse(file.name).name || "보고서 템플릿";
 
-    const existingActive = await storage.getActiveReportTemplate();
+    const existingActive = await getActiveReportTemplateInTenant(tenantId);
     const activate =
       typeof activateRaw === "string"
         ? activateRaw === "true"
         : !existingActive;
 
     const templateId = randomUUID();
-    const fileKey = buildTemplateFileKey(templateId, version);
+    const fileKey = buildTemplateFileKey(tenantId, templateId, version);
     const outputPath = resolveStoragePath(fileKey);
     await ensureDirectoryForFile(outputPath);
     await fs.writeFile(outputPath, Buffer.from(await file.arrayBuffer()));
 
-    const template = await storage.createReportTemplate(
+    const template = await createReportTemplateForTenant(
+      tenantId,
       {
         name,
         version,
@@ -73,7 +88,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ template });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "템플릿 업로드에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "템플릿 업로드에 실패했습니다.");
   }
 }

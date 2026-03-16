@@ -3,8 +3,19 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { format } from "date-fns";
-import { storage } from "@/server/storage";
 import type { Project, ReportTemplate } from "@shared/schema";
+import {
+  createReportInstanceForTenant,
+  createReportTemplateForTenant,
+  getActiveReportTemplateInTenant,
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getReportSettingForTenant,
+  getReportTemplateForTenant,
+  getTargetForTenant,
+  getTemplateForTenant,
+  updateReportInstanceForTenantScope,
+} from "@/server/tenant/tenantStorage";
 import {
   buildReportFileKey,
   buildTemplateFileKey,
@@ -128,19 +139,22 @@ const runPythonRenderer = async (payload: object) => {
   });
 };
 
-const ensureDefaultTemplate = async (): Promise<ReportTemplate | undefined> => {
+const ensureDefaultTemplate = async (
+  tenantId: string,
+): Promise<ReportTemplate | undefined> => {
   const defaultExists = await fileExists(DEFAULT_TEMPLATE_PATH);
   if (!defaultExists) return undefined;
 
   const templateId = randomUUID();
   const version = "v1";
-  const fileKey = buildTemplateFileKey(templateId, version);
+  const fileKey = buildTemplateFileKey(tenantId, templateId, version);
   const destinationPath = resolveStoragePath(fileKey);
 
   await ensureDirectoryForFile(destinationPath);
   await fs.copyFile(DEFAULT_TEMPLATE_PATH, destinationPath);
 
-  return storage.createReportTemplate(
+  return createReportTemplateForTenant(
+    tenantId,
     {
       name: "기본 보고서 템플릿",
       version,
@@ -150,30 +164,36 @@ const ensureDefaultTemplate = async (): Promise<ReportTemplate | undefined> => {
   );
 };
 
-const resolveTemplate = async (templateId?: string | null) => {
+const resolveTemplate = async (
+  tenantId: string,
+  templateId?: string | null,
+) => {
   if (templateId) {
-    const template = await storage.getReportTemplate(templateId);
+    const template = await getReportTemplateForTenant(tenantId, templateId);
     if (!template) {
       throw new Error("요청한 보고서 템플릿을 찾을 수 없습니다.");
     }
     return template;
   }
 
-  const active = await storage.getActiveReportTemplate();
+  const active = await getActiveReportTemplateInTenant(tenantId);
   if (active) return active;
 
-  const defaultTemplate = await ensureDefaultTemplate();
+  const defaultTemplate = await ensureDefaultTemplate(tenantId);
   if (defaultTemplate) return defaultTemplate;
 
   throw new Error("활성화된 보고서 템플릿이 없습니다.");
 };
 
-const resolveReportSettingConfig = async (reportSettingId?: string | null) => {
+const resolveReportSettingConfig = async (
+  tenantId: string,
+  reportSettingId?: string | null,
+) => {
   if (!reportSettingId) {
     throw new Error("보고서 설정 ID가 필요합니다.");
   }
 
-  const reportSetting = await storage.getReportSetting(reportSettingId);
+  const reportSetting = await getReportSettingForTenant(tenantId, reportSettingId);
   if (!reportSetting) {
     throw new Error("보고서 설정을 찾을 수 없습니다.");
   }
@@ -212,17 +232,18 @@ const resolveReportQuarter = (project: Project) => {
 };
 
 export async function generateProjectReport(
+  tenantId: string,
   projectId: string,
   options?: { templateId?: string | null; reportSettingId?: string | null },
 ) {
-  const project = await storage.getProject(projectId);
+  const project = await getProjectForTenant(tenantId, projectId);
   if (!project) {
     throw new Error("프로젝트 정보를 찾을 수 없습니다.");
   }
 
   const { companyName, approverName, approverTitle, logoPath, confidentialPath, reportSettingId } =
-    await resolveReportSettingConfig(options?.reportSettingId ?? null);
-  const template = await resolveTemplate(options?.templateId ?? null);
+    await resolveReportSettingConfig(tenantId, options?.reportSettingId ?? null);
+  const template = await resolveTemplate(tenantId, options?.templateId ?? null);
   const templatePath = resolveStoragePath(template.fileKey);
   if (!(await fileExists(templatePath))) {
     throw new Error("보고서 템플릿 파일이 존재하지 않습니다.");
@@ -265,10 +286,10 @@ export async function generateProjectReport(
   );
 
   const templateRecord = project.templateId
-    ? await storage.getTemplate(project.templateId)
+    ? await getTemplateForTenant(tenantId, project.templateId)
     : undefined;
 
-  const reportInstance = await storage.createReportInstance({
+  const reportInstance = await createReportInstanceForTenant(tenantId, {
     projectId: project.id,
     templateId: template.id,
     reportSettingId,
@@ -277,7 +298,7 @@ export async function generateProjectReport(
     errorMessage: null,
   });
 
-  const reportFileKey = buildReportFileKey(reportInstance.id);
+  const reportFileKey = buildReportFileKey(tenantId, reportInstance.id);
   const outputPath = resolveStoragePath(reportFileKey);
   await ensureDirectoryForFile(outputPath);
 
@@ -289,10 +310,10 @@ export async function generateProjectReport(
   const clickMissing = Math.max(targetCount - clickCount, 0);
   const submitMissing = Math.max(targetCount - submitCount, 0);
 
-  const projectTargets = await storage.getProjectTargets(project.id);
+  const projectTargets = await getProjectTargetsForTenant(tenantId, project.id);
   const detailRows = await Promise.all(
     projectTargets.map(async (target) => {
-      const detail = await storage.getTarget(target.targetId);
+      const detail = await getTargetForTenant(tenantId, target.targetId);
       const opened = target.status === "opened" || target.status === "clicked" || target.status === "submitted";
       const clicked = target.status === "clicked" || target.status === "submitted";
       const submitted = target.status === "submitted";
@@ -380,14 +401,14 @@ export async function generateProjectReport(
       ],
     });
 
-    await storage.updateReportInstance(reportInstance.id, {
+    await updateReportInstanceForTenantScope(tenantId, reportInstance.id, {
       status: "completed",
       fileKey: reportFileKey,
       completedAt: new Date(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "보고서 생성에 실패했습니다.";
-    await storage.updateReportInstance(reportInstance.id, {
+    await updateReportInstanceForTenantScope(tenantId, reportInstance.id, {
       status: "failed",
       errorMessage: message,
       completedAt: new Date(),

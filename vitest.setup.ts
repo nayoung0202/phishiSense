@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "./src/mocks/server";
 
@@ -15,7 +16,10 @@ globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 };
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  cleanup();
+  server.resetHandlers();
+});
 afterAll(() => server.close());
 
 class ResizeObserverMock {
@@ -25,3 +29,27 @@ class ResizeObserverMock {
 }
 
 globalThis.ResizeObserver = globalThis.ResizeObserver ?? ResizeObserverMock;
+
+const elementPrototype = globalThis.HTMLElement?.prototype as
+  | (HTMLElement & {
+      hasPointerCapture?: (pointerId: number) => boolean;
+      setPointerCapture?: (pointerId: number) => void;
+      releasePointerCapture?: (pointerId: number) => void;
+    })
+  | undefined;
+
+if (elementPrototype && typeof elementPrototype.hasPointerCapture !== "function") {
+  elementPrototype.hasPointerCapture = () => false;
+}
+
+if (elementPrototype && typeof elementPrototype.setPointerCapture !== "function") {
+  elementPrototype.setPointerCapture = () => {};
+}
+
+if (elementPrototype && typeof elementPrototype.releasePointerCapture !== "function") {
+  elementPrototype.releasePointerCapture = () => {};
+}
+
+if (elementPrototype && typeof elementPrototype.scrollIntoView !== "function") {
+  elementPrototype.scrollIntoView = () => {};
+}

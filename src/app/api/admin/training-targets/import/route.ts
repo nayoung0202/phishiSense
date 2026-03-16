@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { storage } from "@/server/storage";
+import {
+  createTargetForTenant,
+  findTargetByEmailInTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 const HEADER_TITLES = ["이름", "이메일", "소속", "태그", "상태"] as const;
 const REQUIRED_HEADERS = new Set(["이름", "이메일", "소속"]);
@@ -14,6 +21,7 @@ const isExcelMime = (file: File) =>
 
 export async function POST(request: NextRequest) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -70,51 +78,30 @@ export async function POST(request: NextRequest) {
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
       const rawValues = HEADER_TITLES.map((header) => getCellText(row, header));
-      const isRowEmpty = rawValues.every((value) => value.length === 0);
-      if (isRowEmpty) {
-        continue;
-      }
+      if (rawValues.every((value) => value.length === 0)) continue;
 
       totalRows += 1;
-      const name = rawValues[0];
-      const email = rawValues[1];
-      const org = rawValues[2];
-      const tagCell = rawValues[3];
-      const statusCell = rawValues[4];
-
+      const [name, email, org, tagCell, statusCell] = rawValues;
       if (!name || !email || !org) {
         failCount += 1;
         if (failures.length < FAILURE_LIMIT) {
-          failures.push({
-            rowNumber,
-            email,
-            reason: "필수 항목(이름/이메일/소속) 누락",
-          });
+          failures.push({ rowNumber, email, reason: "필수 항목(이름/이메일/소속) 누락" });
         }
         continue;
       }
-
       if (!EMAIL_REGEX.test(email)) {
         failCount += 1;
         if (failures.length < FAILURE_LIMIT) {
-          failures.push({
-            rowNumber,
-            email,
-            reason: "이메일 형식이 올바르지 않습니다.",
-          });
+          failures.push({ rowNumber, email, reason: "이메일 형식이 올바르지 않습니다." });
         }
         continue;
       }
 
-      const existing = await storage.findTargetByEmail(email);
+      const existing = await findTargetByEmailInTenant(tenantId, email);
       if (existing) {
         failCount += 1;
         if (failures.length < FAILURE_LIMIT) {
-          failures.push({
-            rowNumber,
-            email,
-            reason: "중복 이메일로 이미 등록되어 있습니다.",
-          });
+          failures.push({ rowNumber, email, reason: "중복 이메일로 이미 등록되어 있습니다." });
         }
         continue;
       }
@@ -123,11 +110,7 @@ export async function POST(request: NextRequest) {
       if (!ALLOWED_STATUSES.has(normalizedStatus)) {
         failCount += 1;
         if (failures.length < FAILURE_LIMIT) {
-          failures.push({
-            rowNumber,
-            email,
-            reason: "허용되지 않은 상태 값입니다.",
-          });
+          failures.push({ rowNumber, email, reason: "허용되지 않은 상태 값입니다." });
         }
         continue;
       }
@@ -140,7 +123,7 @@ export async function POST(request: NextRequest) {
               .filter((tag) => tag.length > 0)
           : null;
 
-      await storage.createTarget({
+      await createTargetForTenant(tenantId, {
         name,
         email,
         department: org,
@@ -158,12 +141,6 @@ export async function POST(request: NextRequest) {
       failures,
     });
   } catch (error) {
-    if ((error as Error)?.message === "xlsx_only") {
-      return NextResponse.json({ message: "xlsx 파일만 업로드할 수 있습니다." }, { status: 400 });
-    }
-    return NextResponse.json(
-      { message: "엑셀 업로드 처리 중 오류가 발생했습니다." },
-      { status: 500 },
-    );
+    return buildReadyTenantErrorResponse(error, "엑셀 업로드 처리 중 오류가 발생했습니다.");
   }
 }

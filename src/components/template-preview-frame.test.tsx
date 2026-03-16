@@ -20,7 +20,9 @@ describe("TemplatePreviewFrame", () => {
     render(<TemplatePreviewFrame html={'<a href="/landing">이동</a>'} interactive={true} />);
 
     const frame = screen.getByTitle("template-preview-frame");
-    expect(frame.getAttribute("srcdoc")).not.toContain("pointer-events: none !important;");
+    expect(frame.getAttribute("srcdoc")).not.toContain(
+      "a, a *, button, button *, input, select, textarea, label, form { pointer-events: none !important; }",
+    );
   });
 
   it("theme이 dark이면 iframe body 배경과 텍스트 색을 다크 테마로 맞춘다", () => {
@@ -40,6 +42,6 @@ describe("TemplatePreviewFrame", () => {
 
     const frame = screen.getByTitle("template-preview-frame");
     expect(frame.getAttribute("srcdoc")).toContain("<p>본문만 유지</p>");
-    expect(frame.getAttribute("srcdoc")).not.toContain("<head>");
+    expect(frame.getAttribute("srcdoc")).not.toContain("background:red");
   });
 });

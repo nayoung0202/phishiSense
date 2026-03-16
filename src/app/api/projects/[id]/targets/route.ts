@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import { getProjectTargetsForTenant } from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -7,12 +11,13 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const targets = await storage.getProjectTargets(id);
+    const targets = await getProjectTargetsForTenant(tenantId, id);
     return NextResponse.json(targets);
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch project targets" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch project targets");
   }
 }

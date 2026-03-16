@@ -1,5 +1,9 @@
-import { NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import { NextRequest, NextResponse } from "next/server";
+import { getSendJobForTenant } from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -7,15 +11,16 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { jobId } = await params;
-    const job = await storage.getSendJob(jobId);
+    const job = await getSendJobForTenant(tenantId, jobId);
     if (!job) {
       return NextResponse.json({ error: "Send job not found" }, { status: 404 });
     }
     return NextResponse.json(job);
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch send job" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch send job");
   }
 }

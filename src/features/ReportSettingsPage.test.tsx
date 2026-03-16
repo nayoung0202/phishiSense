@@ -1,24 +1,21 @@
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
+import { createQueryClient } from "@/lib/queryClient";
 import ReportSettingsPage from "./ReportSettingsPage";
 
 const renderWithClient = (ui: React.ReactElement) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
+  const queryClient = createQueryClient();
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 };
 
 describe("ReportSettingsPage", () => {
   it("목록/페이지네이션을 렌더링한다", async () => {
     server.use(
-      http.get("http://localhost/api/reports/settings", () =>
+      http.get("*/api/reports/settings", () =>
         HttpResponse.json({
           items: [
             {
@@ -42,7 +39,7 @@ describe("ReportSettingsPage", () => {
 
     renderWithClient(<ReportSettingsPage />);
 
-    await screen.findByText("기본 설정");
+    expect(await screen.findAllByText("기본 설정")).toHaveLength(2);
     expect(screen.getByText("1 / 1")).toBeInTheDocument();
   });
 });

@@ -1,24 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TENANT_A_ID } from "@/test/tenantFixtures";
 
-const storageMock = vi.hoisted(() => ({
-  findTargetByEmail: vi.fn(),
-  createTarget: vi.fn(),
+const currentTenantMock = vi.hoisted(() => ({
+  requireReadyTenant: vi.fn(),
+  buildReadyTenantErrorResponse: vi.fn((_error, message: string, status = 500) =>
+    Response.json({ error: message }, { status }),
+  ),
 }));
 
-vi.mock("@/server/storage", () => ({
-  storage: storageMock,
+const tenantStorageMock = vi.hoisted(() => ({
+  findTargetByEmailInTenant: vi.fn(),
+  createTargetForTenant: vi.fn(),
+  getTargetsForTenant: vi.fn(),
 }));
+
+vi.mock("@/server/tenant/currentTenant", () => currentTenantMock);
+vi.mock("@/server/tenant/tenantStorage", () => tenantStorageMock);
 
 import { POST } from "./route";
 
 describe("POST /api/targets", () => {
   beforeEach(() => {
-    storageMock.findTargetByEmail.mockReset();
-    storageMock.createTarget.mockReset();
+    currentTenantMock.requireReadyTenant.mockReset();
+    tenantStorageMock.findTargetByEmailInTenant.mockReset();
+    tenantStorageMock.createTargetForTenant.mockReset();
+    currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: TENANT_A_ID });
   });
 
   it("중복 이메일이면 409를 반환한다", async () => {
-    storageMock.findTargetByEmail.mockResolvedValue({
+    tenantStorageMock.findTargetByEmailInTenant.mockResolvedValue({
       id: "target-1",
       email: "dup@example.com",
     });
@@ -32,12 +42,15 @@ describe("POST /api/targets", () => {
           department: "보안팀",
           status: "active",
         }),
-      }),
+      }) as never,
     );
-
     const body = await response.json();
 
     expect(response.status).toBe(409);
     expect(body.error).toBe("duplicate_email");
+    expect(tenantStorageMock.findTargetByEmailInTenant).toHaveBeenCalledWith(
+      TENANT_A_ID,
+      "dup@example.com",
+    );
   });
 });

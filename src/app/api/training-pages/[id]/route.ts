@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import {
+  deleteTrainingPageForTenant,
+  getTrainingPageForTenant,
+  updateTrainingPageForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -7,42 +15,45 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const page = await storage.getTrainingPage(id);
+    const page = await getTrainingPageForTenant(tenantId, id);
     if (!page) {
       return NextResponse.json({ error: "Training page not found" }, { status: 404 });
     }
     return NextResponse.json(page);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch training page" }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "Failed to fetch training page");
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const payload = await request.json();
     const { id } = await params;
-    const page = await storage.updateTrainingPage(id, payload);
+    const page = await updateTrainingPageForTenant(tenantId, id, payload);
     if (!page) {
       return NextResponse.json({ error: "Training page not found" }, { status: 404 });
     }
     return NextResponse.json(page);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to update training page" }, { status: 400 });
+    return buildReadyTenantErrorResponse(error, "Failed to update training page", 400);
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const deleted = await storage.deleteTrainingPage(id);
+    const deleted = await deleteTrainingPageForTenant(tenantId, id);
     if (!deleted) {
       return NextResponse.json({ error: "Training page not found" }, { status: 404 });
     }
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to delete training page" }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "Failed to delete training page");
   }
 }

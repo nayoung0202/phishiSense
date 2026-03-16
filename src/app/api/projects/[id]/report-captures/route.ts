@@ -1,12 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
-import { storage } from "@/server/storage";
+import type { InsertProject } from "@shared/schema";
+import {
+  getProjectForTenant,
+  updateProjectForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 import {
   buildReportCaptureFileKey,
   ensureDirectoryForFile,
   resolveStoragePath,
 } from "@/server/services/reportStorage";
-import type { InsertProject } from "@shared/schema";
 
 export const runtime = "nodejs";
 
@@ -26,16 +33,8 @@ const CAPTURE_FIELDS: Array<{
   projectKey: keyof CaptureUpdate;
   label: string;
 }> = [
-  {
-    formKey: "capture_inbox",
-    projectKey: "reportCaptureInboxFileKey",
-    label: "메일 수신함",
-  },
-  {
-    formKey: "capture_email_body",
-    projectKey: "reportCaptureEmailFileKey",
-    label: "메일 본문",
-  },
+  { formKey: "capture_inbox", projectKey: "reportCaptureInboxFileKey", label: "메일 수신함" },
+  { formKey: "capture_email_body", projectKey: "reportCaptureEmailFileKey", label: "메일 본문" },
   {
     formKey: "capture_malicious_page",
     projectKey: "reportCaptureMaliciousFileKey",
@@ -51,16 +50,17 @@ const CAPTURE_FIELDS: Array<{
 const resolveExtension = (mime: string) => (mime === "image/png" ? "png" : "jpg");
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "프로젝트 ID가 없습니다." }, { status: 400 });
     }
 
-    const project = await storage.getProject(id);
+    const project = await getProjectForTenant(tenantId, id);
     if (!project) {
       return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
     }
@@ -90,7 +90,7 @@ export async function POST(
       }
 
       const extension = resolveExtension(file.type);
-      const fileKey = buildReportCaptureFileKey(id, field.formKey, extension);
+      const fileKey = buildReportCaptureFileKey(tenantId, id, field.formKey, extension);
       const outputPath = resolveStoragePath(fileKey);
       await ensureDirectoryForFile(outputPath);
       await fs.writeFile(outputPath, Buffer.from(await file.arrayBuffer()));
@@ -99,16 +99,12 @@ export async function POST(
     }
 
     if (uploaded.length === 0) {
-      return NextResponse.json(
-        { error: "업로드할 캡처 이미지가 없습니다." },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "업로드할 캡처 이미지가 없습니다." }, { status: 400 });
     }
 
-    const updated = await storage.updateProject(id, updates);
+    const updated = await updateProjectForTenant(tenantId, id, updates);
     return NextResponse.json({ project: updated, uploaded });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "캡처 업로드에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "캡처 업로드에 실패했습니다.");
   }
 }

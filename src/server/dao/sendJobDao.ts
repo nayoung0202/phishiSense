@@ -21,6 +21,25 @@ export async function findActiveSendJobByProjectId(
   return rows[0];
 }
 
+export async function findActiveSendJobByProjectIdForTenant(
+  tenantId: string,
+  projectId: string,
+): Promise<SendJob | undefined> {
+  const rows = await db
+    .select()
+    .from(sendJobs)
+    .where(
+      and(
+        eq(sendJobs.tenantId, tenantId),
+        eq(sendJobs.projectId, projectId),
+        inArray(sendJobs.status, [...activeStatuses]),
+      ),
+    )
+    .orderBy(desc(sendJobs.createdAt))
+    .limit(1);
+  return rows[0];
+}
+
 export async function createSendJobRecord(
   payload: typeof sendJobs.$inferInsert,
 ): Promise<SendJob> {
@@ -37,11 +56,36 @@ export async function getSendJobById(id: string): Promise<SendJob | undefined> {
   return rows[0];
 }
 
+export async function getSendJobByIdForTenant(
+  tenantId: string,
+  id: string,
+): Promise<SendJob | undefined> {
+  const rows = await db
+    .select()
+    .from(sendJobs)
+    .where(and(eq(sendJobs.tenantId, tenantId), eq(sendJobs.id, id)))
+    .limit(1);
+  return rows[0];
+}
+
 export async function updateSendJobById(
   id: string,
   payload: Partial<typeof sendJobs.$inferInsert>,
 ): Promise<SendJob | undefined> {
   const rows = await db.update(sendJobs).set(payload).where(eq(sendJobs.id, id)).returning();
+  return rows[0];
+}
+
+export async function updateSendJobByIdForTenant(
+  tenantId: string,
+  id: string,
+  payload: Partial<typeof sendJobs.$inferInsert>,
+): Promise<SendJob | undefined> {
+  const rows = await db
+    .update(sendJobs)
+    .set(payload)
+    .where(and(eq(sendJobs.tenantId, tenantId), eq(sendJobs.id, id)))
+    .returning();
   return rows[0];
 }
 

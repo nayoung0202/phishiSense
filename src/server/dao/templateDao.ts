@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { InsertTemplate, Template } from "@shared/schema";
 import { db } from "../db";
@@ -8,8 +8,25 @@ export async function listTemplates(): Promise<Template[]> {
   return db.select().from(templates).orderBy(desc(templates.updatedAt));
 }
 
+export async function listTemplatesForTenant(tenantId: string): Promise<Template[]> {
+  return db
+    .select()
+    .from(templates)
+    .where(eq(templates.tenantId, tenantId))
+    .orderBy(desc(templates.updatedAt));
+}
+
 export async function hasTemplates(): Promise<boolean> {
   const rows = await db.select({ id: templates.id }).from(templates).limit(1);
+  return rows.length > 0;
+}
+
+export async function hasTemplatesForTenant(tenantId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(eq(templates.tenantId, tenantId))
+    .limit(1);
   return rows.length > 0;
 }
 
@@ -18,7 +35,21 @@ export async function getTemplateById(id: string): Promise<Template | undefined>
   return rows[0];
 }
 
-export async function createTemplate(payload: InsertTemplate): Promise<Template> {
+export async function getTemplateByIdForTenant(
+  tenantId: string,
+  id: string,
+): Promise<Template | undefined> {
+  const rows = await db
+    .select()
+    .from(templates)
+    .where(and(eq(templates.tenantId, tenantId), eq(templates.id, id)))
+    .limit(1);
+  return rows[0];
+}
+
+export async function createTemplate(
+  payload: typeof templates.$inferInsert,
+): Promise<Template> {
   const now = new Date();
   const id = randomUUID();
   const autoInsertLandingKind =
@@ -27,6 +58,7 @@ export async function createTemplate(payload: InsertTemplate): Promise<Template>
     .insert(templates)
     .values({
       id,
+      tenantId: payload.tenantId,
       name: payload.name,
       subject: payload.subject,
       body: payload.body,
@@ -83,10 +115,61 @@ export async function updateTemplateById(
   return rows[0];
 }
 
+export async function updateTemplateByIdForTenant(
+  tenantId: string,
+  id: string,
+  payload: Partial<InsertTemplate>,
+): Promise<Template | undefined> {
+  const existing = await getTemplateByIdForTenant(tenantId, id);
+  if (!existing) return undefined;
+  const now = new Date();
+  const autoInsertLandingKind =
+    payload.autoInsertLandingKind === "button"
+      ? "button"
+      : payload.autoInsertLandingKind === "link"
+        ? "link"
+        : existing.autoInsertLandingKind;
+  const rows = await db
+    .update(templates)
+    .set({
+      name: payload.name ?? existing.name,
+      subject: payload.subject ?? existing.subject,
+      body: payload.body ?? existing.body,
+      maliciousPageContent:
+        payload.maliciousPageContent !== undefined
+          ? payload.maliciousPageContent ?? ""
+          : existing.maliciousPageContent,
+      autoInsertLandingEnabled:
+        payload.autoInsertLandingEnabled ?? existing.autoInsertLandingEnabled,
+      autoInsertLandingLabel:
+        payload.autoInsertLandingLabel !== undefined
+          ? payload.autoInsertLandingLabel.trim()
+          : existing.autoInsertLandingLabel,
+      autoInsertLandingKind,
+      autoInsertLandingNewTab:
+        payload.autoInsertLandingNewTab ?? existing.autoInsertLandingNewTab,
+      updatedAt: now,
+    })
+    .where(and(eq(templates.tenantId, tenantId), eq(templates.id, id)))
+    .returning();
+  return rows[0];
+}
+
 export async function deleteTemplateById(id: string): Promise<boolean> {
   const rows = await db
     .delete(templates)
     .where(eq(templates.id, id))
+    .returning({ id: templates.id });
+  return rows.length > 0;
+}
+
+export async function deleteTemplateByIdForTenant(
+  tenantId: string,
+  id: string,
+): Promise<boolean> {
+  const rows = await db
+    .delete(templates)
+    .where(and(eq(templates.tenantId, tenantId), eq(templates.id, id)))
     .returning({ id: templates.id });
   return rows.length > 0;
 }
@@ -98,6 +181,7 @@ export async function ensureSeedTemplates(defaultTemplates: Template[]): Promise
       .insert(templates)
       .values({
         id: template.id,
+        tenantId: template.tenantId,
         name: template.name,
         subject: template.subject,
         body: template.body,

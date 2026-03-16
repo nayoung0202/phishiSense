@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
+import {
+  getPublicTrainingContextByTrackingToken,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+} from "@/server/tenant/tenantStorage";
 import { buildPhishingLinkUrl, buildSubmitFormUrl } from "@/server/lib/trainingLink";
 
 type RouteContext = {
@@ -39,50 +43,40 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.redirect(buildPhishingLinkUrl(normalized), 302);
     }
 
-    const projectTarget = await storage.getProjectTargetByTrackingToken(normalized);
-    if (!projectTarget) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
-    }
-    const project = await storage.getProject(projectTarget.projectId);
-    if (!project || !project.trainingPageId) {
+    const context = await getPublicTrainingContextByTrackingToken(normalized);
+    if (!context) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const trainingPage = await storage.getTrainingPage(project.trainingPageId);
-    if (!trainingPage) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
-    }
-
+    const { tenantId, projectTarget, project, trainingPage } = context;
     if (trainingPage.status === "inactive") {
       return buildHtmlResponse("훈련 안내 페이지가 비활성 상태입니다.", 404);
     }
 
-    if (projectTarget) {
-      const now = new Date();
-      const openedAt = projectTarget.openedAt ?? now;
-      const clickedAt = projectTarget.clickedAt ?? now;
-      const submittedAt = projectTarget.submittedAt ?? now;
-      const shouldIncrementOpen = !projectTarget.openedAt;
-      const shouldIncrementClick = !projectTarget.clickedAt;
-      const shouldIncrementSubmit = !projectTarget.submittedAt;
+    const now = new Date();
+    const openedAt = projectTarget.openedAt ?? now;
+    const clickedAt = projectTarget.clickedAt ?? now;
+    const submittedAt = projectTarget.submittedAt ?? now;
+    const shouldIncrementOpen = !projectTarget.openedAt;
+    const shouldIncrementClick = !projectTarget.clickedAt;
+    const shouldIncrementSubmit = !projectTarget.submittedAt;
 
-      await storage.updateProjectTarget(projectTarget.id, {
-        openedAt: shouldIncrementOpen ? openedAt : projectTarget.openedAt,
-        clickedAt: shouldIncrementClick ? clickedAt : projectTarget.clickedAt,
-        submittedAt: shouldIncrementSubmit ? submittedAt : projectTarget.submittedAt,
-        status: "submitted",
+    await updateProjectTargetForTenant(tenantId, projectTarget.id, {
+      openedAt: shouldIncrementOpen ? openedAt : projectTarget.openedAt,
+      clickedAt: shouldIncrementClick ? clickedAt : projectTarget.clickedAt,
+      submittedAt: shouldIncrementSubmit ? submittedAt : projectTarget.submittedAt,
+      status: "submitted",
+    });
+
+    if (
+      (shouldIncrementOpen || shouldIncrementClick || shouldIncrementSubmit) &&
+      projectTarget.status !== "test"
+    ) {
+      await updateProjectForTenant(tenantId, project.id, {
+        openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
+        clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
+        submitCount: (project.submitCount ?? 0) + (shouldIncrementSubmit ? 1 : 0),
       });
-
-      if (
-        (shouldIncrementOpen || shouldIncrementClick || shouldIncrementSubmit) &&
-        projectTarget.status !== "test"
-      ) {
-        await storage.updateProject(project.id, {
-          openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
-          clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
-          submitCount: (project.submitCount ?? 0) + (shouldIncrementSubmit ? 1 : 0),
-        });
-      }
     }
 
     const submitUrl = buildSubmitFormUrl(normalized);

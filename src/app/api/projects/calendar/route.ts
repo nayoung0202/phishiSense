@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
 import {
   normalizeProjectDate,
   projectOverlaps,
@@ -22,9 +21,15 @@ import {
   startOfWeek,
 } from "date-fns";
 import type { Project } from "@shared/schema";
+import { getProjectsForTenant } from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 export async function GET(request: NextRequest) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { searchParams } = new URL(request.url);
     const yearParam = Number(searchParams.get("year") ?? new Date().getFullYear());
     const quarterParamRaw = searchParams.get("quarter");
@@ -42,7 +47,7 @@ export async function GET(request: NextRequest) {
     const quarterStart = startOfQuarter(new Date(yearParam, quarterIndex * 3, 1));
     const quarterEnd = endOfQuarter(quarterStart);
 
-    const projects = await storage.getProjects();
+    const projects = await getProjectsForTenant(tenantId);
     const quarterProjects = projects.filter((project) => {
       const fiscalYear = project.fiscalYear ?? normalizeProjectDate(project.startDate).getFullYear();
       if (fiscalYear !== yearParam) return false;
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ months, weeks });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch calendar data" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch calendar data");
   }
 }

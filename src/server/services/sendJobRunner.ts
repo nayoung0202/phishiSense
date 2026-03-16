@@ -7,6 +7,17 @@ import { buildLandingUrl, buildOpenPixelUrl } from "../lib/trainingLink";
 import { stripHtml } from "./projectsShared";
 import { enforceBlackTextForSend } from "./enforceBlackTextForSend";
 import {
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getSendJobForTenant,
+  getTargetsForTenant,
+  getTemplateForTenant,
+  getTrainingPageForTenant,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+  updateSendJobForTenant,
+} from "../tenant/tenantStorage";
+import {
   buildMailHtml,
   formatSendValidationError,
   validateTemplateForSend,
@@ -19,16 +30,12 @@ const MAX_ATTEMPTS = Number(process.env.SEND_WORKER_MAX_ATTEMPTS ?? 3);
 
 type ClaimedJob = {
   id: string;
+  tenantId: string;
 };
 
 const getPool = async () => {
   const { pool } = await import("../db");
   return pool;
-};
-
-const getStorage = async () => {
-  const { storage } = await import("../storage");
-  return storage;
 };
 
 const normalizeEnv = (value: string | undefined | null) => (value ?? "").trim();
@@ -107,7 +114,7 @@ const claimNextJob = async (): Promise<ClaimedJob | null> => {
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `SELECT id
+      `SELECT id, tenant_id AS "tenantId"
        FROM send_jobs
        WHERE status = 'queued'
        ORDER BY created_at ASC
@@ -135,12 +142,16 @@ const claimNextJob = async (): Promise<ClaimedJob | null> => {
   }
 };
 
-const recordJobFailure = async (jobId: string, attempts: number, error: unknown) => {
-  const storage = await getStorage();
+const recordJobFailure = async (
+  tenantId: string,
+  jobId: string,
+  attempts: number,
+  error: unknown,
+) => {
   const message = formatErrorMessage(error);
   const nextAttempts = attempts + 1;
   if (nextAttempts >= MAX_ATTEMPTS) {
-    await storage.updateSendJob(jobId, {
+    await updateSendJobForTenant(tenantId, jobId, {
       status: "failed",
       attempts: nextAttempts,
       lastError: message,
@@ -148,7 +159,7 @@ const recordJobFailure = async (jobId: string, attempts: number, error: unknown)
     });
     return;
   }
-  await storage.updateSendJob(jobId, {
+  await updateSendJobForTenant(tenantId, jobId, {
     status: "queued",
     attempts: nextAttempts,
     lastError: message,
@@ -167,13 +178,13 @@ const resolveFromInfo = (project: { fromName?: string | null; fromEmail?: string
   return { fromName, fromEmail };
 };
 
-const processJob = async (jobId: string) => {
-  const storage = await getStorage();
-  const job = await storage.getSendJob(jobId);
+const processJob = async (claimedJob: ClaimedJob) => {
+  const { id: jobId, tenantId } = claimedJob;
+  const job = await getSendJobForTenant(tenantId, jobId);
   if (!job) return;
 
   try {
-    const project = await storage.getProject(job.projectId);
+    const project = await getProjectForTenant(tenantId, job.projectId);
     if (!project) {
       throw new Error("프로젝트를 찾을 수 없습니다.");
     }
@@ -183,8 +194,10 @@ const processJob = async (jobId: string) => {
       throw new Error("프로젝트에 템플릿이 연결되어 있지 않습니다.");
     }
     const [template, trainingPage] = await Promise.all([
-      storage.getTemplate(templateId),
-      project.trainingPageId ? storage.getTrainingPage(project.trainingPageId) : Promise.resolve(null),
+      getTemplateForTenant(tenantId, templateId),
+      project.trainingPageId
+        ? getTrainingPageForTenant(tenantId, project.trainingPageId)
+        : Promise.resolve(null),
     ]);
     if (!template) {
       throw new Error("템플릿을 찾을 수 없습니다.");
@@ -192,22 +205,22 @@ const processJob = async (jobId: string) => {
     const validation = validateTemplateForSend(template, trainingPage);
     if (!validation.ok) {
       const message = formatSendValidationError(validation.issues);
-      await storage.updateProject(project.id, { sendValidationError: message });
-      await storage.updateSendJob(jobId, {
+      await updateProjectForTenant(tenantId, project.id, { sendValidationError: message });
+      await updateSendJobForTenant(tenantId, jobId, {
         status: "failed",
         lastError: message,
         finishedAt: new Date(),
       });
       return;
     }
-    await storage.updateProject(project.id, { sendValidationError: null });
+    await updateProjectForTenant(tenantId, project.id, { sendValidationError: null });
 
     const { fromName, fromEmail } = resolveFromInfo(project);
     const transporter = await getTransporter();
 
     const [projectTargets, targets] = await Promise.all([
-      storage.getProjectTargets(job.projectId),
-      storage.getTargets(),
+      getProjectTargetsForTenant(tenantId, job.projectId),
+      getTargetsForTenant(tenantId),
     ]);
     const targetMap = new Map(targets.map((target) => [target.id, target]));
 
@@ -219,7 +232,7 @@ const processJob = async (jobId: string) => {
     let successCount = 0;
     let failCount = 0;
 
-    await storage.updateSendJob(jobId, {
+    await updateSendJobForTenant(tenantId, jobId, {
       totalCount: targetsToSend.length,
       successCount: 0,
       failCount: 0,
@@ -227,7 +240,7 @@ const processJob = async (jobId: string) => {
     });
 
     if (targetsToSend.length === 0) {
-      await storage.updateSendJob(jobId, {
+      await updateSendJobForTenant(tenantId, jobId, {
         status: "done",
         finishedAt: new Date(),
         successCount,
@@ -242,18 +255,18 @@ const processJob = async (jobId: string) => {
 
       if (!trackingToken) {
         trackingToken = randomUUID();
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           trackingToken,
         });
       }
 
       if (!recipient?.email) {
         failCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           sendStatus: "failed",
           sendError: "대상자 이메일이 존재하지 않습니다.",
         });
-        await storage.updateSendJob(jobId, { successCount, failCount });
+        await updateSendJobForTenant(tenantId, jobId, { successCount, failCount });
         if (index < targetsToSend.length - 1) {
           await sleep(resolveRateLimitMs());
         }
@@ -284,34 +297,34 @@ const processJob = async (jobId: string) => {
         });
 
         successCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           sendStatus: "sent",
           sentAt: new Date(),
           sendError: null,
         });
       } catch (error) {
         failCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           sendStatus: "failed",
           sendError: formatErrorMessage(error),
         });
       }
 
-      await storage.updateSendJob(jobId, { successCount, failCount });
+      await updateSendJobForTenant(tenantId, jobId, { successCount, failCount });
 
       if (index < targetsToSend.length - 1) {
         await sleep(resolveRateLimitMs());
       }
     }
 
-    await storage.updateSendJob(jobId, {
+    await updateSendJobForTenant(tenantId, jobId, {
       status: "done",
       finishedAt: new Date(),
       successCount,
       failCount,
     });
   } catch (error) {
-    await recordJobFailure(jobId, job.attempts ?? 0, error);
+    await recordJobFailure(tenantId, jobId, job.attempts ?? 0, error);
   }
 };
 
@@ -320,7 +333,7 @@ export const processSendQueueOnce = async (): Promise<boolean> => {
   if (!job) {
     return false;
   }
-  await processJob(job.id);
+  await processJob(job);
   return true;
 };
 

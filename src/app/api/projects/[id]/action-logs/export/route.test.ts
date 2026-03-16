@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { storageMock } = vi.hoisted(() => ({
-  storageMock: {
-    getProject: vi.fn(),
-    getProjectTargets: vi.fn(),
-    getTargets: vi.fn(),
+const { currentTenantMock, tenantStorageMock } = vi.hoisted(() => ({
+  currentTenantMock: {
+    requireReadyTenant: vi.fn(),
+    buildReadyTenantErrorResponse: vi.fn(),
+  },
+  tenantStorageMock: {
+    getProjectForTenant: vi.fn(),
+    getProjectTargetsForTenant: vi.fn(),
+    getTargetsForTenant: vi.fn(),
   },
 }));
 
-vi.mock("@/server/storage", () => ({
-  storage: storageMock,
+vi.mock("@/server/tenant/currentTenant", () => ({
+  requireReadyTenant: currentTenantMock.requireReadyTenant,
+  buildReadyTenantErrorResponse: currentTenantMock.buildReadyTenantErrorResponse,
+}));
+
+vi.mock("@/server/tenant/tenantStorage", () => ({
+  getProjectForTenant: tenantStorageMock.getProjectForTenant,
+  getProjectTargetsForTenant: tenantStorageMock.getProjectTargetsForTenant,
+  getTargetsForTenant: tenantStorageMock.getTargetsForTenant,
 }));
 
 import { GET } from "./route";
@@ -57,13 +68,17 @@ const baseTarget = {
 };
 
 beforeEach(() => {
-  storageMock.getProject.mockResolvedValue(baseProject);
-  storageMock.getTargets.mockResolvedValue([baseTarget]);
+  currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: "tenant-a" });
+  currentTenantMock.buildReadyTenantErrorResponse.mockImplementation(() => {
+    throw new Error("unexpected error response");
+  });
+  tenantStorageMock.getProjectForTenant.mockResolvedValue(baseProject);
+  tenantStorageMock.getTargetsForTenant.mockResolvedValue([baseTarget]);
 });
 
 describe("GET /api/projects/[id]/action-logs/export", () => {
   it("프로젝트가 없으면 404를 반환한다", async () => {
-    storageMock.getProject.mockResolvedValueOnce(undefined);
+    tenantStorageMock.getProjectForTenant.mockResolvedValueOnce(undefined);
 
     const response = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ id: "missing-project" }),
@@ -73,7 +88,7 @@ describe("GET /api/projects/[id]/action-logs/export", () => {
   });
 
   it("타임라인 이벤트를 xlsx 파일로 반환한다", async () => {
-    storageMock.getProjectTargets.mockResolvedValue([
+    tenantStorageMock.getProjectTargetsForTenant.mockResolvedValue([
       {
         id: "pt-1",
         projectId: "project-1",

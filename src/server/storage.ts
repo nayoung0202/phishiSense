@@ -98,6 +98,8 @@ import {
 import { DEFAULT_TEMPLATES } from "./seed/defaultTemplates";
 import { seedTemplates } from "./seed/seedTemplates";
 
+const DEFAULT_DEV_TENANT_ID = process.env.DEV_TENANT_ID ?? "tenant-local-001";
+
 type SendJobUpdate = Partial<InsertSendJob> & {
   startedAt?: Date | null;
   finishedAt?: Date | null;
@@ -552,6 +554,7 @@ export class MemStorage implements IStorage {
           i % 3 === 0 ? template1.id : i % 3 === 1 ? template2.id : template3.id;
         const project: Project = {
           id: randomUUID(),
+          tenantId: DEFAULT_DEV_TENANT_ID,
           name: `${monthLabel} ${setting.campaignName} ${i + 1}차`,
           description: `${setting.focusDescription} ${departmentInfo.scenario}`,
           department: departmentInfo.name,
@@ -602,6 +605,7 @@ export class MemStorage implements IStorage {
     // Seed training pages
     const trainingPage1: TrainingPage = {
       id: randomUUID(),
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: "악성메일 모의훈련 안내",
       description: "악성메일 모의훈련 참여자 안내 메시지",
       content: `<section class="space-y-4">
@@ -627,6 +631,7 @@ export class MemStorage implements IStorage {
 
     const trainingPage2: TrainingPage = {
       id: randomUUID(),
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: "이메일 모의훈련 공지",
       description: "전 임직원 대상 이메일 모의훈련 공지",
       content: `<section class="space-y-4">
@@ -654,6 +659,7 @@ export class MemStorage implements IStorage {
     this.trainingPages.set(trainingPage2.id, trainingPage2);
     const trainingPage3: TrainingPage = {
       id: randomUUID(),
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: "모의 악성메일 훈련 결과 안내",
       description: "모의 악성메일 훈련 참여자 주의 안내",
       content: `<section class="space-y-4">
@@ -819,6 +825,7 @@ export class MemStorage implements IStorage {
         : this.createTrainingLinkToken();
     const newProject: Project = {
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(project.name, 200),
       description: project.description ? normalizePlainText(project.description, 2000) : null,
       department: project.department ? normalizePlainText(project.department, 200) : null,
@@ -970,6 +977,7 @@ export class MemStorage implements IStorage {
         const newTargetId = randomUUID();
         this.projectTargets.set(newTargetId, {
           id: newTargetId,
+          tenantId: project.tenantId,
           projectId: newId,
           targetId: target.targetId,
           trackingToken: randomUUID(),
@@ -1012,6 +1020,7 @@ export class MemStorage implements IStorage {
       template.autoInsertLandingKind === "button" ? "button" : "link";
     const newTemplate: Template = {
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: template.name,
       subject: template.subject,
       body: sanitizeHtml(template.body ?? ""),
@@ -1082,6 +1091,7 @@ export class MemStorage implements IStorage {
 
   async createTarget(target: InsertTarget): Promise<Target> {
     return createTargetRecord({
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(target.name, 200),
       email: target.email,
       department: target.department ? normalizePlainText(target.department, 200) : null,
@@ -1139,6 +1149,7 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const newPage: TrainingPage = { 
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(page.name, 200),
       description: page.description ? normalizePlainText(page.description, 1000) : null,
       content: sanitizeHtml(page.content ?? ""),
@@ -1194,8 +1205,11 @@ export class MemStorage implements IStorage {
   async createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget> {
     const id = randomUUID();
     const trackingToken = projectTarget.trackingToken ?? randomUUID();
+    const projectTenantId =
+      this.projects.get(projectTarget.projectId)?.tenantId ?? DEFAULT_DEV_TENANT_ID;
     const newProjectTarget: ProjectTarget = { 
       id,
+      tenantId: projectTenantId,
       projectId: projectTarget.projectId,
       targetId: projectTarget.targetId,
       trackingToken,
@@ -1244,8 +1258,11 @@ export class MemStorage implements IStorage {
   async createSendJob(job: InsertSendJob): Promise<SendJob> {
     const id = randomUUID();
     const now = new Date();
+    const projectTenantId =
+      this.projects.get(job.projectId)?.tenantId ?? DEFAULT_DEV_TENANT_ID;
     const newJob: SendJob = {
       id,
+      tenantId: projectTenantId,
       projectId: job.projectId,
       status: job.status ?? "queued",
       createdAt: now,
@@ -1310,6 +1327,7 @@ export class MemStorage implements IStorage {
     }
     const newTemplate: ReportTemplate = {
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: template.name,
       version: template.version,
       fileKey: template.fileKey,
@@ -1373,6 +1391,7 @@ export class MemStorage implements IStorage {
     }
     const newSetting: ReportSetting = {
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: setting.name,
       companyName: setting.companyName,
       companyLogoFileKey: setting.companyLogoFileKey,
@@ -1441,8 +1460,11 @@ export class MemStorage implements IStorage {
   async createReportInstance(instance: InsertReportInstance): Promise<ReportInstance> {
     const id = randomUUID();
     const now = new Date();
+    const projectTenantId =
+      this.projects.get(instance.projectId)?.tenantId ?? DEFAULT_DEV_TENANT_ID;
     const newInstance: ReportInstance = {
       id,
+      tenantId: projectTenantId,
       projectId: instance.projectId,
       templateId: instance.templateId,
       reportSettingId: instance.reportSettingId ?? null,
@@ -1674,6 +1696,7 @@ export class DbStorage implements IStorage {
           for (const project of projects) {
             await createProjectRecord({
               id: project.id,
+              tenantId: project.tenantId,
               name: project.name,
               description: project.description,
               department: project.department,
@@ -1706,6 +1729,7 @@ export class DbStorage implements IStorage {
           for (const page of pages) {
             await createTrainingPageRecord({
               id: page.id,
+              tenantId: page.tenantId,
               name: page.name,
               description: page.description,
               content: page.content,
@@ -1794,6 +1818,7 @@ export class DbStorage implements IStorage {
     const trainingLinkToken = await this.resolveTrainingLinkToken(project.trainingLinkToken);
     const newProject = {
       id,
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(project.name, 200),
       description: project.description ? normalizePlainText(project.description, 2000) : null,
       department: project.department ? normalizePlainText(project.department, 200) : null,
@@ -2001,6 +2026,7 @@ export class DbStorage implements IStorage {
       const trainingLinkToken = await this.generateTrainingLinkToken();
       const copyPayload = {
         id: randomUUID(),
+        tenantId: project.tenantId,
         name: generateCopyName(project.name),
         description: project.description ?? null,
         department: project.department ?? null,
@@ -2032,6 +2058,7 @@ export class DbStorage implements IStorage {
           originalTargets.map((target) =>
             createProjectTargetRecord({
               id: randomUUID(),
+              tenantId: created.tenantId,
               projectId: created.id,
               targetId: target.targetId,
               trackingToken: randomUUID(),
@@ -2069,6 +2096,7 @@ export class DbStorage implements IStorage {
     const autoInsertLandingKind =
       template.autoInsertLandingKind === "button" ? "button" : "link";
     return createTemplateRecord({
+      tenantId: DEFAULT_DEV_TENANT_ID,
       ...template,
       body: sanitizeHtml(template.body ?? ""),
       maliciousPageContent: sanitizeHtml(template.maliciousPageContent ?? ""),
@@ -2116,6 +2144,7 @@ export class DbStorage implements IStorage {
 
   async createTarget(target: InsertTarget): Promise<Target> {
     return createTargetRecord({
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(target.name, 200),
       email: target.email,
       department: target.department ? normalizePlainText(target.department, 200) : null,
@@ -2170,6 +2199,7 @@ export class DbStorage implements IStorage {
     const now = new Date();
     const newPage = {
       id: randomUUID(),
+      tenantId: DEFAULT_DEV_TENANT_ID,
       name: normalizePlainText(page.name, 200),
       description: page.description ? normalizePlainText(page.description, 1000) : null,
       content: sanitizeHtml(page.content ?? ""),
@@ -2223,8 +2253,10 @@ export class DbStorage implements IStorage {
   }
 
   async createProjectTarget(projectTarget: InsertProjectTarget): Promise<ProjectTarget> {
+    const project = await getProjectById(projectTarget.projectId);
     const newProjectTarget = {
       id: randomUUID(),
+      tenantId: project?.tenantId ?? DEFAULT_DEV_TENANT_ID,
       projectId: projectTarget.projectId,
       targetId: projectTarget.targetId,
       trackingToken: projectTarget.trackingToken ?? randomUUID(),
@@ -2257,7 +2289,11 @@ export class DbStorage implements IStorage {
   }
 
   async createSendJob(job: InsertSendJob): Promise<SendJob> {
-    return createSendJobRecord(job);
+    const project = await getProjectById(job.projectId);
+    return createSendJobRecord({
+      ...job,
+      tenantId: project?.tenantId ?? DEFAULT_DEV_TENANT_ID,
+    });
   }
 
   async updateSendJob(id: string, job: SendJobUpdate): Promise<SendJob | undefined> {
@@ -2281,7 +2317,13 @@ export class DbStorage implements IStorage {
     template: InsertReportTemplate,
     options?: { activate?: boolean; id?: string },
   ): Promise<ReportTemplate> {
-    return createReportTemplateRecord(template, options);
+    return createReportTemplateRecord(
+      {
+        ...template,
+        tenantId: DEFAULT_DEV_TENANT_ID,
+      },
+      options,
+    );
   }
 
   async setActiveReportTemplate(id: string): Promise<ReportTemplate | undefined> {
@@ -2317,7 +2359,13 @@ export class DbStorage implements IStorage {
     setting: InsertReportSetting,
     options?: { makeDefault?: boolean; id?: string },
   ): Promise<ReportSetting> {
-    return createReportSettingRecord(setting, options);
+    return createReportSettingRecord(
+      {
+        ...setting,
+        tenantId: DEFAULT_DEV_TENANT_ID,
+      },
+      options,
+    );
   }
 
   async updateReportSetting(
@@ -2342,7 +2390,11 @@ export class DbStorage implements IStorage {
   }
 
   async createReportInstance(instance: InsertReportInstance): Promise<ReportInstance> {
-    return createReportInstanceRecord(instance);
+    const project = await getProjectById(instance.projectId);
+    return createReportInstanceRecord({
+      ...instance,
+      tenantId: project?.tenantId ?? DEFAULT_DEV_TENANT_ID,
+    });
   }
 
   async updateReportInstance(

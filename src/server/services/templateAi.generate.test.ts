@@ -92,12 +92,14 @@ describe("generateTemplateAiCandidates", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const resultPromise = generateTemplateAiCandidates(baseRequest);
+    const resultPromise = generateTemplateAiCandidates(baseRequest).catch((caught) => caught);
 
     await vi.runAllTimersAsync();
 
-    await expect(resultPromise).rejects.toBeInstanceOf(TemplateAiServiceError);
-    await expect(resultPromise).rejects.toMatchObject({
+    const error = await resultPromise;
+
+    expect(error).toBeInstanceOf(TemplateAiServiceError);
+    expect(error).toMatchObject({
       status: 503,
       code: "gemini_service_unavailable",
       retryable: true,
