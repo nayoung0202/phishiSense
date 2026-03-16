@@ -116,6 +116,8 @@ describe("templateAi helpers", () => {
     expect(prompt).toContain('href="{{LANDING_URL}}"');
     expect(prompt).toContain("Reference malicious-page HTML shape:");
     expect(prompt).toContain('action="{{TRAINING_URL}}"');
+    expect(prompt).toContain('href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer"');
+    expect(prompt).toContain("visible anchor link that points to {{TRAINING_URL}}");
     expect(prompt).toContain("display:flex;justify-content:center;padding:48px 24px;background:#f3f4f6");
     expect(prompt).toContain("Do not render the malicious page as a fixed-position modal, dialog, or overlay.");
     expect(prompt).toContain("Do not copy the reference verbatim");

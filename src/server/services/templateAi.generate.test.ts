@@ -120,6 +120,7 @@ describe("generateTemplateAiCandidates", () => {
       candidates: expect.arrayContaining([
         expect.objectContaining({
           subject: "후보 1",
+          maliciousPageContent: expect.stringContaining('href="{{TRAINING_URL}}"'),
         }),
       ]),
       usage: expect.objectContaining({
@@ -130,5 +131,20 @@ describe("generateTemplateAiCandidates", () => {
       }),
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("모델 응답에 훈련 링크 앵커가 없어도 표준 링크를 자동 보강한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(buildGeminiSuccessResponse(1));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateTemplateAiCandidates({
+      ...baseRequest,
+      generateCount: 1,
+    });
+
+    expect(result.candidates[0]?.maliciousPageContent).toContain(
+      'href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer"',
+    );
   });
 });

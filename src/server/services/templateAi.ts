@@ -76,6 +76,14 @@ const responseSchema = {
   required: ["candidates"],
 };
 
+const trainingAnchorHtml = `
+<div style="display:flex;justify-content:center;margin:0 0 12px">
+  <a href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:#2563eb;text-decoration:underline;font-weight:600">
+    훈련 안내 페이지 열기
+  </a>
+</div>
+`.trim();
+
 const referenceMailBodyHtml = `
 <div style="max-width:640px;margin:0 auto;padding:32px 24px;font-family:Arial,sans-serif;color:#111827;line-height:1.6">
   <p style="margin:0 0 12px"><strong>[Address Confirmation Required]</strong></p>
@@ -126,6 +134,7 @@ const referenceMaliciousPageHtml = `
           </button>
         </div>
       </form>
+      ${trainingAnchorHtml}
       <p style="margin:10px 0 0;font-size:12px;color:#6b7280;text-align:center">
         This is an automated notice for shipment reassignment.<br />
         Support desk: 1588-0000
@@ -247,12 +256,29 @@ const extractJsonText = (payload: unknown) => {
   return text;
 };
 
+const trainingAnchorPattern =
+  /<a[\s\S]*?href=["']\s*\{\{\s*TRAINING_URL\s*\}\}\s*["'][\s\S]*?>/i;
+
+const ensureTrainingAnchorLink = (html: string) => {
+  if (trainingAnchorPattern.test(html)) {
+    return html;
+  }
+
+  if (/<\/form>/i.test(html)) {
+    return html.replace(/<\/form>/i, `</form>${trainingAnchorHtml}`);
+  }
+
+  return `${html}${trainingAnchorHtml}`;
+};
+
 const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   const normalizedCandidate = {
     ...candidate,
     subject: candidate.subject.trim(),
     body: candidate.body.trim(),
-    maliciousPageContent: neutralizePreviewModalHtml(candidate.maliciousPageContent).trim(),
+    maliciousPageContent: ensureTrainingAnchorLink(
+      neutralizePreviewModalHtml(candidate.maliciousPageContent).trim(),
+    ),
     summary: candidate.summary.trim(),
   };
   const mailIssues = findUnsafeTemplateHtmlIssues(normalizedCandidate.body);
@@ -268,6 +294,10 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
 
   if (!/\{\{\s*TRAINING_URL\s*\}\}/i.test(normalizedCandidate.maliciousPageContent)) {
     throw new Error("악성메일본문에는 {{TRAINING_URL}}가 포함되어야 합니다.");
+  }
+
+  if (!trainingAnchorPattern.test(normalizedCandidate.maliciousPageContent)) {
+    throw new Error("악성메일본문에는 {{TRAINING_URL}} 링크가 포함되어야 합니다.");
   }
 
   if (!/<form[\s\S]*?>/i.test(normalizedCandidate.maliciousPageContent)) {
@@ -366,6 +396,8 @@ Rules:
 - Every clickable CTA in the mail body must point to {{LANDING_URL}}.
 - The malicious page must be a static landing page with a form and a submit button.
 - The malicious page must redirect or submit to {{TRAINING_URL}} after submission.
+- The malicious page must also include a visible anchor link that points to {{TRAINING_URL}}.
+- Prefer the anchor format <a href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer">...</a>.
 - Do not use JavaScript, external CSS, external scripts, or external images/resources.
 - Do not render the malicious page as a fixed-position modal, dialog, or overlay.
 - Inline CSS and style tags are allowed.
@@ -376,7 +408,7 @@ Rules:
 - Do not copy the reference verbatim; adapt the wording, labels, and scenario details to the requested topic and tone.
 - Keep the same level of inline styling, spacing, and structural clarity shown in the reference.
 - body should feel like an operational notice email: alert headline, short explanation, 2-3 bullet points, a divider, and a single clear CTA.
-- maliciousPageContent should feel like a focused inline card UI shown directly on the page: soft page background, centered white panel, short header, stacked inputs, and one strong primary submit button.
+- maliciousPageContent should feel like a focused inline card UI shown directly on the page: soft page background, centered white panel, short header, stacked inputs, one strong primary submit button, and a secondary training link below the form.
 - For maliciousPageContent, prefer a form action that points to {{TRAINING_URL}}.
 
 Generation inputs:
