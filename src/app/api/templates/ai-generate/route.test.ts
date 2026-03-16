@@ -2,10 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const generateTemplateAiCandidatesMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/server/services/templateAi", () => ({
-  generateTemplateAiCandidates: generateTemplateAiCandidatesMock,
-}));
+vi.mock("@/server/services/templateAi", async () => {
+  const actual = await vi.importActual<typeof import("@/server/services/templateAi")>(
+    "@/server/services/templateAi",
+  );
 
+  return {
+    ...actual,
+    generateTemplateAiCandidates: generateTemplateAiCandidatesMock,
+  };
+});
+
+import { TemplateAiServiceError } from "@/server/services/templateAi";
 import { POST } from "./route";
 
 describe("POST /api/templates/ai-generate", () => {
@@ -139,5 +147,39 @@ describe("POST /api/templates/ai-generate", () => {
 
     expect(response.status).toBe(400);
     expect(generateTemplateAiCandidatesMock).not.toHaveBeenCalled();
+  });
+
+  it("Gemini 일시 장애는 503과 안내 문구를 반환한다", async () => {
+    generateTemplateAiCandidatesMock.mockRejectedValue(
+      new TemplateAiServiceError({
+        status: 503,
+        code: "gemini_service_unavailable",
+        message: "AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+        retryable: true,
+      }),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/templates/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "other",
+          customTopic: "한글 파일 잘못된 다운로드",
+          tone: "informational",
+          difficulty: "medium",
+          prompt: "",
+          generateCount: 4,
+          preservedCandidates: [],
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: "AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+      code: "gemini_service_unavailable",
+      retryable: true,
+    });
   });
 });

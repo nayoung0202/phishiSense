@@ -27,6 +27,35 @@ type GenerateTemplateAiResult = {
   };
 };
 
+type GeminiApiErrorPayload = {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+  };
+};
+
+type TemplateAiServiceErrorArgs = {
+  status: number;
+  code: string;
+  message: string;
+  retryable?: boolean;
+};
+
+export class TemplateAiServiceError extends Error {
+  status: number;
+  code: string;
+  retryable: boolean;
+
+  constructor({ status, code, message, retryable = false }: TemplateAiServiceErrorArgs) {
+    super(message);
+    this.name = "TemplateAiServiceError";
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+  }
+}
+
 const responseSchema = {
   type: "OBJECT",
   properties: {
@@ -106,6 +135,97 @@ const referenceMaliciousPageHtml = `
 </div>
 `.trim();
 
+const templateAiRetryDelaysMs = [700, 1400];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const createTemplateAiServiceError = (args: TemplateAiServiceErrorArgs) =>
+  new TemplateAiServiceError(args);
+
+const parseGeminiErrorPayload = (rawText: string, fallbackStatus: number) => {
+  const normalizedText = rawText.trim();
+
+  if (!normalizedText) {
+    return {
+      status: fallbackStatus,
+      message: "",
+      errorStatus: "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedText) as GeminiApiErrorPayload;
+
+    return {
+      status: parsed.error?.code ?? fallbackStatus,
+      message: parsed.error?.message?.trim() ?? normalizedText,
+      errorStatus: parsed.error?.status?.trim() ?? "",
+    };
+  } catch {
+    return {
+      status: fallbackStatus,
+      message: normalizedText,
+      errorStatus: "",
+    };
+  }
+};
+
+const createGeminiApiError = (responseStatus: number, rawText: string) => {
+  const { status, message, errorStatus } = parseGeminiErrorPayload(rawText, responseStatus);
+  const isHighDemand =
+    status === 429 ||
+    status === 503 ||
+    errorStatus === "UNAVAILABLE" ||
+    /high demand|try again later/i.test(message);
+
+  if (isHighDemand) {
+    return createTemplateAiServiceError({
+      status: 503,
+      code: "gemini_service_unavailable",
+      message: "AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+      retryable: true,
+    });
+  }
+
+  if (status >= 500) {
+    return createTemplateAiServiceError({
+      status: 503,
+      code: "gemini_service_unavailable",
+      message: "AI 템플릿 생성 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도하세요.",
+      retryable: true,
+    });
+  }
+
+  if (status >= 400) {
+    return createTemplateAiServiceError({
+      status: 502,
+      code: "gemini_api_error",
+      message: "AI 템플릿 생성 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.",
+    });
+  }
+
+  return createTemplateAiServiceError({
+    status: 500,
+    code: "template_ai_generate_failed",
+    message: "AI 템플릿 생성에 실패했습니다.",
+  });
+};
+
+const createGeminiNetworkError = () =>
+  createTemplateAiServiceError({
+    status: 503,
+    code: "gemini_network_error",
+    message: "AI 템플릿 생성 서비스에 연결하지 못했습니다. 잠시 후 다시 시도하세요.",
+    retryable: true,
+  });
+
+const createGeminiInvalidResponseError = () =>
+  createTemplateAiServiceError({
+    status: 502,
+    code: "gemini_invalid_response",
+    message: "AI 템플릿 생성 응답이 올바르지 않습니다. 잠시 후 다시 시도하세요.",
+  });
+
 const extractJsonText = (payload: unknown) => {
   if (!payload || typeof payload !== "object") {
     throw new Error("invalid_ai_response");
@@ -166,6 +286,62 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
     id: randomUUID(),
     ...normalizedCandidate,
   };
+};
+
+const requestGeminiCandidates = async (request: TemplateAiRequest, apiKey: string) => {
+  let lastError: TemplateAiServiceError | null = null;
+
+  for (let attempt = 0; attempt <= templateAiRetryDelaysMs.length; attempt += 1) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_TEMPLATE_AI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: buildTemplateAiPrompt(request) }],
+              },
+            ],
+            generationConfig: {
+              temperature: 1,
+              topP: 0.95,
+              responseMimeType: "application/json",
+              responseSchema,
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        lastError = createGeminiApiError(response.status, await response.text());
+      } else {
+        try {
+          return await response.json();
+        } catch {
+          throw createGeminiInvalidResponseError();
+        }
+      }
+    } catch (error) {
+      if (error instanceof TemplateAiServiceError) {
+        lastError = error;
+      } else {
+        lastError = createGeminiNetworkError();
+      }
+    }
+
+    if (!lastError.retryable || attempt === templateAiRetryDelaysMs.length) {
+      throw lastError;
+    }
+
+    await sleep(templateAiRetryDelaysMs[attempt]);
+  }
+
+  throw lastError ?? createGeminiNetworkError();
 };
 
 export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
@@ -253,59 +429,44 @@ export async function generateTemplateAiCandidates(
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error("gemini_api_key_missing");
+    throw createTemplateAiServiceError({
+      status: 503,
+      code: "gemini_api_key_missing",
+      message:
+        "서버에 Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 추가한 뒤 서버를 다시 시작하세요.",
+    });
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_TEMPLATE_AI_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+  const payload = await requestGeminiCandidates(request, apiKey);
+
+  try {
+    const text = extractJsonText(payload);
+    const parsed = JSON.parse(text) as {
+      candidates?: Array<Omit<TemplateAiCandidate, "id">>;
+    };
+    const rawCandidates = parsed.candidates ?? [];
+
+    if (rawCandidates.length !== request.generateCount) {
+      throw new Error("candidate_count_mismatch");
+    }
+
+    const candidates = rawCandidates.map(sanitizeCandidate);
+    const usage = estimateCreditsFromUsage(
+      (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
+    );
+
+    return {
+      candidates,
+      usage: {
+        ...usage,
+        model: DEFAULT_TEMPLATE_AI_MODEL,
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: buildTemplateAiPrompt(request) }],
-          },
-        ],
-        generationConfig: {
-          temperature: 1,
-          topP: 0.95,
-          responseMimeType: "application/json",
-          responseSchema,
-        },
-      }),
-    },
-  );
+    };
+  } catch (error) {
+    if (error instanceof TemplateAiServiceError) {
+      throw error;
+    }
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "template_ai_generate_failed");
+    throw createGeminiInvalidResponseError();
   }
-
-  const payload = await response.json();
-  const text = extractJsonText(payload);
-  const parsed = JSON.parse(text) as {
-    candidates?: Array<Omit<TemplateAiCandidate, "id">>;
-  };
-  const rawCandidates = parsed.candidates ?? [];
-
-  if (rawCandidates.length !== request.generateCount) {
-    throw new Error("candidate_count_mismatch");
-  }
-
-  const candidates = rawCandidates.map(sanitizeCandidate);
-  const usage = estimateCreditsFromUsage(
-    (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
-  );
-
-  return {
-    candidates,
-    usage: {
-      ...usage,
-      model: DEFAULT_TEMPLATE_AI_MODEL,
-    },
-  };
 }

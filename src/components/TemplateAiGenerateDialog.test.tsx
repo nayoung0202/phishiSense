@@ -112,6 +112,30 @@ describe("TemplateAiGenerateDialog", () => {
     expect(screen.getByRole("button", { name: "선택한 후보 반영" })).toBeInTheDocument();
   });
 
+  it("API 오류 JSON은 사용자 문구만 정리해서 보여준다", async () => {
+    server.use(
+      http.post("/api/templates/ai-generate", () =>
+        HttpResponse.json(
+          {
+            error: "AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+            code: "gemini_service_unavailable",
+            retryable: true,
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    renderWithClient(<TemplateAiGenerateDialog open={true} onOpenChange={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "템플릿 생성" }));
+
+    expect(
+      await screen.findByText("AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^503:/)).not.toBeInTheDocument();
+  });
+
   it("옵션 다시 설정 후에도 입력값을 유지하고 후보 비교로 돌아갈 수 있다", async () => {
     let requestCount = 0;
 

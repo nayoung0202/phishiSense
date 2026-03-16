@@ -67,6 +67,26 @@ const previewSurfaceClass =
 
 const getPreviewHtml = (html: string) => extractBodyHtml(neutralizePreviewModalHtml(html));
 
+const getGenerateErrorMessage = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return "AI 템플릿 생성 중 오류가 발생했습니다.";
+  }
+
+  const matchedBody = error.message.match(/^\d{3}:\s*([\s\S]+)$/)?.[1]?.trim();
+  const rawMessage = matchedBody ?? error.message;
+
+  try {
+    const parsed = JSON.parse(rawMessage) as {
+      error?: string;
+      message?: string;
+    };
+
+    return parsed.error ?? parsed.message ?? rawMessage;
+  } catch {
+    return rawMessage;
+  }
+};
+
 export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<DialogStep>("options");
@@ -203,9 +223,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
     return (
       <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-        {generateMutation.error instanceof Error
-          ? generateMutation.error.message
-          : "AI 템플릿 생성 중 오류가 발생했습니다."}
+        {getGenerateErrorMessage(generateMutation.error)}
       </div>
     );
   };

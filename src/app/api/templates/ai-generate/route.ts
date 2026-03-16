@@ -4,7 +4,10 @@ import {
   templateAiGenerateResponseSchema,
   templateAiRequestSchema,
 } from "@shared/templateAi";
-import { generateTemplateAiCandidates } from "@/server/services/templateAi";
+import {
+  generateTemplateAiCandidates,
+  TemplateAiServiceError,
+} from "@/server/services/templateAi";
 
 export async function POST(request: Request) {
   try {
@@ -19,16 +22,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const message = error instanceof Error ? error.message : "template_ai_generate_failed";
-    const status = message === "gemini_api_key_missing" ? 503 : 500;
-    const errorMessage =
-      message === "gemini_api_key_missing"
-        ? "서버에 Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 추가한 뒤 서버를 다시 시작하세요."
-        : message;
+    if (error instanceof TemplateAiServiceError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          retryable: error.retryable,
+        },
+        { status: error.status },
+      );
+    }
 
+    const message = error instanceof Error ? error.message : "template_ai_generate_failed";
     return NextResponse.json(
-      { error: errorMessage },
-      { status },
+      { error: message },
+      { status: 500 },
     );
   }
 }
