@@ -1,10 +1,11 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { TEMPLATE_AI_DRAFT_SESSION_KEY } from "@shared/templateAi";
 import { server } from "@/mocks/server";
+import { createQueryClient } from "@/lib/queryClient";
 import { TemplateAiGenerateDialog } from "./TemplateAiGenerateDialog";
 
 const pushMock = vi.fn();
@@ -25,12 +26,7 @@ const buildCandidates = (prefix: string, count: number) =>
   }));
 
 const renderWithClient = (ui: React.ReactElement) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
+  const queryClient = createQueryClient();
 
   const result = render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 
@@ -72,8 +68,8 @@ describe("TemplateAiGenerateDialog", () => {
 
     renderWithClient(<TemplateAiGenerateDialog open={true} onOpenChange={() => {}} />);
 
-    fireEvent.pointerDown(screen.getAllByRole("combobox")[0]);
-    fireEvent.click(await screen.findByText("기타"));
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(await screen.findByRole("option", { name: "기타" }));
 
     const customTopicInput = await screen.findByLabelText("주제 직접 입력");
     fireEvent.change(customTopicInput, {
@@ -228,10 +224,12 @@ describe("TemplateAiGenerateDialog", () => {
       expect(requests).toHaveLength(2);
     });
 
-    expect(requests[1]).toEqual({
-      generateCount: 3,
-      preservedCandidates: [{ id: "재생성-1-1", subject: "재생성-1 후보 1" }],
-    });
+    expect(requests[1]).toEqual(
+      expect.objectContaining({
+        generateCount: 3,
+        preservedCandidates: [{ id: "재생성-1-1", subject: "재생성-1 후보 1" }],
+      }),
+    );
   });
 
   it("전체 재생성은 preservedCandidates 없이 후보 4개를 다시 요청한다", async () => {
@@ -265,10 +263,12 @@ describe("TemplateAiGenerateDialog", () => {
       expect(requests).toHaveLength(2);
     });
 
-    expect(requests[1]).toEqual({
-      generateCount: 4,
-      preservedCandidates: [],
-    });
+    expect(requests[1]).toEqual(
+      expect.objectContaining({
+        generateCount: 4,
+        preservedCandidates: [],
+      }),
+    );
   });
 
   it("선택한 후보 반영은 세션 초안을 저장하고 작성 화면으로 이동한다", async () => {

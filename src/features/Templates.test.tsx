@@ -1,9 +1,10 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
+import { createQueryClient } from "@/lib/queryClient";
 import Templates from "./Templates";
 
 const pushMock = vi.fn();
@@ -15,12 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const renderWithClient = (ui: React.ReactElement) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
+  const queryClient = createQueryClient();
 
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 };
@@ -33,7 +29,7 @@ afterEach(() => {
 describe("Templates", () => {
   it("악성 메일 본문 미리보기는 iframe으로 격리 렌더링한다", async () => {
     server.use(
-      http.get("http://localhost/api/templates", () =>
+      http.get("*/api/templates", () =>
         HttpResponse.json([
           {
             id: "template-1",
@@ -57,11 +53,23 @@ describe("Templates", () => {
 
     await screen.findByText("배경 점검 템플릿");
     fireEvent.click(screen.getByTestId("button-preview-template-1"));
-    fireEvent.click(await screen.findByRole("tab", { name: "악성 메일 본문" }));
+    const maliciousTab = await screen.findByRole("tab", { name: "악성 메일 본문" });
+    fireEvent.click(maliciousTab);
+    if (maliciousTab.getAttribute("data-state") !== "active") {
+      fireEvent.keyDown(maliciousTab, { key: "Enter" });
+    }
 
-    const frame = await screen.findByTitle("template-preview-frame");
+    await waitFor(() => {
+      expect(maliciousTab).toHaveAttribute("data-state", "active");
+    });
 
-    expect(frame.getAttribute("srcdoc")).toContain("배경 변경 제출");
-    expect(screen.queryByText("배경 변경 제출")).not.toBeInTheDocument();
+    await waitFor(() => {
+      const frames = screen.getAllByTitle("template-preview-frame");
+      expect(
+        frames.some((frame) => frame.getAttribute("srcdoc")?.includes("배경 변경 제출")),
+      ).toBe(true);
+    });
+    const dialog = screen.getByTestId("dialog-template-preview");
+    expect(within(dialog).queryByText("배경 변경 제출")).not.toBeInTheDocument();
   });
 });

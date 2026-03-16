@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { neutralizePreviewModalHtml } from "@/lib/templatePreview";
-import { storage } from "@/server/storage";
+import {
+  getPublicPhishingContextByTrackingToken,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+} from "@/server/tenant/tenantStorage";
 import {
   buildSubmitFormUrl,
   buildTrainingLinkUrl,
@@ -44,23 +48,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const projectTarget = await storage.getProjectTargetByTrackingToken(normalized);
-    if (!projectTarget) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
-    }
-    const project = await storage.getProject(projectTarget.projectId);
-    if (!project || !project.templateId || !project.trainingPageId) {
+    const context = await getPublicPhishingContextByTrackingToken(normalized);
+    if (!context) {
       return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
     }
 
-    const [template, trainingPage] = await Promise.all([
-      storage.getTemplate(project.templateId),
-      storage.getTrainingPage(project.trainingPageId),
-    ]);
-    if (!template || !trainingPage) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
-    }
-
+    const { tenantId, projectTarget, project, template } = context;
     const maliciousHtml = template.maliciousPageContent?.trim() ?? "";
     const isFallback = maliciousHtml.length === 0;
     const baseHtml = normalizeTrainingUrlPlaceholders(
@@ -93,24 +86,23 @@ export async function GET(_request: Request, { params }: RouteContext) {
       renderedHtml = `${banner}${renderedHtml}`;
     }
 
-    if (projectTarget) {
-      const now = new Date();
-      const openedAt = projectTarget.openedAt ?? now;
-      const clickedAt = projectTarget.clickedAt ?? now;
-      const shouldIncrementOpen = !projectTarget.openedAt;
-      const shouldIncrementClick = !projectTarget.clickedAt;
-      const nextStatus = projectTarget.status === "submitted" ? "submitted" : "clicked";
-      await storage.updateProjectTarget(projectTarget.id, {
-        openedAt: shouldIncrementOpen ? openedAt : projectTarget.openedAt,
-        clickedAt: shouldIncrementClick ? clickedAt : projectTarget.clickedAt,
-        status: nextStatus,
+    const now = new Date();
+    const openedAt = projectTarget.openedAt ?? now;
+    const clickedAt = projectTarget.clickedAt ?? now;
+    const shouldIncrementOpen = !projectTarget.openedAt;
+    const shouldIncrementClick = !projectTarget.clickedAt;
+    const nextStatus = projectTarget.status === "submitted" ? "submitted" : "clicked";
+
+    await updateProjectTargetForTenant(tenantId, projectTarget.id, {
+      openedAt: shouldIncrementOpen ? openedAt : projectTarget.openedAt,
+      clickedAt: shouldIncrementClick ? clickedAt : projectTarget.clickedAt,
+      status: nextStatus,
+    });
+    if ((shouldIncrementOpen || shouldIncrementClick) && projectTarget.status !== "test") {
+      await updateProjectForTenant(tenantId, project.id, {
+        openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
+        clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
       });
-      if ((shouldIncrementOpen || shouldIncrementClick) && projectTarget.status !== "test") {
-        await storage.updateProject(project.id, {
-          openCount: (project.openCount ?? 0) + (shouldIncrementOpen ? 1 : 0),
-          clickCount: (project.clickCount ?? 0) + (shouldIncrementClick ? 1 : 0),
-        });
-      }
     }
 
     const response = new NextResponse(renderedHtml, {

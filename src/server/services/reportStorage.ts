@@ -6,8 +6,16 @@ const DEFAULT_STORAGE_ROOT = path.join(process.cwd(), "storage");
 export const REPORT_STORAGE_ROOT =
   process.env.REPORT_STORAGE_ROOT ?? DEFAULT_STORAGE_ROOT;
 
-export function buildTemplateFileKey(templateId: string, version: string) {
+const buildTenantRoot = (tenantId: string) =>
+  path.posix.join("tenants", tenantId);
+
+export function buildTemplateFileKey(
+  tenantId: string,
+  templateId: string,
+  version: string,
+) {
   return path.posix.join(
+    buildTenantRoot(tenantId),
     "reports",
     "templates",
     templateId,
@@ -16,17 +24,24 @@ export function buildTemplateFileKey(templateId: string, version: string) {
   );
 }
 
-export function buildReportFileKey(instanceId: string) {
-  return path.posix.join("reports", "generated", `${instanceId}.docx`);
+export function buildReportFileKey(tenantId: string, instanceId: string) {
+  return path.posix.join(
+    buildTenantRoot(tenantId),
+    "reports",
+    "generated",
+    `${instanceId}.docx`,
+  );
 }
 
 export function buildReportCaptureFileKey(
+  tenantId: string,
   projectId: string,
   captureKey: string,
   extension: string,
 ) {
   const normalizedExt = extension.replace(/^\./, "");
   return path.posix.join(
+    buildTenantRoot(tenantId),
     "reports",
     "captures",
     projectId,
@@ -35,11 +50,13 @@ export function buildReportCaptureFileKey(
 }
 
 export function buildReportSettingLogoFileKey(
+  tenantId: string,
   settingId: string,
   extension: string,
 ) {
   const normalizedExt = extension.replace(/^\./, "");
   return path.posix.join(
+    buildTenantRoot(tenantId),
     "reports",
     "settings",
     settingId,

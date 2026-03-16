@@ -8,6 +8,8 @@ import {
   MALICIOUS_ALLOWED_TOKENS,
   MALICIOUS_TRAINING_TOKENS,
 } from "@shared/templateTokens";
+import type { PersistedSmtpConfig } from "../dao/smtpDao";
+import { collectRuntimeSendConfigIssues } from "./runtimeSmtpConfig";
 export {
   buildMailHtml,
   type MailAutoInsertConfig,
@@ -25,7 +27,13 @@ export type SendValidationIssue = {
     | "mail_unknown_tokens"
     | "malicious_unknown_tokens"
     | "malicious_content_missing"
-    | "malicious_missing_training_token";
+    | "malicious_missing_training_token"
+    | "smtp_not_configured"
+    | "smtp_inactive"
+    | "smtp_password_missing"
+    | "sender_name_missing"
+    | "sender_email_missing"
+    | "sender_email_invalid";
   scope: "project" | "mail" | "malicious";
   message: string;
   tokens?: string[];
@@ -126,9 +134,20 @@ export const validateTemplateForSend = (
 export const formatSendValidationError = (issues: SendValidationIssue[]) =>
   issues.map((issue) => issue.message).join("\n");
 
+export const validateProjectRuntimeSendConfig = (
+  project: Pick<Project, "fromName" | "fromEmail">,
+  smtpConfig?: PersistedSmtpConfig | null,
+): SendValidationIssue[] => {
+  return collectRuntimeSendConfigIssues(project, smtpConfig).map((issue) => ({
+    ...issue,
+    scope: "project",
+  }));
+};
+
 type ValidationStorage = {
   getTemplate(id: string): Promise<Template | undefined>;
   getTrainingPage(id: string): Promise<TrainingPage | undefined>;
+  getSmtpConfig?(): Promise<PersistedSmtpConfig | null>;
 };
 
 export const validateProjectForSend = async (
@@ -148,9 +167,10 @@ export const validateProjectForSend = async (
     };
   }
 
-  const [template, trainingPage] = await Promise.all([
+  const [template, trainingPage, smtpConfig] = await Promise.all([
     storage.getTemplate(project.templateId),
     project.trainingPageId ? storage.getTrainingPage(project.trainingPageId) : Promise.resolve(undefined),
+    storage.getSmtpConfig ? storage.getSmtpConfig() : Promise.resolve(null),
   ]);
 
   if (!template) {
@@ -166,5 +186,8 @@ export const validateProjectForSend = async (
     };
   }
 
-  return validateTemplateForSend(template, trainingPage);
+  const templateValidation = validateTemplateForSend(template, trainingPage);
+  const runtimeIssues = validateProjectRuntimeSendConfig(project, smtpConfig);
+  const issues = [...templateValidation.issues, ...runtimeIssues];
+  return { ok: issues.length === 0, issues };
 };

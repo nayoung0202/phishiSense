@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
 import {
   PREVIEW_CACHE_WINDOW_MS,
   buildPreviewCacheKey,
@@ -9,9 +8,17 @@ import {
   previewCache,
   previewRequestSchema,
   toSafeDate,
-  type PreviewResponse,
   type PreviewDepartmentSlice,
+  type PreviewResponse,
 } from "@/server/services/projectsShared";
+import {
+  getProjectsForTenant,
+  getTargetsForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 type RouteContext = {
   params: Promise<{
@@ -21,16 +28,16 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const rawBody = await request.json().catch(() => ({}));
     const { id } = await params;
     const payload = previewRequestSchema.parse(rawBody ?? {});
+    const projectId = id?.trim().length ? id.trim() : "new";
     const targetIds = payload.targetIds;
     const templateId = payload.templateId ?? undefined;
     const sendingDomain = payload.sendingDomain ?? undefined;
     const startDateParam = payload.startDate ?? undefined;
     const endDateParam = payload.endDate ?? undefined;
-    const projectId = id?.trim().length ? id.trim() : "new";
-
     const cacheKey = buildPreviewCacheKey({
       projectId,
       targetIds,
@@ -47,8 +54,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const [allTargets, allProjects] = await Promise.all([
-      storage.getTargets(),
-      storage.getProjects(),
+      getTargetsForTenant(tenantId),
+      getProjectsForTenant(tenantId),
     ]);
 
     const selectedTargetSet = new Set(targetIds);
@@ -129,7 +136,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(response);
-  } catch {
-    return NextResponse.json({ error: "Failed to build preview" }, { status: 400 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to build preview", 400);
   }
 }

@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateProjectReport } from "@/server/services/reportGenerator";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 export const runtime = "nodejs";
 
@@ -10,22 +14,22 @@ const requestSchema = z.object({
   templateId: z.string().optional(),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const payload = await request.json();
     const parsed = requestSchema.safeParse(payload);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const result = await generateProjectReport(parsed.data.projectId, {
+    const result = await generateProjectReport(tenantId, parsed.data.projectId, {
       templateId: parsed.data.templateId,
       reportSettingId: parsed.data.reportSettingId,
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "보고서 생성에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "보고서 생성에 실패했습니다.");
   }
 }

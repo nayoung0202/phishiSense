@@ -1,13 +1,25 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const storageMock = vi.hoisted(() => ({
-  getProject: vi.fn(),
-  getProjectTargets: vi.fn(),
-  getTargets: vi.fn(),
+const currentTenantMock = vi.hoisted(() => ({
+  requireReadyTenant: vi.fn(),
+  buildReadyTenantErrorResponse: vi.fn(),
 }));
 
-vi.mock("@/server/storage", () => ({
-  storage: storageMock,
+const tenantStorageMock = vi.hoisted(() => ({
+  getProjectForTenant: vi.fn(),
+  getProjectTargetsForTenant: vi.fn(),
+  getTargetsForTenant: vi.fn(),
+}));
+
+vi.mock("@/server/tenant/currentTenant", () => ({
+  requireReadyTenant: currentTenantMock.requireReadyTenant,
+  buildReadyTenantErrorResponse: currentTenantMock.buildReadyTenantErrorResponse,
+}));
+
+vi.mock("@/server/tenant/tenantStorage", () => ({
+  getProjectForTenant: tenantStorageMock.getProjectForTenant,
+  getProjectTargetsForTenant: tenantStorageMock.getProjectTargetsForTenant,
+  getTargetsForTenant: tenantStorageMock.getTargetsForTenant,
 }));
 
 import { GET } from "./route";
@@ -55,13 +67,17 @@ const baseTarget = {
 };
 
 beforeEach(() => {
-  storageMock.getProject.mockResolvedValue(baseProject);
-  storageMock.getTargets.mockResolvedValue([baseTarget]);
+  currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: "tenant-a" });
+  currentTenantMock.buildReadyTenantErrorResponse.mockImplementation(() => {
+    throw new Error("unexpected error response");
+  });
+  tenantStorageMock.getProjectForTenant.mockResolvedValue(baseProject);
+  tenantStorageMock.getTargetsForTenant.mockResolvedValue([baseTarget]);
 });
 
 describe("GET /api/projects/[id]/action-logs", () => {
-  it("해당 프로젝트 대상자만 반환한다", async () => {
-    storageMock.getProjectTargets.mockResolvedValue([
+  it("test 상태 대상자는 제외한다", async () => {
+    tenantStorageMock.getProjectTargetsForTenant.mockResolvedValue([
       {
         id: "pt-1",
         projectId: "project-1",
@@ -74,10 +90,10 @@ describe("GET /api/projects/[id]/action-logs", () => {
       },
       {
         id: "pt-2",
-        projectId: "project-2",
-        targetId: "target-2",
+        projectId: "project-1",
+        targetId: "target-1",
         trackingToken: "track-2",
-        status: "sent",
+        status: "test",
         openedAt: null,
         clickedAt: null,
         submittedAt: null,
@@ -94,7 +110,7 @@ describe("GET /api/projects/[id]/action-logs", () => {
   });
 
   it("이벤트를 시간순으로 정렬한다", async () => {
-    storageMock.getProjectTargets.mockResolvedValue([
+    tenantStorageMock.getProjectTargetsForTenant.mockResolvedValue([
       {
         id: "pt-1",
         projectId: "project-1",

@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
 import {
   collectDepartmentTagsFromTargets,
   normalizeStringArray,
 } from "@/server/services/projectsShared";
+import {
+  createProjectTargetForTenant,
+  deleteProjectForTenant,
+  deleteProjectTargetsForTenant,
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getTargetsForTenant,
+  updateProjectForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 import { getProjectPrimaryDepartment } from "@shared/projectDepartment";
 
 type RouteContext = {
@@ -12,21 +24,23 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const project = await storage.getProject(id);
+    const project = await getProjectForTenant(tenantId, id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
     return NextResponse.json(project);
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch project" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch project");
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
     const payloadRaw = await request.json();
     const payload: Record<string, unknown> = { ...payloadRaw };
@@ -54,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       payload.endDate = payload["end_date"];
     }
     if (targetIds) {
-      const targets = await storage.getTargets();
+      const targets = await getTargetsForTenant(tenantId);
       const targetSet = new Set(targetIds);
       const selectedTargets = targets.filter((target) => targetSet.has(target.id));
       const derivedDepartmentTags = collectDepartmentTagsFromTargets(selectedTargets);
@@ -67,28 +81,27 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       const normalizedDepartmentTags = normalizeStringArray(payload.departmentTags);
       payload.departmentTags = normalizedDepartmentTags;
       payload.department = getProjectPrimaryDepartment({
-        department:
-          typeof payload.department === "string" ? payload.department : null,
+        department: typeof payload.department === "string" ? payload.department : null,
         departmentTags: normalizedDepartmentTags,
       });
     }
     if (payload.notificationEmails) {
       payload.notificationEmails = normalizeStringArray(payload.notificationEmails);
     }
-    let project = await storage.updateProject(id, payload);
+
+    let project = await updateProjectForTenant(tenantId, id, payload);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+
     if (targetIds) {
       const canSync =
-        project.status === "임시" ||
-        project.status === "예약" ||
-        project.status === "진행중";
+        project.status === "임시" || project.status === "예약" || project.status === "진행중";
       if (!canSync) {
         return NextResponse.json(project);
       }
 
-      const existingTargets = await storage.getProjectTargets(id);
+      const existingTargets = await getProjectTargetsForTenant(tenantId, id);
       const syncTargets = existingTargets.filter((item) => item.status !== "test");
       const existingIds = new Set(syncTargets.map((item) => item.targetId));
       const desiredIds = new Set(targetIds);
@@ -98,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (toAdd.length > 0) {
         await Promise.all(
           toAdd.map((targetId) =>
-            storage.createProjectTarget({
+            createProjectTargetForTenant(tenantId, {
               projectId: id,
               targetId,
               status: "sent",
@@ -108,7 +121,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
 
       if (toRemove.length > 0) {
-        await storage.deleteProjectTargetsByIds(toRemove.map((item) => item.id));
+        await deleteProjectTargetsForTenant(
+          tenantId,
+          toRemove.map((item) => item.id),
+        );
       }
 
       if (toAdd.length > 0 || toRemove.length > 0) {
@@ -121,7 +137,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         const nextTargetCount = Math.max(0, syncTargets.length - toRemove.length + toAdd.length);
 
         project =
-          (await storage.updateProject(id, {
+          (await updateProjectForTenant(tenantId, id, {
             targetCount: nextTargetCount,
             openCount: Math.max(0, currentOpen - removedOpen),
             clickCount: Math.max(0, currentClick - removedClick),
@@ -129,21 +145,23 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           })) ?? project;
       }
     }
+
     return NextResponse.json(project);
-  } catch {
-    return NextResponse.json({ error: "Failed to update project" }, { status: 400 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to update project", 400);
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await params;
-    const deleted = await storage.deleteProject(id);
+    const deleted = await deleteProjectForTenant(tenantId, id);
     if (!deleted) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
     return new NextResponse(null, { status: 204 });
-  } catch {
-    return NextResponse.json({ error: "Failed to delete project" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to delete project");
   }
 }

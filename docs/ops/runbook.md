@@ -63,7 +63,8 @@ npm run worker:send
 - `SMTP_SECRET`
 - `MAIL_FROM_NAME`
 - `MAIL_FROM_EMAIL`
-- 워커 실행 시 필요한 SMTP 접속 정보
+- tenant SMTP 설정이 없을 때만 워커 실행용 `.env` SMTP 접속 정보를 사용합니다.
+- tenant SMTP 설정이 있으면 `smtp_accounts`의 host/port/security/from 정보가 실발송 기준이 됩니다.
 
 ## 배포 체크리스트
 
@@ -79,4 +80,4 @@ npm run worker:send
 - 로그인 불가: OIDC/세션 환경 변수와 `APP_BASE_URL` 우선 확인
 - 플랫폼 접근 불가: `/api/auth/platform-context` 상태와 `PLATFORM_API_BASE_URL` 확인
 - callback 반영 실패: 서명 키, timestamp 오차, `platform_entitlement_events` 중복 여부 확인
-- 메일 발송 실패: SMTP 설정, `send_jobs`, 워커 실행 여부 확인
+- 메일 발송 실패: tenant SMTP 활성 상태, 발신 주소 send-as/alias 권한, `send_jobs`, 워커 실행 여부 확인

@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { InsertReportInstance, ReportInstance } from "@shared/schema";
 import { db } from "../db";
@@ -12,13 +12,38 @@ export async function listReportInstancesByProject(projectId: string): Promise<R
     .orderBy(desc(reportInstances.createdAt));
 }
 
+export async function listReportInstancesByProjectForTenant(
+  tenantId: string,
+  projectId: string,
+): Promise<ReportInstance[]> {
+  return db
+    .select()
+    .from(reportInstances)
+    .where(
+      and(eq(reportInstances.tenantId, tenantId), eq(reportInstances.projectId, projectId)),
+    )
+    .orderBy(desc(reportInstances.createdAt));
+}
+
 export async function getReportInstanceById(id: string): Promise<ReportInstance | undefined> {
   const rows = await db.select().from(reportInstances).where(eq(reportInstances.id, id)).limit(1);
   return rows[0];
 }
 
+export async function getReportInstanceByIdForTenant(
+  tenantId: string,
+  id: string,
+): Promise<ReportInstance | undefined> {
+  const rows = await db
+    .select()
+    .from(reportInstances)
+    .where(and(eq(reportInstances.tenantId, tenantId), eq(reportInstances.id, id)))
+    .limit(1);
+  return rows[0];
+}
+
 export async function createReportInstance(
-  payload: InsertReportInstance,
+  payload: typeof reportInstances.$inferInsert,
 ): Promise<ReportInstance> {
   const now = new Date();
   const id = randomUUID();
@@ -26,6 +51,7 @@ export async function createReportInstance(
     .insert(reportInstances)
     .values({
       id,
+      tenantId: payload.tenantId,
       projectId: payload.projectId,
       templateId: payload.templateId,
       reportSettingId: payload.reportSettingId ?? null,
@@ -62,6 +88,32 @@ export async function updateReportInstance(
         payload.completedAt !== undefined ? payload.completedAt ?? null : existing.completedAt,
     })
     .where(eq(reportInstances.id, id))
+    .returning();
+  return rows[0];
+}
+
+export async function updateReportInstanceForTenant(
+  tenantId: string,
+  id: string,
+  payload: Partial<InsertReportInstance> & { completedAt?: Date | null },
+): Promise<ReportInstance | undefined> {
+  const existing = await getReportInstanceByIdForTenant(tenantId, id);
+  if (!existing) return undefined;
+  const rows = await db
+    .update(reportInstances)
+    .set({
+      status: payload.status ?? existing.status,
+      reportSettingId:
+        payload.reportSettingId !== undefined
+          ? payload.reportSettingId ?? null
+          : existing.reportSettingId,
+      fileKey: payload.fileKey !== undefined ? payload.fileKey ?? null : existing.fileKey,
+      errorMessage:
+        payload.errorMessage !== undefined ? payload.errorMessage ?? null : existing.errorMessage,
+      completedAt:
+        payload.completedAt !== undefined ? payload.completedAt ?? null : existing.completedAt,
+    })
+    .where(and(eq(reportInstances.tenantId, tenantId), eq(reportInstances.id, id)))
     .returning();
   return rows[0];
 }

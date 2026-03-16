@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
+import { createQueryClient } from "@/lib/queryClient";
 import ProjectDetail from "./ProjectDetail";
 import React from "react";
 import type { ReactNode } from "react";
@@ -46,11 +47,7 @@ const baseProject = {
 };
 
 const renderWithClient = (ui: React.ReactElement) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
+  const queryClient = createQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
       {ui}

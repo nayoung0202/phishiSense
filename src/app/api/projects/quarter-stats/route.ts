@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storage } from "@/server/storage";
 import {
   calculateRate,
   normalizeProjectDate,
   quarterNumbers,
 } from "@/server/services/projectsShared";
+import { getProjectsForTenant } from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
-const STATUS_DONE = "\uC644\uB8CC";
-const STATUS_RUNNING = "\uC9C4\uD589\uC911";
-const STATUS_SCHEDULED = "\uC608\uC57D";
+const STATUS_DONE = "완료";
+const STATUS_RUNNING = "진행중";
+const STATUS_SCHEDULED = "예약";
 
 export async function GET(request: NextRequest) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { searchParams } = new URL(request.url);
     const yearParam = searchParams.get("year");
     const parsedYear = yearParam ? Number(yearParam) : new Date().getFullYear();
@@ -19,7 +24,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid year parameter" }, { status: 400 });
     }
 
-    const projects = await storage.getProjects();
+    const projects = await getProjectsForTenant(tenantId);
     const stats = quarterNumbers.map((quarterNumber) => {
       const quarterProjects = projects.filter((project) => {
         const fiscalYear =
@@ -48,28 +53,25 @@ export async function GET(request: NextRequest) {
         if (submitRate > 0) submitRates.push(submitRate);
       });
 
-      const avgClickRate =
-        clickRates.length > 0
-          ? Math.round(clickRates.reduce((acc, rate) => acc + rate, 0) / clickRates.length)
-          : 0;
-      const avgReportRate =
-        submitRates.length > 0
-          ? Math.round(submitRates.reduce((acc, rate) => acc + rate, 0) / submitRates.length)
-          : 0;
-
       return {
         quarter: quarterNumber,
         total: totals.total,
         done: totals.done,
         running: totals.running,
         scheduled: totals.scheduled,
-        avg_click_rate: avgClickRate,
-        avg_report_rate: avgReportRate,
+        avg_click_rate:
+          clickRates.length > 0
+            ? Math.round(clickRates.reduce((acc, rate) => acc + rate, 0) / clickRates.length)
+            : 0,
+        avg_report_rate:
+          submitRates.length > 0
+            ? Math.round(submitRates.reduce((acc, rate) => acc + rate, 0) / submitRates.length)
+            : 0,
       };
     });
 
     return NextResponse.json(stats);
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch quarter stats" }, { status: 500 });
+  } catch (error) {
+    return buildReadyTenantErrorResponse(error, "Failed to fetch quarter stats");
   }
 }

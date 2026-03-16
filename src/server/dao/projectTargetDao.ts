@@ -1,10 +1,20 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { ProjectTarget } from "@shared/schema";
 import { db } from "../db";
 import { projectTargets } from "../db/schema";
 
 export async function listProjectTargets(projectId: string): Promise<ProjectTarget[]> {
   return db.select().from(projectTargets).where(eq(projectTargets.projectId, projectId));
+}
+
+export async function listProjectTargetsForTenant(
+  tenantId: string,
+  projectId: string,
+): Promise<ProjectTarget[]> {
+  return db
+    .select()
+    .from(projectTargets)
+    .where(and(eq(projectTargets.tenantId, tenantId), eq(projectTargets.projectId, projectId)));
 }
 
 export async function getProjectTargetByTrackingToken(
@@ -41,11 +51,36 @@ export async function updateProjectTargetById(
   return rows[0];
 }
 
+export async function updateProjectTargetByIdForTenant(
+  tenantId: string,
+  id: string,
+  payload: Partial<typeof projectTargets.$inferInsert>,
+): Promise<ProjectTarget | undefined> {
+  const rows = await db
+    .update(projectTargets)
+    .set(payload)
+    .where(and(eq(projectTargets.tenantId, tenantId), eq(projectTargets.id, id)))
+    .returning();
+  return rows[0];
+}
+
 export async function deleteProjectTargetsByIds(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
   const deleted = await db
     .delete(projectTargets)
     .where(inArray(projectTargets.id, ids))
+    .returning({ id: projectTargets.id });
+  return deleted.length;
+}
+
+export async function deleteProjectTargetsByIdsForTenant(
+  tenantId: string,
+  ids: string[],
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const deleted = await db
+    .delete(projectTargets)
+    .where(and(eq(projectTargets.tenantId, tenantId), inArray(projectTargets.id, ids)))
     .returning({ id: projectTargets.id });
   return deleted.length;
 }

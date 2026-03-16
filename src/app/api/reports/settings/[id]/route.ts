@@ -1,6 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
-import { storage } from "@/server/storage";
+import {
+  getReportSettingForTenant,
+  updateReportSettingForTenantScope,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 import {
   buildReportSettingLogoFileKey,
   ensureDirectoryForFile,
@@ -29,16 +36,17 @@ const resolveLogoExtension = (file: File) => {
 };
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "설정 ID가 필요합니다." }, { status: 400 });
     }
 
-    const existing = await storage.getReportSetting(id);
+    const existing = await getReportSettingForTenant(tenantId, id);
     if (!existing) {
       return NextResponse.json({ error: "보고서 설정을 찾을 수 없습니다." }, { status: 404 });
     }
@@ -75,13 +83,14 @@ export async function PATCH(
       if (!ext) {
         return NextResponse.json({ error: "지원하지 않는 로고 형식입니다." }, { status: 400 });
       }
-      companyLogoFileKey = buildReportSettingLogoFileKey(id, ext);
+      companyLogoFileKey = buildReportSettingLogoFileKey(tenantId, id, ext);
       const logoPath = resolveStoragePath(companyLogoFileKey);
       await ensureDirectoryForFile(logoPath);
       await fs.writeFile(logoPath, Buffer.from(await logo.arrayBuffer()));
     }
 
-    const updated = await storage.updateReportSetting(
+    const updated = await updateReportSettingForTenantScope(
+      tenantId,
       id,
       {
         name,
@@ -98,7 +107,6 @@ export async function PATCH(
     }
     return NextResponse.json({ item: updated });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "보고서 설정 수정에 실패했습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return buildReadyTenantErrorResponse(error, "보고서 설정 수정에 실패했습니다.");
   }
 }

@@ -2,15 +2,33 @@ import "dotenv/config";
 import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
-import nodemailer, { type Transporter } from "nodemailer";
+import nodemailer, { type SendMailOptions, type Transporter } from "nodemailer";
+import { getSmtpConfig as getTenantSmtpConfig } from "../dao/smtpDao";
 import { buildLandingUrl, buildOpenPixelUrl } from "../lib/trainingLink";
 import { stripHtml } from "./projectsShared";
 import { enforceBlackTextForSend } from "./enforceBlackTextForSend";
 import {
+  getProjectForTenant,
+  getProjectTargetsForTenant,
+  getSendJobForTenant,
+  getTargetsForTenant,
+  getTemplateForTenant,
+  getTrainingPageForTenant,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+  updateSendJobForTenant,
+} from "../tenant/tenantStorage";
+import {
   buildMailHtml,
   formatSendValidationError,
+  validateProjectRuntimeSendConfig,
   validateTemplateForSend,
 } from "./templateSendValidation";
+import {
+  formatRuntimeSendError,
+  resolveRuntimeSendConfig,
+  type RuntimeTransportConfig,
+} from "./runtimeSmtpConfig";
 
 const POLL_INTERVAL_MS = Number(process.env.SEND_WORKER_POLL_MS ?? 1500);
 const RATE_LIMIT_MIN_MS = Number(process.env.SEND_WORKER_DELAY_MIN_MS ?? 200);
@@ -19,16 +37,17 @@ const MAX_ATTEMPTS = Number(process.env.SEND_WORKER_MAX_ATTEMPTS ?? 3);
 
 type ClaimedJob = {
   id: string;
+  tenantId: string;
+};
+
+type TransportSession = {
+  config: RuntimeTransportConfig;
+  transporter: Transporter | null;
 };
 
 const getPool = async () => {
   const { pool } = await import("../db");
   return pool;
-};
-
-const getStorage = async () => {
-  const { storage } = await import("../storage");
-  return storage;
 };
 
 const normalizeEnv = (value: string | undefined | null) => (value ?? "").trim();
@@ -40,65 +59,118 @@ const resolveRateLimitMs = () => {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 };
 
-const getSmtpConfig = () => {
-  const host = normalizeEnv(process.env.SMTP_HOST);
-  const user = normalizeEnv(process.env.SMTP_USER);
-  const pass = normalizeEnv(process.env.SMTP_PASS);
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const secure = normalizeEnv(process.env.SMTP_SECURE).toLowerCase() === "true";
-  const allowInvalidTls =
-    normalizeEnv(process.env.SMTP_ALLOW_INVALID_TLS).toLowerCase() === "true";
-
-  if (!host || !user || !pass) {
-    throw new Error("SMTP 환경 변수가 설정되지 않았습니다.");
-  }
-
-  return {
-    host,
-    user,
-    pass,
-    port,
-    secure,
-    allowInvalidTls,
-  };
+type SmtpTransportOptions = {
+  port: number;
+  secure: boolean;
+  requireTLS?: boolean;
 };
 
-let transporterPromise: Promise<Transporter> | null = null;
-
-const getTransporter = () => {
-  if (!transporterPromise) {
-    transporterPromise = (async () => {
-      const config = getSmtpConfig();
-      const transport = nodemailer.createTransport({
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        auth: {
+const createSmtpTransporter = (
+  config: RuntimeTransportConfig,
+  options: SmtpTransportOptions,
+) =>
+  nodemailer.createTransport({
+    host: config.host,
+    port: options.port,
+    secure: options.secure ?? config.secure,
+    requireTLS: options.requireTLS ?? config.requireTLS,
+    auth: config.user
+      ? {
           user: config.user,
-          pass: config.pass,
-        },
-        tls: {
-          rejectUnauthorized: !config.allowInvalidTls,
-        },
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 10_000,
-      });
+          pass: config.pass ?? "",
+        }
+      : undefined,
+    tls: {
+      rejectUnauthorized: !config.allowInvalidTls,
+    },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 10_000,
+  });
+
+export const isSmtpConnectionError = (error: unknown) => {
+  if (!error || typeof error !== "object") return false;
+  const typed = error as { code?: string; command?: string };
+  if (typed.command === "CONN") return true;
+  return ["ETIMEDOUT", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "ECONNRESET"].includes(
+    typed.code ?? "",
+  );
+};
+
+export const verifySmtpTransportWithFallback = async (
+  config: RuntimeTransportConfig,
+  createTransporter: (
+    config: RuntimeTransportConfig,
+    options: SmtpTransportOptions,
+  ) => Transporter = createSmtpTransporter,
+) => {
+  const verifyTransport = async (options: SmtpTransportOptions) => {
+    const transport = createTransporter(config, options);
+    try {
       await transport.verify();
       return transport;
-    })().catch((error) => {
-      transporterPromise = null;
+    } catch (error) {
+      if (typeof transport.close === "function") {
+        transport.close();
+      }
       throw error;
+    }
+  };
+
+  try {
+    return await verifyTransport({
+      port: config.port,
+      secure: config.secure,
+      requireTLS: config.requireTLS,
     });
+  } catch (error) {
+    if (config.port === 465 && isSmtpConnectionError(error)) {
+      return verifyTransport({ port: 587, secure: false, requireTLS: true });
+    }
+    throw error;
   }
-  return transporterPromise;
 };
 
-const formatErrorMessage = (error: unknown) => {
-  if (!error) return "알 수 없는 오류";
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "알 수 없는 오류";
+const getTransporter = async (session: TransportSession) => {
+  if (!session.transporter) {
+    session.transporter = await verifySmtpTransportWithFallback(session.config);
+  }
+  return session.transporter;
+};
+
+const closeTransporter = (session: TransportSession | null) => {
+  if (!session?.transporter || typeof session.transporter.close !== "function") {
+    return;
+  }
+
+  session.transporter.close();
+  session.transporter = null;
+};
+
+const formatErrorMessage = (
+  error: unknown,
+  context?: { senderEmail?: string | null; transportSource?: RuntimeTransportConfig["source"] },
+) => formatRuntimeSendError(error, context);
+
+const sendMailWithFallback = async (
+  session: TransportSession,
+  mailOptions: SendMailOptions,
+) => {
+  const transporter = await getTransporter(session);
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (error) {
+    if (!isSmtpConnectionError(error)) {
+      throw error;
+    }
+
+    closeTransporter(session);
+    const retriedTransporter = await getTransporter(session);
+    if (retriedTransporter === transporter) {
+      throw error;
+    }
+    return retriedTransporter.sendMail(mailOptions);
+  }
 };
 
 const claimNextJob = async (): Promise<ClaimedJob | null> => {
@@ -107,7 +179,7 @@ const claimNextJob = async (): Promise<ClaimedJob | null> => {
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `SELECT id
+      `SELECT id, tenant_id AS "tenantId"
        FROM send_jobs
        WHERE status = 'queued'
        ORDER BY created_at ASC
@@ -135,12 +207,16 @@ const claimNextJob = async (): Promise<ClaimedJob | null> => {
   }
 };
 
-const recordJobFailure = async (jobId: string, attempts: number, error: unknown) => {
-  const storage = await getStorage();
+const recordJobFailure = async (
+  tenantId: string,
+  jobId: string,
+  attempts: number,
+  error: unknown,
+) => {
   const message = formatErrorMessage(error);
   const nextAttempts = attempts + 1;
   if (nextAttempts >= MAX_ATTEMPTS) {
-    await storage.updateSendJob(jobId, {
+    await updateSendJobForTenant(tenantId, jobId, {
       status: "failed",
       attempts: nextAttempts,
       lastError: message,
@@ -148,7 +224,7 @@ const recordJobFailure = async (jobId: string, attempts: number, error: unknown)
     });
     return;
   }
-  await storage.updateSendJob(jobId, {
+  await updateSendJobForTenant(tenantId, jobId, {
     status: "queued",
     attempts: nextAttempts,
     lastError: message,
@@ -156,24 +232,14 @@ const recordJobFailure = async (jobId: string, attempts: number, error: unknown)
   });
 };
 
-const resolveFromInfo = (project: { fromName?: string | null; fromEmail?: string | null }) => {
-  const fromName =
-    normalizeEnv(project.fromName) || normalizeEnv(process.env.MAIL_FROM_NAME);
-  const fromEmail =
-    normalizeEnv(project.fromEmail) || normalizeEnv(process.env.MAIL_FROM_EMAIL);
-  if (!fromName || !fromEmail) {
-    throw new Error("MAIL_FROM_NAME 또는 MAIL_FROM_EMAIL이 설정되지 않았습니다.");
-  }
-  return { fromName, fromEmail };
-};
-
-const processJob = async (jobId: string) => {
-  const storage = await getStorage();
-  const job = await storage.getSendJob(jobId);
+const processJob = async (claimedJob: ClaimedJob) => {
+  const { id: jobId, tenantId } = claimedJob;
+  const job = await getSendJobForTenant(tenantId, jobId);
   if (!job) return;
 
+  let transportSession: TransportSession | null = null;
   try {
-    const project = await storage.getProject(job.projectId);
+    const project = await getProjectForTenant(tenantId, job.projectId);
     if (!project) {
       throw new Error("프로젝트를 찾을 수 없습니다.");
     }
@@ -182,32 +248,40 @@ const processJob = async (jobId: string) => {
     if (!templateId) {
       throw new Error("프로젝트에 템플릿이 연결되어 있지 않습니다.");
     }
-    const [template, trainingPage] = await Promise.all([
-      storage.getTemplate(templateId),
-      project.trainingPageId ? storage.getTrainingPage(project.trainingPageId) : Promise.resolve(null),
+    const [template, trainingPage, tenantSmtpConfig] = await Promise.all([
+      getTemplateForTenant(tenantId, templateId),
+      project.trainingPageId
+        ? getTrainingPageForTenant(tenantId, project.trainingPageId)
+        : Promise.resolve(null),
+      getTenantSmtpConfig(tenantId),
     ]);
     if (!template) {
       throw new Error("템플릿을 찾을 수 없습니다.");
     }
-    const validation = validateTemplateForSend(template, trainingPage);
-    if (!validation.ok) {
-      const message = formatSendValidationError(validation.issues);
-      await storage.updateProject(project.id, { sendValidationError: message });
-      await storage.updateSendJob(jobId, {
+    const templateValidation = validateTemplateForSend(template, trainingPage);
+    const runtimeValidation = validateProjectRuntimeSendConfig(project, tenantSmtpConfig);
+    const validationIssues = [...templateValidation.issues, ...runtimeValidation];
+    if (validationIssues.length > 0) {
+      const message = formatSendValidationError(validationIssues);
+      await updateProjectForTenant(tenantId, project.id, { sendValidationError: message });
+      await updateSendJobForTenant(tenantId, jobId, {
         status: "failed",
         lastError: message,
         finishedAt: new Date(),
       });
       return;
     }
-    await storage.updateProject(project.id, { sendValidationError: null });
+    await updateProjectForTenant(tenantId, project.id, { sendValidationError: null });
 
-    const { fromName, fromEmail } = resolveFromInfo(project);
-    const transporter = await getTransporter();
+    const runtimeConfig = resolveRuntimeSendConfig(project, tenantSmtpConfig);
+    transportSession = {
+      config: runtimeConfig.transport,
+      transporter: null,
+    };
 
     const [projectTargets, targets] = await Promise.all([
-      storage.getProjectTargets(job.projectId),
-      storage.getTargets(),
+      getProjectTargetsForTenant(tenantId, job.projectId),
+      getTargetsForTenant(tenantId),
     ]);
     const targetMap = new Map(targets.map((target) => [target.id, target]));
 
@@ -219,7 +293,15 @@ const processJob = async (jobId: string) => {
     let successCount = 0;
     let failCount = 0;
 
-    await storage.updateSendJob(jobId, {
+    console.log("[send-worker] 작업을 처리합니다.", {
+      tenantId,
+      jobId,
+      projectId: job.projectId,
+      smtpSource: runtimeConfig.transport.source,
+      fromEmail: runtimeConfig.sender.fromEmail,
+    });
+
+    await updateSendJobForTenant(tenantId, jobId, {
       totalCount: targetsToSend.length,
       successCount: 0,
       failCount: 0,
@@ -227,7 +309,7 @@ const processJob = async (jobId: string) => {
     });
 
     if (targetsToSend.length === 0) {
-      await storage.updateSendJob(jobId, {
+      await updateSendJobForTenant(tenantId, jobId, {
         status: "done",
         finishedAt: new Date(),
         successCount,
@@ -236,24 +318,40 @@ const processJob = async (jobId: string) => {
       return;
     }
 
+    try {
+      await getTransporter(transportSession);
+    } catch (error) {
+      throw new Error(
+        formatErrorMessage(error, {
+          senderEmail: runtimeConfig.sender.fromEmail,
+          transportSource: runtimeConfig.transport.source,
+        }),
+      );
+    }
+
     for (const [index, projectTarget] of targetsToSend.entries()) {
       const recipient = targetMap.get(projectTarget.targetId);
       let trackingToken = projectTarget.trackingToken ?? "";
 
       if (!trackingToken) {
         trackingToken = randomUUID();
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           trackingToken,
         });
       }
 
       if (!recipient?.email) {
+        const message = "대상자 이메일이 존재하지 않습니다.";
         failCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           sendStatus: "failed",
-          sendError: "대상자 이메일이 존재하지 않습니다.",
+          sendError: message,
         });
-        await storage.updateSendJob(jobId, { successCount, failCount });
+        await updateSendJobForTenant(tenantId, jobId, {
+          successCount,
+          failCount,
+          lastError: message,
+        });
         if (index < targetsToSend.length - 1) {
           await sleep(resolveRateLimitMs());
         }
@@ -270,13 +368,14 @@ const processJob = async (jobId: string) => {
         const headers = project.sendingDomain
           ? { "X-PhishSense-Sending-Domain": project.sendingDomain }
           : undefined;
-        await transporter.sendMail({
+        await sendMailWithFallback(transportSession, {
           envelope: {
-            from: fromEmail,
+            from: runtimeConfig.sender.fromEmail,
             to: [recipient.email],
           },
-          from: `"${fromName}" <${fromEmail}>`,
+          from: `"${runtimeConfig.sender.fromName}" <${runtimeConfig.sender.fromEmail}>`,
           to: recipient.email,
+          replyTo: runtimeConfig.sender.replyTo ?? undefined,
           subject: template.subject ?? "(제목 없음)",
           html: htmlBody,
           text: plainText || undefined,
@@ -284,34 +383,66 @@ const processJob = async (jobId: string) => {
         });
 
         successCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
           sendStatus: "sent",
           sentAt: new Date(),
           sendError: null,
         });
       } catch (error) {
-        failCount += 1;
-        await storage.updateProjectTarget(projectTarget.id, {
-          sendStatus: "failed",
-          sendError: formatErrorMessage(error),
+        const message = formatErrorMessage(error, {
+          senderEmail: runtimeConfig.sender.fromEmail,
+          transportSource: runtimeConfig.transport.source,
         });
+        failCount += 1;
+        await updateProjectTargetForTenant(tenantId, projectTarget.id, {
+          sendStatus: "failed",
+          sendError: message,
+        });
+        await updateSendJobForTenant(tenantId, jobId, {
+          successCount,
+          failCount,
+          lastError: message,
+        });
+        if (index < targetsToSend.length - 1) {
+          await sleep(resolveRateLimitMs());
+        }
+        console.error("[send-worker] 대상 발송 실패", {
+          tenantId,
+          jobId,
+          projectId: job.projectId,
+          targetId: projectTarget.id,
+          recipientEmail: recipient.email,
+          fromEmail: runtimeConfig.sender.fromEmail,
+          smtpSource: runtimeConfig.transport.source,
+          error: message,
+        });
+        continue;
       }
 
-      await storage.updateSendJob(jobId, { successCount, failCount });
+      await updateSendJobForTenant(tenantId, jobId, { successCount, failCount });
 
       if (index < targetsToSend.length - 1) {
         await sleep(resolveRateLimitMs());
       }
     }
 
-    await storage.updateSendJob(jobId, {
+    await updateSendJobForTenant(tenantId, jobId, {
       status: "done",
       finishedAt: new Date(),
       successCount,
       failCount,
     });
+    console.log("[send-worker] 작업을 완료했습니다.", {
+      tenantId,
+      jobId,
+      projectId: job.projectId,
+      successCount,
+      failCount,
+    });
   } catch (error) {
-    await recordJobFailure(jobId, job.attempts ?? 0, error);
+    await recordJobFailure(tenantId, jobId, job.attempts ?? 0, error);
+  } finally {
+    closeTransporter(transportSession);
   }
 };
 
@@ -320,7 +451,7 @@ export const processSendQueueOnce = async (): Promise<boolean> => {
   if (!job) {
     return false;
   }
-  await processJob(job.id);
+  await processJob(job);
   return true;
 };
 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { z, ZodError } from "zod";
-import { storage } from "@/server/storage";
 import {
   buildLandingUrl,
   buildOpenPixelUrl,
@@ -14,6 +13,17 @@ import {
 } from "@/server/services/projectsShared";
 import { buildMailHtml } from "@/server/services/templateSendValidation";
 import { enforceBlackTextForSend } from "@/server/services/enforceBlackTextForSend";
+import {
+  createProjectTargetForTenant,
+  createTargetForTenant,
+  findTargetByEmailInTenant,
+  getProjectForTenant,
+  getTemplateForTenant,
+} from "@/server/tenant/tenantStorage";
+import {
+  buildReadyTenantErrorResponse,
+  requireReadyTenant,
+} from "@/server/tenant/currentTenant";
 
 const payloadSchema = z
   .object({
@@ -39,6 +49,7 @@ export async function POST(request: NextRequest) {
     "X-Mailer-Version": `nodemailer/${NODEMAILER_VERSION}`,
   });
   try {
+    const { tenantId } = await requireReadyTenant(request);
     const missingKey = findMissingSmtpKey();
     if (missingKey) {
       return NextResponse.json(
@@ -52,17 +63,13 @@ export async function POST(request: NextRequest) {
 
     const payload = payloadSchema.parse(await request.json());
     const projectId = payload.projectId?.trim();
-    const project = projectId ? await storage.getProject(projectId) : undefined;
+    const project = projectId ? await getProjectForTenant(tenantId, projectId) : undefined;
     if (projectId && !project) {
       return NextResponse.json(
-        {
-          error: "project_not_found",
-          reason: "프로젝트를 찾을 수 없습니다.",
-        },
+        { error: "project_not_found", reason: "프로젝트를 찾을 수 없습니다." },
         { status: 404, headers },
       );
     }
-
     if (project && !project.trainingPageId) {
       return NextResponse.json(
         {
@@ -76,21 +83,15 @@ export async function POST(request: NextRequest) {
     const templateId = project?.templateId ?? payload.templateId;
     if (!templateId) {
       return NextResponse.json(
-        {
-          error: "template_required",
-          reason: "프로젝트 또는 템플릿을 선택하세요.",
-        },
+        { error: "template_required", reason: "프로젝트 또는 템플릿을 선택하세요." },
         { status: 422, headers },
       );
     }
 
-    const template = await storage.getTemplate(templateId);
+    const template = await getTemplateForTenant(tenantId, templateId);
     if (!template) {
       return NextResponse.json(
-        {
-          error: "template_not_found",
-          reason: "선택한 템플릿을 찾을 수 없습니다.",
-        },
+        { error: "template_not_found", reason: "선택한 템플릿을 찾을 수 없습니다." },
         { status: 404, headers },
       );
     }
@@ -105,10 +106,7 @@ export async function POST(request: NextRequest) {
 
     if (sendingDomain.includes("inactive")) {
       return NextResponse.json(
-        {
-          error: "domain_inactive",
-          reason: "선택한 도메인이 비활성 상태입니다.",
-        },
+        { error: "domain_inactive", reason: "선택한 도메인이 비활성 상태입니다." },
         { status: 409, headers },
       );
     }
@@ -127,13 +125,8 @@ export async function POST(request: NextRequest) {
         port: options.port,
         secure: options.secure,
         requireTLS: options.requireTLS,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        tls: {
-          rejectUnauthorized: !allowInvalidTls,
-        },
+        auth: { user: smtpUser, pass: smtpPass },
+        tls: { rejectUnauthorized: !allowInvalidTls },
         connectionTimeout: 10_000,
         greetingTimeout: 10_000,
         socketTimeout: 10_000,
@@ -151,10 +144,10 @@ export async function POST(request: NextRequest) {
     let htmlBody = template.body ?? "";
     if (project) {
       const recipientEmail = payload.recipient.trim();
-      let target = await storage.findTargetByEmail(recipientEmail);
+      let target = await findTargetByEmailInTenant(tenantId, recipientEmail);
       if (!target) {
         const nameCandidate = recipientEmail.split("@")[0] ?? "테스트";
-        target = await storage.createTarget({
+        target = await createTargetForTenant(tenantId, {
           name: nameCandidate || "테스트",
           email: recipientEmail,
           department: null,
@@ -163,7 +156,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const projectTarget = await storage.createProjectTarget({
+      const projectTarget = await createProjectTargetForTenant(tenantId, {
         projectId: project.id,
         targetId: target.id,
         status: "test",
@@ -171,21 +164,20 @@ export async function POST(request: NextRequest) {
         sentAt: new Date(),
       });
       const trackingToken = projectTarget.trackingToken ?? "";
-      const landingUrl = buildLandingUrl(trackingToken);
-      const openPixelUrl = buildOpenPixelUrl(trackingToken);
-      htmlBody = buildMailHtml(template, landingUrl, openPixelUrl).html;
+      htmlBody = buildMailHtml(
+        template,
+        buildLandingUrl(trackingToken),
+        buildOpenPixelUrl(trackingToken),
+      ).html;
     }
+
     htmlBody = enforceBlackTextForSend(htmlBody);
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
     const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
     const plainText = stripHtml(htmlBody);
-
     const mailPayload = {
-      envelope: {
-        from: fromEmail,
-        to: [payload.recipient],
-      },
+      envelope: { from: fromEmail, to: [payload.recipient] },
       from: `"${fromName}" <${fromEmail}>`,
       to: payload.recipient,
       subject: prefixedSubject,
@@ -199,11 +191,7 @@ export async function POST(request: NextRequest) {
 
     let delivery;
     let usedFallback = false;
-    const sendWithTransport = async (options: {
-      port: number;
-      secure: boolean;
-      requireTLS?: boolean;
-    }) => {
+    const sendWithTransport = async (options: { port: number; secure: boolean; requireTLS?: boolean }) => {
       const transporter = buildTransporter(options);
       try {
         return await transporter.sendMail(mailPayload);
@@ -257,27 +245,6 @@ export async function POST(request: NextRequest) {
         { status: 422, headers },
       );
     }
-    const isDev = process.env.NODE_ENV !== "production";
-    const errorDetails =
-      error instanceof Error
-        ? {
-            message: error.message,
-            code: (error as { code?: string }).code,
-            command: (error as { command?: string }).command,
-            response: (error as { response?: string }).response,
-          }
-        : null;
-    console.error("테스트 메일 발송 실패", error);
-    return NextResponse.json(
-      {
-        error: "test_send_failed",
-        reason:
-          isDev && errorDetails?.message
-            ? errorDetails.message
-            : "테스트 메일 발송 중 오류가 발생했습니다.",
-        details: isDev ? errorDetails : undefined,
-      },
-      { status: 500, headers },
-    );
+    return buildReadyTenantErrorResponse(error, "테스트 메일 발송에 실패했습니다.");
   }
 }

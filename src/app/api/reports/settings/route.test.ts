@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TENANT_A_ID } from "@/test/tenantFixtures";
 
-const storageMock = vi.hoisted(() => ({
-  listReportSettings: vi.fn(),
-  getDefaultReportSetting: vi.fn(),
-  createReportSetting: vi.fn(),
+const currentTenantMock = vi.hoisted(() => ({
+  requireReadyTenant: vi.fn(),
+  buildReadyTenantErrorResponse: vi.fn((_error, message: string, status = 500) =>
+    Response.json({ error: message }, { status }),
+  ),
+}));
+
+const tenantStorageMock = vi.hoisted(() => ({
+  listTenantReportSettings: vi.fn(),
+  getDefaultReportSettingInTenant: vi.fn(),
+  createReportSettingForTenant: vi.fn(),
 }));
 
 const reportStorageMock = vi.hoisted(() => ({
@@ -14,31 +22,29 @@ const reportStorageMock = vi.hoisted(() => ({
 
 const writeFileMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/server/storage", () => ({
-  storage: storageMock,
-}));
-
+vi.mock("@/server/tenant/currentTenant", () => currentTenantMock);
+vi.mock("@/server/tenant/tenantStorage", () => tenantStorageMock);
 vi.mock("@/server/services/reportStorage", () => ({
   buildReportSettingLogoFileKey: reportStorageMock.buildReportSettingLogoFileKey,
   ensureDirectoryForFile: reportStorageMock.ensureDirectoryForFile,
   resolveStoragePath: reportStorageMock.resolveStoragePath,
 }));
-
 vi.mock("node:fs", () => ({
-  promises: {
-    writeFile: writeFileMock,
-  },
+  default: { promises: { writeFile: writeFileMock } },
+  promises: { writeFile: writeFileMock },
 }));
 
 import { GET, POST } from "./route";
 
 describe("GET /api/reports/settings", () => {
   beforeEach(() => {
-    storageMock.listReportSettings.mockReset();
+    currentTenantMock.requireReadyTenant.mockReset();
+    tenantStorageMock.listTenantReportSettings.mockReset();
+    currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: TENANT_A_ID });
   });
 
   it("페이지네이션 결과를 반환한다", async () => {
-    storageMock.listReportSettings.mockResolvedValue({
+    tenantStorageMock.listTenantReportSettings.mockResolvedValue({
       items: [{ id: "s1", name: "기본" }],
       page: 1,
       pageSize: 10,
@@ -46,23 +52,27 @@ describe("GET /api/reports/settings", () => {
       totalPages: 1,
     });
 
-    const response = await GET(new Request("http://localhost/api/reports/settings?page=1&pageSize=10"));
+    const response = await GET(
+      new Request("http://localhost/api/reports/settings?page=1&pageSize=10") as never,
+    );
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(storageMock.listReportSettings).toHaveBeenCalledWith(1, 10);
+    expect(tenantStorageMock.listTenantReportSettings).toHaveBeenCalledWith(TENANT_A_ID, 1, 10);
     expect(body.items).toHaveLength(1);
   });
 });
 
 describe("POST /api/reports/settings", () => {
   beforeEach(() => {
-    storageMock.getDefaultReportSetting.mockReset();
-    storageMock.createReportSetting.mockReset();
+    currentTenantMock.requireReadyTenant.mockReset();
+    tenantStorageMock.getDefaultReportSettingInTenant.mockReset();
+    tenantStorageMock.createReportSettingForTenant.mockReset();
     reportStorageMock.buildReportSettingLogoFileKey.mockReset();
     reportStorageMock.ensureDirectoryForFile.mockReset();
     reportStorageMock.resolveStoragePath.mockReset();
     writeFileMock.mockReset();
+    currentTenantMock.requireReadyTenant.mockResolvedValue({ tenantId: TENANT_A_ID });
   });
 
   it("로고 파일이 없으면 400을 반환한다", async () => {
@@ -71,26 +81,26 @@ describe("POST /api/reports/settings", () => {
     formData.set("companyName", "회사");
     formData.set("approverName", "홍길동");
 
-    const response = await POST(
-      new Request("http://localhost/api/reports/settings", {
-        method: "POST",
-        body: formData,
-      }),
-    );
+    const response = await POST({
+      formData: vi.fn().mockResolvedValue(formData),
+    } as never);
 
     expect(response.status).toBe(400);
-    expect(storageMock.createReportSetting).not.toHaveBeenCalled();
+    expect(tenantStorageMock.createReportSettingForTenant).not.toHaveBeenCalled();
   });
 
   it("정상 요청이면 설정을 생성한다", async () => {
-    storageMock.getDefaultReportSetting.mockResolvedValue(undefined);
-    reportStorageMock.buildReportSettingLogoFileKey.mockReturnValue("reports/settings/s1/logo.png");
+    tenantStorageMock.getDefaultReportSettingInTenant.mockResolvedValue(undefined);
+    reportStorageMock.buildReportSettingLogoFileKey.mockReturnValue(
+      "tenants/tenant-a/reports/settings/s1/logo.png",
+    );
     reportStorageMock.resolveStoragePath.mockReturnValue("C:/tmp/logo.png");
-    storageMock.createReportSetting.mockResolvedValue({
+    tenantStorageMock.createReportSettingForTenant.mockResolvedValue({
       id: "s1",
+      tenantId: TENANT_A_ID,
       name: "설정1",
       companyName: "회사",
-      companyLogoFileKey: "reports/settings/s1/logo.png",
+      companyLogoFileKey: "tenants/tenant-a/reports/settings/s1/logo.png",
       approverName: "홍길동",
       approverTitle: "",
       isDefault: true,
@@ -103,19 +113,20 @@ describe("POST /api/reports/settings", () => {
     formData.set("companyName", "회사");
     formData.set("approverName", "홍길동");
     formData.set("isDefault", "true");
-    formData.set("logo", new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" }));
+    const logo = new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" });
+    Object.defineProperty(logo, "arrayBuffer", {
+      value: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer),
+    });
+    formData.set("logo", logo);
 
-    const response = await POST(
-      new Request("http://localhost/api/reports/settings", {
-        method: "POST",
-        body: formData,
-      }),
-    );
+    const response = await POST({
+      formData: vi.fn().mockResolvedValue(formData),
+    } as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(writeFileMock).toHaveBeenCalled();
-    expect(storageMock.createReportSetting).toHaveBeenCalled();
+    expect(tenantStorageMock.createReportSettingForTenant).toHaveBeenCalled();
     expect(body.item.id).toBe("s1");
   });
 });
