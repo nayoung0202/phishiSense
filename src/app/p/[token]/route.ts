@@ -6,6 +6,7 @@ import {
   buildTrainingLinkUrl,
   injectTrainingLink,
 } from "@/server/lib/trainingLink";
+import { normalizeTrainingUrlPlaceholders } from "@shared/templateTokens";
 
 type RouteContext = {
   params: Promise<{
@@ -62,7 +63,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     const maliciousHtml = template.maliciousPageContent?.trim() ?? "";
     const isFallback = maliciousHtml.length === 0;
-    const baseHtml = neutralizePreviewModalHtml(isFallback ? template.body || "" : maliciousHtml);
+    const baseHtml = normalizeTrainingUrlPlaceholders(
+      neutralizePreviewModalHtml(isFallback ? template.body || "" : maliciousHtml),
+    );
     const trainingUrl = buildTrainingLinkUrl(normalized);
     const submitUrl = buildSubmitFormUrl(normalized);
     const hasTrainingToken = trainingTokenMatcher.test(baseHtml);

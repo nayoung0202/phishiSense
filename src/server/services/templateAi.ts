@@ -9,6 +9,7 @@ import {
   templateAiDifficultyLabels,
   templateAiToneLabels,
 } from "@shared/templateAi";
+import { normalizeTrainingUrlPlaceholders } from "@shared/templateTokens";
 
 type GeminiUsageMetadata = {
   promptTokenCount?: number;
@@ -260,15 +261,17 @@ const trainingAnchorPattern =
   /<a[\s\S]*?href=["']\s*\{\{\s*TRAINING_URL\s*\}\}\s*["'][\s\S]*?>/i;
 
 const ensureTrainingAnchorLink = (html: string) => {
-  if (trainingAnchorPattern.test(html)) {
-    return html;
+  const normalizedHtml = normalizeTrainingUrlPlaceholders(html);
+
+  if (trainingAnchorPattern.test(normalizedHtml)) {
+    return normalizedHtml;
   }
 
-  if (/<\/form>/i.test(html)) {
-    return html.replace(/<\/form>/i, `</form>${trainingAnchorHtml}`);
+  if (/<\/form>/i.test(normalizedHtml)) {
+    return normalizedHtml.replace(/<\/form>/i, `</form>${trainingAnchorHtml}`);
   }
 
-  return `${html}${trainingAnchorHtml}`;
+  return `${normalizedHtml}${trainingAnchorHtml}`;
 };
 
 const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {

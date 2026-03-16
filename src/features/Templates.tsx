@@ -29,6 +29,7 @@ import {
   countTokenOccurrences,
   MAIL_LANDING_TOKENS,
   MALICIOUS_TRAINING_TOKENS,
+  normalizeTrainingUrlPlaceholders,
 } from "@shared/templateTokens";
 
 export default function Templates() {
@@ -108,7 +109,9 @@ export default function Templates() {
     ? buildMailHtml(previewTemplate, previewLandingUrl, previewOpenPixelUrl)
     : null;
   const previewBody = previewMailResult?.html ?? "";
-  const previewMaliciousRaw = previewTemplate?.maliciousPageContent ?? "";
+  const previewMaliciousRaw = normalizeTrainingUrlPlaceholders(
+    previewTemplate?.maliciousPageContent ?? "",
+  );
   const previewMaliciousHasTrainingToken = previewTrainingTokenMatcher.test(previewMaliciousRaw);
   const previewMaliciousHasSubmitToken = previewSubmitTokenMatcher.test(previewMaliciousRaw);
   const previewMalicious = previewMaliciousRaw

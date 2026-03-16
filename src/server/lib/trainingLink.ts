@@ -1,5 +1,6 @@
 import process from "node:process";
 import { randomBytes } from "node:crypto";
+import { normalizeTrainingUrlPlaceholders } from "@shared/templateTokens";
 
 const DEFAULT_APP_URL = "http://localhost:3000";
 
@@ -56,12 +57,14 @@ export const injectTrainingLink = (
   trainingUrl: string,
   options: InjectTrainingLinkOptions = {},
 ) => {
-  if (placeholderDetector.test(htmlBody)) {
-    return htmlBody.replace(placeholderReplacer, trainingUrl);
+  const normalizedHtmlBody = normalizeTrainingUrlPlaceholders(htmlBody);
+
+  if (placeholderDetector.test(normalizedHtmlBody)) {
+    return normalizedHtmlBody.replace(placeholderReplacer, trainingUrl);
   }
 
-  if (options.replaceFirstAnchor && anchorHrefMatcher.test(htmlBody)) {
-    return htmlBody.replace(
+  if (options.replaceFirstAnchor && anchorHrefMatcher.test(normalizedHtmlBody)) {
+    return normalizedHtmlBody.replace(
       anchorHrefMatcher,
       (_match, leading, quote, _href, trailing) =>
         `<a${leading}href=${quote}${trainingUrl}${quote}${trailing}>`,
@@ -70,9 +73,9 @@ export const injectTrainingLink = (
 
   const shouldReplaceSingleAnchor = options.replaceSingleAnchor !== false;
   if (shouldReplaceSingleAnchor) {
-    const anchorMatches = htmlBody.match(anchorHrefFinder);
+    const anchorMatches = normalizedHtmlBody.match(anchorHrefFinder);
     if (anchorMatches?.length === 1) {
-      return htmlBody.replace(
+      return normalizedHtmlBody.replace(
         anchorHrefMatcher,
         (_match, leading, quote, _href, trailing) =>
           `<a${leading}href=${quote}${trainingUrl}${quote}${trailing}>`,
@@ -81,7 +84,7 @@ export const injectTrainingLink = (
   }
 
   if (options.replaceFirstButton) {
-    const buttonMatch = htmlBody.match(buttonOpenTagMatcher);
+    const buttonMatch = normalizedHtmlBody.match(buttonOpenTagMatcher);
     if (buttonMatch) {
       const rawAttributes = buttonMatch[1] ?? "";
       const trimmed = rawAttributes.trim();
@@ -102,7 +105,7 @@ export const injectTrainingLink = (
       }
       const normalized =
         updatedAttributes.length > 0 ? ` ${updatedAttributes}` : "";
-      return htmlBody.replace(buttonOpenTagMatcher, `<button${normalized}>`);
+      return normalizedHtmlBody.replace(buttonOpenTagMatcher, `<button${normalized}>`);
     }
   }
 
@@ -111,12 +114,12 @@ export const injectTrainingLink = (
     appendType === "button"
       ? `<hr />\n<form action="${trainingUrl}" method="get" style="margin:16px 0;">\n  <button type="submit" style="padding:10px 16px; border-radius:999px; background:#2563eb; color:#ffffff; border:none; font-weight:600;">훈련 안내 페이지로 이동</button>\n</form>`
       : `<hr />\n<p>훈련 안내 페이지: <a href="${trainingUrl}">여기 클릭</a></p>`;
-  if (!htmlBody || htmlBody.trim().length === 0) {
+  if (!normalizedHtmlBody || normalizedHtmlBody.trim().length === 0) {
     return linkBlock;
   }
 
-  const separator = htmlBody.endsWith("\n") ? "\n" : "\n\n";
-  return `${htmlBody}${separator}${linkBlock}`;
+  const separator = normalizedHtmlBody.endsWith("\n") ? "\n" : "\n\n";
+  return `${normalizedHtmlBody}${separator}${linkBlock}`;
 };
 
 export const injectPhishingLink = (htmlBody: string, phishingUrl: string) => {
@@ -137,7 +140,7 @@ export const injectLinks = (
   htmlBody: string,
   { landingUrl, submitUrl, openPixelUrl }: InjectLinksOptions,
 ) => {
-  let output = htmlBody;
+  let output = normalizeTrainingUrlPlaceholders(htmlBody);
 
   output = output.replace(landingPlaceholderReplacer, landingUrl);
   output = output.replace(submitPlaceholderReplacer, submitUrl);

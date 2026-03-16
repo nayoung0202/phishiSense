@@ -33,7 +33,10 @@ const buildGeminiUnavailableResponse = () =>
     },
   );
 
-const buildGeminiSuccessResponse = (candidateCount: number) =>
+const buildGeminiSuccessResponse = (
+  candidateCount: number,
+  maliciousPageContent = '<form action="{{TRAINING_URL}}"><input name="email" /><button type="submit">제출</button></form>',
+) =>
   new Response(
     JSON.stringify({
       candidates: [
@@ -45,8 +48,7 @@ const buildGeminiSuccessResponse = (candidateCount: number) =>
                   candidates: Array.from({ length: candidateCount }, (_, index) => ({
                     subject: `후보 ${index + 1}`,
                     body: '<div><a href="{{LANDING_URL}}">확인</a></div>',
-                    maliciousPageContent:
-                      '<form action="{{TRAINING_URL}}"><input name="email" /><button type="submit">제출</button></form>',
+                    maliciousPageContent,
                     summary: `요약 ${index + 1}`,
                   })),
                 }),
@@ -81,7 +83,7 @@ describe("generateTemplateAiCandidates", () => {
     vi.unstubAllEnvs();
   });
 
-  it("Gemini 503 과부하는 재시도 후 서비스 오류로 변환한다", async () => {
+  it("Gemini 503 오류는 재시도 가능한 서비스 오류로 바꾼다", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(buildGeminiUnavailableResponse())
@@ -104,7 +106,7 @@ describe("generateTemplateAiCandidates", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("재시도 중 응답이 회복되면 후보를 정상 반환한다", async () => {
+  it("재시도 중 응답이 복구되면 후보를 정상 반환한다", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(buildGeminiUnavailableResponse())
@@ -133,7 +135,7 @@ describe("generateTemplateAiCandidates", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("모델 응답에 훈련 링크 앵커가 없어도 표준 링크를 자동 보강한다", async () => {
+  it("모델 응답에 훈련 링크가 없으면 앵커를 자동 보강한다", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(buildGeminiSuccessResponse(1));
 
     vi.stubGlobal("fetch", fetchMock);
@@ -146,5 +148,27 @@ describe("generateTemplateAiCandidates", () => {
     expect(result.candidates[0]?.maliciousPageContent).toContain(
       'href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer"',
     );
+  });
+
+  it("모델 응답의 TRAINING_URL 오타 토큰을 표준 토큰으로 정규화한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        buildGeminiSuccessResponse(
+          1,
+          '<form action="{{tranning_url}}}"><input name="email" /><button type="submit">제출</button></form><a href="{{tranning_url}}}" target="_blank" rel="noopener noreferrer">훈련 안내</a>',
+        ),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateTemplateAiCandidates({
+      ...baseRequest,
+      generateCount: 1,
+    });
+
+    expect(result.candidates[0]?.maliciousPageContent).toContain('action="{{TRAINING_URL}}"');
+    expect(result.candidates[0]?.maliciousPageContent).toContain('href="{{TRAINING_URL}}"');
+    expect(result.candidates[0]?.maliciousPageContent).not.toContain("tranning_url");
   });
 });

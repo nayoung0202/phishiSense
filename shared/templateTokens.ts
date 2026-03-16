@@ -1,4 +1,6 @@
 const tokenPattern = /\{\{\s*([A-Z0-9_]+)\s*\}\}/gi;
+const trainingUrlAliasPattern =
+  /\{\{\{?\s*(?:TRAINING_URL|TRANNING_URL|TRAINNING_URL)\s*\}\}\}?/gi;
 
 export const MAIL_ALLOWED_TOKENS = ["LANDING_URL", "OPEN_PIXEL_URL"] as const;
 export const MAIL_LANDING_TOKENS = ["LANDING_URL"] as const;
@@ -14,12 +16,18 @@ export type TemplateToken =
   | typeof MAIL_ALLOWED_TOKENS[number]
   | typeof MALICIOUS_ALLOWED_TOKENS[number];
 
+export const normalizeTrainingUrlPlaceholders = (html: string) => {
+  if (!html) return "";
+  return html.replace(trainingUrlAliasPattern, "{{TRAINING_URL}}");
+};
+
 export const extractTemplateTokens = (html: string) => {
   const tokens = new Set<string>();
-  if (!html) return [];
+  const normalizedHtml = normalizeTrainingUrlPlaceholders(html);
+  if (!normalizedHtml) return [];
   tokenPattern.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = tokenPattern.exec(html))) {
+  while ((match = tokenPattern.exec(normalizedHtml))) {
     const token = (match[1] ?? "").trim().toUpperCase();
     if (token) {
       tokens.add(token);
@@ -40,12 +48,13 @@ export const countTokenOccurrences = (
   html: string,
   candidates: readonly string[],
 ) => {
-  if (!html) return 0;
+  const normalizedHtml = normalizeTrainingUrlPlaceholders(html);
+  if (!normalizedHtml) return 0;
   const candidateSet = new Set(candidates.map((token) => token.toUpperCase()));
   tokenPattern.lastIndex = 0;
   let count = 0;
   let match: RegExpExecArray | null;
-  while ((match = tokenPattern.exec(html))) {
+  while ((match = tokenPattern.exec(normalizedHtml))) {
     const token = (match[1] ?? "").trim().toUpperCase();
     if (candidateSet.has(token)) {
       count += 1;

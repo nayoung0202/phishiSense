@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let project: any;
 let projectTarget: any;
@@ -24,7 +24,7 @@ beforeEach(() => {
 
   project = {
     id: "project-1",
-    name: "테스트 프로젝트",
+    name: "test project",
     description: null,
     department: null,
     departmentTags: [],
@@ -38,7 +38,7 @@ beforeEach(() => {
     notificationEmails: [],
     startDate: new Date("2025-01-01T00:00:00Z"),
     endDate: new Date("2025-01-02T00:00:00Z"),
-    status: "진행중",
+    status: "running",
     targetCount: 1,
     openCount: 0,
     clickCount: 0,
@@ -69,12 +69,12 @@ beforeEach(() => {
   storageMock.getProject.mockImplementation(async () => project);
   storageMock.getTemplate.mockResolvedValue({
     id: "template-1",
-    name: "템플릿",
-    subject: "테스트",
-    body: "<p>테스트</p>",
-    maliciousPageContent: "<p>악성 페이지</p>",
+    name: "template",
+    subject: "test",
+    body: "<p>test</p>",
+    maliciousPageContent: "<p>malicious page</p>",
     autoInsertLandingEnabled: true,
-    autoInsertLandingLabel: "문서 확인하기",
+    autoInsertLandingLabel: "view document",
     autoInsertLandingKind: "link",
     autoInsertLandingNewTab: true,
     createdAt: new Date(),
@@ -82,9 +82,9 @@ beforeEach(() => {
   });
   storageMock.getTrainingPage.mockResolvedValue({
     id: "page-1",
-    name: "페이지",
+    name: "training page",
     description: null,
-    content: "<p>훈련</p>",
+    content: "<p>training</p>",
     status: "active",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -100,7 +100,7 @@ beforeEach(() => {
 });
 
 describe("GET /p/[trackingToken]", () => {
-  it("중복 호출 시 카운트가 한번만 증가한다", async () => {
+  it("increments counts only once for duplicate opens", async () => {
     await GET(new Request("http://localhost/p/track-1"), {
       params: Promise.resolve({ token: "track-1" }),
     });
@@ -114,16 +114,16 @@ describe("GET /p/[trackingToken]", () => {
     expect(project.clickCount).toBe(1);
   });
 
-  it("고정 모달 래퍼가 있는 악성본문은 내부 카드만 렌더링한다", async () => {
+  it("renders only the inner card when malicious content uses a fixed modal wrapper", async () => {
     storageMock.getTemplate.mockResolvedValueOnce({
       id: "template-1",
-      name: "템플릿",
-      subject: "테스트",
-      body: "<p>테스트</p>",
+      name: "template",
+      subject: "test",
+      body: "<p>test</p>",
       maliciousPageContent:
-        '<div style="position:fixed;inset:0;display:flex"><section class="card"><form action="{{TRAINING_URL}}"><button type="submit">제출</button></form></section></div>',
+        '<div style="position:fixed;inset:0;display:flex"><section class="card"><form action="{{TRAINING_URL}}"><button type="submit">submit</button></form></section></div>',
       autoInsertLandingEnabled: true,
-      autoInsertLandingLabel: "문서 확인하기",
+      autoInsertLandingLabel: "view document",
       autoInsertLandingKind: "link",
       autoInsertLandingNewTab: true,
       createdAt: new Date(),
@@ -138,5 +138,31 @@ describe("GET /p/[trackingToken]", () => {
     expect(html).toContain('<section class="card">');
     expect(html).not.toContain("position:fixed");
     expect(html).not.toContain("inset:0");
+  });
+
+  it("replaces saved TRAINING_URL typo placeholders with real links", async () => {
+    storageMock.getTemplate.mockResolvedValueOnce({
+      id: "template-1",
+      name: "typo template",
+      subject: "test",
+      body: "<p>test</p>",
+      maliciousPageContent:
+        '<div><form action="{{tranning_url}}}"><button type="submit">submit</button></form><a href="{{tranning_url}}}" target="_blank" rel="noopener noreferrer">training</a></div>',
+      autoInsertLandingEnabled: true,
+      autoInsertLandingLabel: "view document",
+      autoInsertLandingKind: "link",
+      autoInsertLandingNewTab: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const response = await GET(new Request("http://localhost/p/track-1"), {
+      params: Promise.resolve({ token: "track-1" }),
+    });
+    const html = await response.text();
+
+    expect(html).toContain('action="http://localhost:3000/p/track-1/submit"');
+    expect(html).toContain('href="http://localhost:3000/t/track-1"');
+    expect(html).not.toContain("tranning_url");
   });
 });

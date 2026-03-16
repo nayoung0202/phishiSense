@@ -37,6 +37,7 @@ import {
   MAIL_LANDING_TOKENS,
   MALICIOUS_ALLOWED_TOKENS,
   MALICIOUS_TRAINING_TOKENS,
+  normalizeTrainingUrlPlaceholders,
 } from "@shared/templateTokens";
 import {
   buildAutoInsertBlock,
@@ -129,7 +130,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
     previewLandingUrl,
     previewOpenPixelUrl,
   ).html;
-  const previewMaliciousHtml = maliciousValue
+  const previewMaliciousHtml = normalizeTrainingUrlPlaceholders(maliciousValue)
     .replace(previewTrainingTokenReplacer, previewTrainingUrl)
     .replace(previewSubmitTokenReplacer, previewSubmitUrl);
   const handleInsertLandingLink = () => {
