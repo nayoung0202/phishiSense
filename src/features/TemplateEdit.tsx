@@ -262,7 +262,7 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
 
       <Card className="p-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
               name="name"
