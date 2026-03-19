@@ -299,7 +299,7 @@ export default function ProjectExperienceWizard() {
         description: "체험용 훈련 안내 페이지를 저장했습니다.",
       });
       window.requestAnimationFrame(() => {
-        focusStepCard(smtpStepRef.current);
+        focusStepCard(activeSmtpConfig ? deliveryStepRef.current : smtpStepRef.current);
       });
     },
     onError: (error) => {
