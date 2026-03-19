@@ -6,10 +6,6 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import {
   TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT,
-  templateAiDifficultyLabels,
-  templateAiDifficultyOptions,
-  templateAiToneLabels,
-  templateAiToneOptions,
   templateAiTopicLabels,
   templateAiTopicOptions,
   validateTemplateAiReferenceAttachmentMeta,
@@ -31,13 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 type GenerateResponse = {
@@ -55,8 +45,6 @@ type Props = {
 type DialogStep = "options" | "candidates";
 
 const DEFAULT_TOPIC: (typeof templateAiTopicOptions)[number] = "shipping";
-const DEFAULT_TONE: (typeof templateAiToneOptions)[number] = "informational";
-const DEFAULT_DIFFICULTY: (typeof templateAiDifficultyOptions)[number] = "medium";
 const previewSurfaceClass =
   "site-scrollbar max-h-[320px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
 const focusedPreviewSurfaceClass =
@@ -89,9 +77,6 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   const [step, setStep] = useState<DialogStep>("options");
   const [topic, setTopic] = useState<(typeof templateAiTopicOptions)[number]>(DEFAULT_TOPIC);
   const [customTopic, setCustomTopic] = useState("");
-  const [tone, setTone] = useState<(typeof templateAiToneOptions)[number]>(DEFAULT_TONE);
-  const [difficulty, setDifficulty] =
-    useState<(typeof templateAiDifficultyOptions)[number]>(DEFAULT_DIFFICULTY);
   const [prompt, setPrompt] = useState("");
   const [candidates, setCandidates] = useState<TrainingPageAiCandidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -112,8 +97,6 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
     setStep("options");
     setTopic(DEFAULT_TOPIC);
     setCustomTopic("");
-    setTone(DEFAULT_TONE);
-    setDifficulty(DEFAULT_DIFFICULTY);
     setPrompt("");
     setCandidates([]);
     setSelectedCandidateId(null);
@@ -135,8 +118,6 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
       const formData = new FormData();
       formData.set("topic", topic);
       formData.set("customTopic", customTopic);
-      formData.set("tone", tone);
-      formData.set("difficulty", difficulty);
       formData.set("prompt", prompt);
       formData.set("generateCount", String(4 - preservedCandidates.length));
       formData.set(
@@ -263,7 +244,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">1단계. 생성 조건 설정</h3>
           <p className="text-sm text-muted-foreground">
-            생성 조건을 입력하고 훈련안내페이지 후보를 생성합니다.
+            주제를 선택하면 AI가 제목과 안내 구성을 자동으로 생성합니다.
           </p>
         </div>
 
@@ -298,48 +279,14 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         ) : null}
 
         <div className="space-y-2">
-          <Label>문체</Label>
-          <Select value={tone} onValueChange={(value) => setTone(value as typeof tone)}>
-            <SelectTrigger>
-              <SelectValue placeholder="문체를 선택해 주세요" />
-            </SelectTrigger>
-            <SelectContent>
-              {templateAiToneOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {templateAiToneLabels[option]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>구분 난이도</Label>
-          <Select
-            value={difficulty}
-            onValueChange={(value) => setDifficulty(value as typeof difficulty)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="구분 난이도를 선택해 주세요" />
-            </SelectTrigger>
-            <SelectContent>
-              {templateAiDifficultyOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {templateAiDifficultyLabels[option]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>추가 요청사항</Label>
+          <Label htmlFor="training-page-ai-prompt">추가 요청사항</Label>
           <Textarea
+            id="training-page-ai-prompt"
             aria-label="추가 요청사항"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="원하는 분위기, 포함해야 할 학습 포인트, CTA 문구 등을 입력해 주세요"
-            className="min-h-[180px]"
+            placeholder="강조하고 싶은 학습 포인트나 꼭 포함하고 싶은 안내 문구를 입력해 주세요"
+            className="min-h-[140px]"
             maxLength={800}
           />
           <p className="text-xs text-muted-foreground">{prompt.length}/800자</p>
@@ -368,8 +315,8 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         </Card>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-          AI가 생성한 훈련안내페이지는 초안입니다. 본문 구조, 학습 안내 문구, 버튼 문구를
-          확인한 뒤 저장해 주세요.
+          주제에 맞는 필수 안전 안내 문구는 자동으로 포함됩니다. 예를 들어 계정 보안 주제는
+          메일 링크 대신 공식 사이트나 공식 앱에 직접 접속해 확인하라는 안내가 기본 포함됩니다.
         </div>
 
         <div className="flex flex-col gap-2">

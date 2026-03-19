@@ -90,15 +90,35 @@ const parseTrainingPageAiRequest = async (request: Request): Promise<TrainingPag
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
 
   if (!contentType.includes("multipart/form-data")) {
-    return trainingPageAiRequestSchema.parse(await request.json());
+    const clonedRequest = request.clone();
+
+    try {
+      return trainingPageAiRequestSchema.parse(await request.json());
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw error;
+      }
+
+      try {
+        const formData = await clonedRequest.formData();
+        return trainingPageAiRequestSchema.parse({
+          topic: formData.get("topic"),
+          customTopic: formData.get("customTopic"),
+          prompt: formData.get("prompt"),
+          generateCount: Number(formData.get("generateCount") ?? 4),
+          preservedCandidates: parseJsonArrayField(formData.get("preservedCandidates"), []),
+          referenceAttachment: await parseReferenceAttachment(formData.get("referenceAttachment")),
+        });
+      } catch {
+        throw error;
+      }
+    }
   }
 
   const formData = await request.formData();
   return trainingPageAiRequestSchema.parse({
     topic: formData.get("topic"),
     customTopic: formData.get("customTopic"),
-    tone: formData.get("tone"),
-    difficulty: formData.get("difficulty"),
     prompt: formData.get("prompt"),
     generateCount: Number(formData.get("generateCount") ?? 4),
     preservedCandidates: parseJsonArrayField(formData.get("preservedCandidates"), []),

@@ -47,9 +47,7 @@ describe("POST /api/training-pages/ai-generate", () => {
         body: JSON.stringify({
           topic: "shipping",
           customTopic: "",
-          tone: "formal",
-          difficulty: "easy",
-          prompt: "",
+          prompt: "핵심 주의 문구를 짧게 넣어 주세요.",
           generateCount: 1,
           preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
         }),
@@ -62,12 +60,13 @@ describe("POST /api/training-pages/ai-generate", () => {
     expect(generateTrainingPageAiCandidatesMock).toHaveBeenCalledWith(
       expect.objectContaining({
         topic: "shipping",
+        prompt: "핵심 주의 문구를 짧게 넣어 주세요.",
         preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
       }),
     );
   });
 
-  it("multipart 첨부파일 요청을 파싱해 서비스로 전달한다", async () => {
+  it("참고 첨부 payload를 파싱해 서비스로 전달한다", async () => {
     generateTrainingPageAiCandidatesMock.mockResolvedValue({
       candidates: [
         {
@@ -87,23 +86,22 @@ describe("POST /api/training-pages/ai-generate", () => {
       },
     });
 
-    const formData = new FormData();
-    formData.set("topic", "shipping");
-    formData.set("customTopic", "");
-    formData.set("tone", "formal");
-    formData.set("difficulty", "medium");
-    formData.set("prompt", "첨부 참고");
-    formData.set("generateCount", "1");
-    formData.set("preservedCandidates", "[]");
-    formData.set(
-      "referenceAttachment",
-      new File(["<div>훈련 페이지 참고</div>"], "training-reference.html", { type: "text/html" }),
-    );
-
     const response = await POST(
       new Request("http://localhost/api/training-pages/ai-generate", {
         method: "POST",
-        body: formData,
+        body: JSON.stringify({
+          topic: "shipping",
+          customTopic: "",
+          prompt: "",
+          generateCount: 1,
+          preservedCandidates: [],
+          referenceAttachment: {
+            name: "training-reference.html",
+            mimeType: "text/html",
+            kind: "html",
+            textContent: "<div>훈련 페이지 참고</div>",
+          },
+        }),
       }),
     );
 
@@ -126,8 +124,6 @@ describe("POST /api/training-pages/ai-generate", () => {
         body: JSON.stringify({
           topic: "other",
           customTopic: "",
-          tone: "informational",
-          difficulty: "medium",
           prompt: "",
           generateCount: 4,
           preservedCandidates: [],
@@ -155,8 +151,6 @@ describe("POST /api/training-pages/ai-generate", () => {
         body: JSON.stringify({
           topic: "other",
           customTopic: "파일 확인 학습 안내",
-          tone: "informational",
-          difficulty: "medium",
           prompt: "",
           generateCount: 4,
           preservedCandidates: [],

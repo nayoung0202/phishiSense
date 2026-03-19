@@ -21,7 +21,7 @@ const buildCandidates = (prefix: string, count: number) =>
     id: `${prefix}-${index + 1}`,
     name: `${prefix} 후보 ${index + 1}`,
     description: `${prefix} 설명 ${index + 1}`,
-    content: `<div><button type="button">${prefix} 확인 ${index + 1}</button></div>`,
+    content: `<div><p>${prefix} 학습 안내 ${index + 1}</p></div>`,
     summary: `${prefix} 요약 ${index + 1}`,
   }));
 
@@ -43,6 +43,12 @@ describe("TrainingPageAiGenerateDialog", () => {
     expect(screen.getByText("1단계. 생성 조건 설정")).toBeInTheDocument();
     expect(screen.getByLabelText("훈련안내페이지 첨부파일")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI 훈련안내페이지 생성" })).toBeInTheDocument();
+    expect(screen.getByLabelText("추가 요청사항")).toBeInTheDocument();
+    expect(screen.queryByText("문체")).not.toBeInTheDocument();
+    expect(screen.queryByText("구분 난이도")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText(/주제에 맞는 필수 안전 안내 문구는 자동으로 포함됩니다\./),
+    ).toHaveLength(1);
   });
 
   it("후보 선택 후 초안을 저장하고 페이지 작성 화면으로 이동한다", async () => {

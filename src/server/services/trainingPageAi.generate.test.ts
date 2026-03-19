@@ -8,8 +8,6 @@ import {
 const baseRequest: TrainingPageAiRequest = {
   topic: "other",
   customTopic: "파일 확인 훈련 안내",
-  tone: "informational",
-  difficulty: "medium",
   prompt: "",
   generateCount: 4,
   preservedCandidates: [],
@@ -35,7 +33,7 @@ const buildGeminiUnavailableResponse = () =>
 
 const buildGeminiSuccessResponse = (
   candidateCount: number,
-  content = '<div><button type="button">확인</button></div>',
+  content = "<div><p>학습 안내를 확인해 주세요.</p></div>",
 ) =>
   new Response(
     JSON.stringify({
@@ -124,7 +122,7 @@ describe("generateTrainingPageAiCandidates", () => {
       candidates: expect.arrayContaining([
         expect.objectContaining({
           name: "훈련 후보 1",
-          content: expect.stringContaining('type="button"'),
+          content: "<div><p>학습 안내를 확인해 주세요.</p></div>",
         }),
       ]),
       usage: expect.objectContaining({
@@ -155,6 +153,32 @@ describe("generateTrainingPageAiCandidates", () => {
       candidates: expect.arrayContaining([
         expect.objectContaining({
           content: "<section><p>학습 안내를 다시 확인해 주세요.</p></section>",
+        }),
+      ]),
+    });
+  });
+
+  it("응답에 링크나 버튼이 포함돼도 후보 저장 전 제거한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        buildGeminiSuccessResponse(
+          1,
+          '<section><a href="https://example.com">자세히 보기</a><button type="button">확인</button></section>',
+        ),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateTrainingPageAiCandidates({
+        ...baseRequest,
+        generateCount: 1,
+      }),
+    ).resolves.toMatchObject({
+      candidates: expect.arrayContaining([
+        expect.objectContaining({
+          content: "<section>자세히 보기확인</section>",
         }),
       ]),
     });

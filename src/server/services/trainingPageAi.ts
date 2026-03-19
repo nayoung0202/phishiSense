@@ -4,9 +4,8 @@ import {
   type TemplateAiReferenceAttachment,
   type TrainingPageAiCandidate,
   type TrainingPageAiRequest,
+  buildTrainingPageAiMandatoryGuidance,
   buildTrainingPageAiTopicText,
-  trainingPageAiDifficultyLabels,
-  trainingPageAiToneLabels,
 } from "@shared/trainingPageAi";
 import { findUnsafeTemplateHtmlIssues } from "@shared/templateAi";
 
@@ -81,6 +80,11 @@ const responseSchema = {
   required: ["candidates"],
 };
 
+const stripInteractiveElements = (html: string) =>
+  html
+    .replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1")
+    .replace(/<button\b[^>]*>([\s\S]*?)<\/button>/gi, "$1");
+
 const referenceTrainingPageHtml = `
 <div style="min-height:100vh;background:#f8fafc;padding:48px 20px;font-family:Arial,sans-serif;color:#0f172a">
   <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 20px 50px rgba(15,23,42,0.12);overflow:hidden">
@@ -101,11 +105,9 @@ const referenceTrainingPageHtml = `
           <li>의심 메일은 즉시 보안 담당자에게 공유합니다.</li>
         </ul>
       </div>
-      <div style="display:flex;justify-content:center">
-        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;padding:14px 24px;border:none;border-radius:999px;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;cursor:default">
-          내용 확인
-        </button>
-      </div>
+      <p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#475569">
+        위 내용을 숙지하고, 다음 메일 수신 시 동일한 징후가 있는지 먼저 확인해 주세요.
+      </p>
     </div>
   </div>
 </div>
@@ -228,7 +230,7 @@ const sanitizeCandidate = (candidate: Omit<TrainingPageAiCandidate, "id">) => {
     ...candidate,
     name: candidate.name.trim(),
     description: candidate.description.trim(),
-    content: candidate.content.trim(),
+    content: stripInteractiveElements(candidate.content.trim()),
     summary: candidate.summary.trim(),
   };
   const contentIssues = findUnsafeTemplateHtmlIssues(normalizedCandidate.content);
@@ -251,7 +253,7 @@ const buildReferenceAttachmentPrompt = (attachment?: TemplateAiReferenceAttachme
   if (attachment.kind === "html") {
     return `
 - training page reference attachment: ${attachment.name} (${attachment.mimeType})
-Treat the following HTML reference as the primary basis for the training page. The generated training page must clearly follow its information architecture, block order, CTA placement, and visual hierarchy while still adapting wording and scenario details. Do not copy it verbatim.
+Treat the following HTML reference as the primary basis for the training page. The generated training page must clearly follow its information architecture, block order, and visual hierarchy while still adapting wording and scenario details. Do not copy it verbatim.
 
 ${attachment.textContent}
     `.trim();
@@ -350,8 +352,7 @@ const requestGeminiCandidates = async (request: TrainingPageAiRequest, apiKey: s
 
 export const buildTrainingPageAiPrompt = (request: TrainingPageAiRequest) => {
   const topicText = buildTrainingPageAiTopicText(request);
-  const toneText = trainingPageAiToneLabels[request.tone];
-  const difficultyText = trainingPageAiDifficultyLabels[request.difficulty];
+  const mandatoryGuidance = buildTrainingPageAiMandatoryGuidance(request);
   const attachmentText = buildReferenceAttachmentPrompt(request.referenceAttachment);
   const preservedText =
     request.preservedCandidates.length > 0
@@ -367,6 +368,7 @@ Write the contents in Korean, but return JSON only.
 Rules:
 - Generate exactly ${request.generateCount} candidate pages.
 - Each candidate must contain name, description, content, and summary.
+- name should be a concise Korean page title that can be used directly as the training page name.
 - content must be a complete training-page HTML string for this product and may include inline CSS or style tags.
 - The page must clearly explain that the user has reached a phishing simulation or security training notice page.
 - If a reference attachment is provided, that attachment is the primary basis for the output.
@@ -375,16 +377,19 @@ Rules:
 - Do not use JavaScript, external CSS, external scripts, or external images/resources.
 - Inline CSS and style tags are allowed.
 - Do not render the page as a fixed-position modal, dialog, or overlay.
+- Do not include links, anchor tags, buttons, or any click-inducing CTA element.
 - summary should be a one-line differentiator shown under the page name.
 - Keep the same level of inline styling, spacing, and structural clarity shown in the reference.
-- The page should feel like a calm post-training explanation screen: clear title, short explanation, 2-3 key points, and one clear acknowledgement or next-step CTA.
+- The page should feel like a calm post-training explanation screen: clear title, short explanation, 2-3 key points, and a short closing guidance sentence.
 - {{SUBMIT_URL}} is not required for training-page output.
 
 Generation inputs:
 - topic: ${topicText}
-- tone: ${toneText}
-- difficulty: ${difficultyText}
 - extra requirements: ${request.prompt || "none"}
+
+Mandatory safety guidance for this topic:
+- scenario label: ${mandatoryGuidance.topicLabel}
+${mandatoryGuidance.lines.map((line) => `- ${line}`).join("\n")}
 
 Reference attachment:
 ${attachmentText}
