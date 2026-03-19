@@ -62,7 +62,6 @@ import {
 } from "lucide-react";
 import {
   format,
-  differenceInHours,
   startOfISOWeek,
   eachDayOfInterval,
   startOfMonth,
@@ -74,6 +73,13 @@ import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ReportGenerateDialog } from "@/components/ReportGenerateDialog";
+import { getProjectActionKinds, type ProjectActionKind } from "./projectActionPolicy";
+import {
+  canCompareSelectedProjects,
+  canCopySelectedProjects,
+  canStartSelectedProjects,
+  canStopSelectedProjects,
+} from "./projectSelectionPolicy";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -96,6 +102,8 @@ type QuarterStatsItem = {
 
 const toProjectEditRoute = (projectId: string) =>
   `/projects/${projectId}/edit` as Route;
+const toProjectDetailRoute = (projectId: string) =>
+  `/projects/${projectId}` as Route;
 
 type CalendarProjectSummary = {
   id: string;
@@ -151,6 +159,7 @@ type UpdateProjectPayload = {
   id: string;
   updates: Partial<Project>;
   successMessage?: string;
+  successDescription?: string;
 };
 
 type QuarterGroup = {
@@ -691,6 +700,118 @@ export default function Projects() {
     },
   });
 
+  const copyMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await apiRequest("POST", "/api/projects/copy", { ids });
+      return (await res.json()) as Project[];
+    },
+    onSuccess: (copiedProjects) => {
+      invalidateProjectData();
+      setSelectedProjects([]);
+      toast({
+        title: "프로젝트 복제 완료",
+        description:
+          copiedProjects[0]?.name != null
+            ? `${copiedProjects[0].name} 프로젝트를 생성했습니다.`
+            : "프로젝트를 복제했습니다.",
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "프로젝트 복제에 실패했습니다.";
+      toast({ title: "복제 실패", description: message, variant: "destructive" });
+    },
+  });
+
+  const bulkStartMutation = useMutation({
+    mutationFn: async (projectsToStart: Project[]) => {
+      const results = await Promise.allSettled(
+        projectsToStart.map((project) =>
+          apiRequest("PATCH", `/api/projects/${project.id}/status`, { to: "RUNNING" }),
+        ),
+      );
+
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failureMessages = results
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) =>
+          result.reason instanceof Error ? result.reason.message : "프로젝트 시작에 실패했습니다.",
+        );
+
+      if (successCount === 0) {
+        throw new Error(failureMessages[0] ?? "프로젝트 시작에 실패했습니다.");
+      }
+
+      return {
+        totalCount: projectsToStart.length,
+        successCount,
+        failureCount: results.length - successCount,
+        failureMessages,
+      };
+    },
+    onSuccess: ({ successCount, failureCount, failureMessages }) => {
+      invalidateProjectData();
+      setSelectedProjects([]);
+      toast({
+        title: failureCount > 0 ? "일부 프로젝트 시작 완료" : "프로젝트 시작 완료",
+        description:
+          failureCount > 0
+            ? `${successCount}개 시작, ${failureCount}개 실패${failureMessages[0] ? ` · ${failureMessages[0]}` : ""}`
+            : `${successCount}개 프로젝트를 시작했습니다.`,
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "프로젝트 시작에 실패했습니다.";
+      toast({ title: "시작 실패", description: message, variant: "destructive" });
+    },
+  });
+
+  const bulkStopMutation = useMutation({
+    mutationFn: async (projectsToStop: Project[]) => {
+      const stoppedAt = new Date();
+      const results = await Promise.allSettled(
+        projectsToStop.map((project) =>
+          apiRequest("PATCH", `/api/projects/${project.id}`, {
+            status: "완료",
+            endDate: stoppedAt,
+          }),
+        ),
+      );
+
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failureMessages = results
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) =>
+          result.reason instanceof Error ? result.reason.message : "프로젝트 중지에 실패했습니다.",
+        );
+
+      if (successCount === 0) {
+        throw new Error(failureMessages[0] ?? "프로젝트 중지에 실패했습니다.");
+      }
+
+      return {
+        totalCount: projectsToStop.length,
+        successCount,
+        failureCount: results.length - successCount,
+        failureMessages,
+      };
+    },
+    onSuccess: ({ successCount, failureCount, failureMessages }) => {
+      invalidateProjectData();
+      setSelectedProjects([]);
+      toast({
+        title: failureCount > 0 ? "일부 프로젝트 중지 완료" : "프로젝트 중지 완료",
+        description:
+          failureCount > 0
+            ? `${successCount}개 중지, ${failureCount}개 실패${failureMessages[0] ? ` · ${failureMessages[0]}` : ""}`
+            : `${successCount}개 프로젝트를 중지했습니다.`,
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "프로젝트 중지에 실패했습니다.";
+      toast({ title: "중지 실패", description: message, variant: "destructive" });
+    },
+  });
+
   const updateProjectMutation = useMutation<Project, Error, UpdateProjectPayload>({
     mutationFn: async ({ id, updates }) => {
       const res = await apiRequest("PATCH", `/api/projects/${id}`, updates);
@@ -758,7 +879,14 @@ export default function Projects() {
     projects.filter((project) => selectedProjects.includes(project.id)),
   [projects, selectedProjects]);
 
-  const canCompare = selectedProjectDetails.length >= 2;
+  const canCompare = canCompareSelectedProjects(selectedProjectDetails.length);
+  const canCopy = canCopySelectedProjects(selectedProjectDetails.length);
+  const canBulkStart = canStartSelectedProjects(
+    selectedProjectDetails.map((project) => project.status),
+  );
+  const canBulkStop = canStopSelectedProjects(
+    selectedProjectDetails.map((project) => project.status),
+  );
 
   useEffect(() => {
     if (isCompareOpen && !canCompare) {
@@ -819,6 +947,21 @@ export default function Projects() {
     setIsCompareOpen(true);
   };
 
+  const handleCopySelected = () => {
+    if (!canCopy) return;
+    copyMutation.mutate(selectedProjects.slice(0, 1));
+  };
+
+  const handleBulkStart = () => {
+    if (!canBulkStart) return;
+    bulkStartMutation.mutate(selectedProjectDetails);
+  };
+
+  const handleBulkStop = () => {
+    if (!canBulkStop) return;
+    bulkStopMutation.mutate(selectedProjectDetails);
+  };
+
   const handleBulkDelete = () => {
     if (selectedProjects.length === 0) return;
     const confirmMessage = selectedProjects.length === 1
@@ -837,6 +980,93 @@ export default function Projects() {
     setReportProject(project);
     setIsReportOpen(true);
   };
+
+  const handleCancelProject = (project: Project) => {
+    if (!confirm(`"${project.name}" 프로젝트 예약을 취소하시겠습니까?`)) return;
+    updateProjectMutation.mutate({
+      id: project.id,
+      updates: {
+        status: "임시",
+      },
+      successMessage: "프로젝트 예약을 취소했습니다.",
+    });
+  };
+
+  const handleStopProject = (project: Project) => {
+    if (!confirm(`"${project.name}" 프로젝트를 중지하시겠습니까?`)) return;
+    updateProjectMutation.mutate({
+      id: project.id,
+      updates: {
+        status: "완료",
+        endDate: new Date(),
+      },
+      successMessage: "프로젝트를 중지했습니다.",
+    });
+  };
+
+  const renderProjectActions = (project: Project) =>
+    getProjectActionKinds(project.status).map((action) => {
+      switch (action as ProjectActionKind) {
+        case "detail":
+          return (
+            <Link key={`${project.id}-detail`} href={toProjectDetailRoute(project.id)}>
+              <Button variant="ghost" size="sm">상세</Button>
+            </Link>
+          );
+        case "edit":
+          return (
+            <Link key={`${project.id}-edit`} href={toProjectEditRoute(project.id)}>
+              <Button variant="outline" size="sm">수정</Button>
+            </Link>
+          );
+        case "delete":
+          return (
+            <Button
+              key={`${project.id}-delete`}
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDeleteProject(project)}
+            >
+              삭제
+            </Button>
+          );
+        case "cancel":
+          return (
+            <Button
+              key={`${project.id}-cancel`}
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCancelProject(project)}
+            >
+              취소
+            </Button>
+          );
+        case "stop":
+          return (
+            <Button
+              key={`${project.id}-stop`}
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStopProject(project)}
+            >
+              중지
+            </Button>
+          );
+        case "report":
+          return (
+            <Button
+              key={`${project.id}-report`}
+              variant="ghost"
+              size="sm"
+              onClick={() => openReport(project)}
+            >
+              보고서
+            </Button>
+          );
+        default:
+          return null;
+      }
+    });
 
   const yearQuarterPrefill = `?year=${selectedYear}&quarter=${quarterNumber}`;
 
@@ -953,9 +1183,6 @@ export default function Projects() {
             {projects.map((project) => {
               const start = toDate(project.startDate);
               const end = toDate(project.endDate);
-              const isStartingSoon = project.status === "예약" &&
-                differenceInHours(start, today) >= 0 &&
-                differenceInHours(start, today) <= 24;
               return (
                 <TableRow key={project.id}>
                   <TableCell>
@@ -999,6 +1226,8 @@ export default function Projects() {
                   <TableCell>{getDepartmentLabel(project)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      {renderProjectActions(project)}
+                      <div className="hidden">
                       {project.status === "임시" ? (
                         <>
                           <Link href={`/projects/${project.id}/edit`}>
@@ -1018,6 +1247,7 @@ export default function Projects() {
                           </Button>
                         </>
                       )}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1071,6 +1301,8 @@ export default function Projects() {
                       <span>클릭 {calculateRate(project.clickCount, project.targetCount)}%</span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {renderProjectActions(project)}
+                      <div className="hidden">
                       {project.status === "임시" ? (
                         <>
                           <Link href={`/projects/${project.id}/edit`}>
@@ -1085,6 +1317,7 @@ export default function Projects() {
                           <Button variant="ghost" size="sm">상세</Button>
                         </Link>
                       )}
+                      </div>
                     </div>
                   </Card>
                 );
@@ -1368,9 +1601,11 @@ export default function Projects() {
           </p>
         </div>
         <DialogFooter>
+          {renderProjectActions(detailProject)}
           <Button variant="outline" onClick={() => closeDetailPanel()}>
             닫기
           </Button>
+          <div className="hidden">
           {detailProject.status === "임시" ? (
             <>
               <Link href={`/projects/${detailProject.id}/edit`}>
@@ -1385,6 +1620,7 @@ export default function Projects() {
               <Button>상세 보기</Button>
             </Link>
           )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1589,6 +1825,30 @@ export default function Projects() {
             disabled={!canCompare}
           >
             비교 미리보기
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopySelected}
+            disabled={!canCopy || copyMutation.isPending}
+          >
+            {copyMutation.isPending ? "복제 중..." : "복제"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkStart}
+            disabled={!canBulkStart || bulkStartMutation.isPending}
+          >
+            {bulkStartMutation.isPending ? "시작 중..." : "시작"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkStop}
+            disabled={!canBulkStop || bulkStopMutation.isPending}
+          >
+            {bulkStopMutation.isPending ? "중지 중..." : "중지"}
           </Button>
           <Button
             variant="outline"

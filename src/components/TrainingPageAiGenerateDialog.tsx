@@ -5,19 +5,21 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import {
-  type TemplateAiCandidate,
-  TEMPLATE_AI_DRAFT_SESSION_KEY,
   TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT,
   templateAiDifficultyLabels,
   templateAiDifficultyOptions,
   templateAiToneLabels,
-  validateTemplateAiReferenceAttachmentMeta,
   templateAiToneOptions,
   templateAiTopicLabels,
   templateAiTopicOptions,
+  validateTemplateAiReferenceAttachmentMeta,
 } from "@shared/templateAi";
-import { cn } from "@/lib/utils";
+import {
+  TRAINING_PAGE_AI_DRAFT_SESSION_KEY,
+  type TrainingPageAiCandidate,
+} from "@shared/trainingPageAi";
 import { TemplatePreviewFrame } from "@/components/template-preview-frame";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -36,11 +38,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 type GenerateResponse = {
-  candidates: TemplateAiCandidate[];
+  candidates: TrainingPageAiCandidate[];
   usage?: {
     estimatedCredits: number;
   };
@@ -56,17 +57,16 @@ type DialogStep = "options" | "candidates";
 const DEFAULT_TOPIC: (typeof templateAiTopicOptions)[number] = "shipping";
 const DEFAULT_TONE: (typeof templateAiToneOptions)[number] = "informational";
 const DEFAULT_DIFFICULTY: (typeof templateAiDifficultyOptions)[number] = "medium";
-
 const previewSurfaceClass =
-  "site-scrollbar max-h-[420px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  "site-scrollbar max-h-[320px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+const focusedPreviewSurfaceClass =
+  "site-scrollbar max-h-[70vh] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
 const candidateDialogContentClass =
   "w-[min(94vw,1120px)] max-w-[1120px] max-h-[88vh] overflow-y-auto p-5";
-const candidatePreviewSurfaceClass =
-  "site-scrollbar max-h-[320px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
 
 const getGenerateErrorMessage = (error: unknown) => {
   if (!(error instanceof Error)) {
-    return "AI 템플릿 생성 중 오류가 발생했습니다.";
+    return "AI 훈련안내페이지 생성 중 오류가 발생했습니다.";
   }
 
   const matchedBody = error.message.match(/^\d{3}:\s*([\s\S]+)$/)?.[1]?.trim();
@@ -84,7 +84,7 @@ const getGenerateErrorMessage = (error: unknown) => {
   }
 };
 
-export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
+export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<DialogStep>("options");
   const [topic, setTopic] = useState<(typeof templateAiTopicOptions)[number]>(DEFAULT_TOPIC);
@@ -93,19 +93,16 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   const [difficulty, setDifficulty] =
     useState<(typeof templateAiDifficultyOptions)[number]>(DEFAULT_DIFFICULTY);
   const [prompt, setPrompt] = useState("");
-  const [candidates, setCandidates] = useState<TemplateAiCandidate[]>([]);
+  const [candidates, setCandidates] = useState<TrainingPageAiCandidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [pairPage, setPairPage] = useState(0);
-  const [focusedCandidate, setFocusedCandidate] = useState<TemplateAiCandidate | null>(null);
-  const [mailBodyReferenceAttachment, setMailBodyReferenceAttachment] = useState<File | null>(null);
-  const [maliciousPageReferenceAttachment, setMaliciousPageReferenceAttachment] =
-    useState<File | null>(null);
+  const [focusedCandidate, setFocusedCandidate] = useState<TrainingPageAiCandidate | null>(null);
+  const [referenceAttachment, setReferenceAttachment] = useState<File | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [fileInputResetKey, setFileInputResetKey] = useState(0);
 
   const requiresCustomTopic = topic === "other";
   const canGenerate = !requiresCustomTopic || customTopic.trim().length > 0;
-
   const visibleCandidates = candidates.slice(pairPage * 2, pairPage * 2 + 2);
   const maxPairPage = Math.max(0, Math.ceil(candidates.length / 2) - 1);
   const selectedCandidate =
@@ -122,8 +119,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     setSelectedCandidateId(null);
     setPairPage(0);
     setFocusedCandidate(null);
-    setMailBodyReferenceAttachment(null);
-    setMaliciousPageReferenceAttachment(null);
+    setReferenceAttachment(null);
     setAttachmentError(null);
     setFileInputResetKey((prev) => prev + 1);
   };
@@ -135,7 +131,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   }, [open]);
 
   const generateMutation = useMutation({
-    mutationFn: async (preservedCandidates: TemplateAiCandidate[]) => {
+    mutationFn: async (preservedCandidates: TrainingPageAiCandidate[]) => {
       const formData = new FormData();
       formData.set("topic", topic);
       formData.set("customTopic", customTopic);
@@ -148,20 +144,16 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         JSON.stringify(
           preservedCandidates.map((candidate) => ({
             id: candidate.id,
-            subject: candidate.subject,
+            name: candidate.name,
           })),
         ),
       );
 
-      if (mailBodyReferenceAttachment) {
-        formData.set("mailBodyReferenceAttachment", mailBodyReferenceAttachment);
+      if (referenceAttachment) {
+        formData.set("referenceAttachment", referenceAttachment);
       }
 
-      if (maliciousPageReferenceAttachment) {
-        formData.set("maliciousPageReferenceAttachment", maliciousPageReferenceAttachment);
-      }
-
-      const response = await fetch("/api/templates/ai-generate", {
+      const response = await fetch("/api/training-pages/ai-generate", {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -184,16 +176,11 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     },
   });
 
-  const handleReferenceAttachmentChange = (
-    kind: "mail" | "malicious",
-    files: FileList | null,
-  ) => {
+  const handleReferenceAttachmentChange = (files: FileList | null) => {
     const nextFile = files?.[0] ?? null;
-    const setter =
-      kind === "mail" ? setMailBodyReferenceAttachment : setMaliciousPageReferenceAttachment;
 
     if (!nextFile) {
-      setter(null);
+      setReferenceAttachment(null);
       setAttachmentError(null);
       return;
     }
@@ -205,12 +192,12 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     });
 
     if (validationMessage) {
-      setter(null);
+      setReferenceAttachment(null);
       setAttachmentError(validationMessage);
       return;
     }
 
-    setter(nextFile);
+    setReferenceAttachment(nextFile);
     setAttachmentError(null);
   };
 
@@ -222,14 +209,14 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     generateMutation.mutate([]);
   };
 
-  const handleReturnToCandidates = () => {
-    if (candidates.length === 0) return;
-    setStep("candidates");
-  };
-
   const handleBackToOptions = () => {
     setFocusedCandidate(null);
     setStep("options");
+  };
+
+  const handleReturnToCandidates = () => {
+    if (candidates.length === 0) return;
+    setStep("candidates");
   };
 
   const handleRegenerateAll = () => {
@@ -248,7 +235,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     if (!selectedCandidate) return;
 
     sessionStorage.setItem(
-      TEMPLATE_AI_DRAFT_SESSION_KEY,
+      TRAINING_PAGE_AI_DRAFT_SESSION_KEY,
       JSON.stringify({
         ...selectedCandidate,
         source: "ai",
@@ -257,7 +244,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     );
 
     onOpenChange(false);
-    router.push("/templates/new?source=ai");
+    router.push("/training-pages/new?source=ai");
   };
 
   const renderError = () => {
@@ -270,38 +257,13 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     );
   };
 
-  const renderReferenceAttachmentField = (args: {
-    id: string;
-    label: string;
-    selectedFile: File | null;
-    onChange: (files: FileList | null) => void;
-  }) => (
-    <div className="space-y-2">
-      <Label htmlFor={args.id}>{args.label}</Label>
-      <Input
-        key={`${fileInputResetKey}-${args.id}`}
-        id={args.id}
-        aria-label={args.label}
-        type="file"
-        accept={TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT}
-        onChange={(event) => args.onChange(event.target.files)}
-      />
-      <p className="text-xs text-muted-foreground">
-        이미지(PNG/JPEG/WEBP/GIF) 또는 HTML 파일 1개를 업로드할 수 있습니다. 최대 2MB.
-      </p>
-      {args.selectedFile ? (
-        <p className="text-xs text-slate-700">선택된 파일: {args.selectedFile.name}</p>
-      ) : null}
-    </div>
-  );
-
   const renderOptionsStep = () => (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <Card className="space-y-4 p-5">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">1단계. 생성 조건 설정</h3>
           <p className="text-sm text-muted-foreground">
-            생성 조건을 입력하고 템플릿을 생성합니다.
+            생성 조건을 입력하고 훈련안내페이지 후보를 생성합니다.
           </p>
         </div>
 
@@ -309,7 +271,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
           <Label>주제</Label>
           <Select value={topic} onValueChange={(value) => setTopic(value as typeof topic)}>
             <SelectTrigger>
-              <SelectValue placeholder="주제를 선택하세요" />
+              <SelectValue placeholder="주제를 선택해 주세요" />
             </SelectTrigger>
             <SelectContent>
               {templateAiTopicOptions.map((option) => (
@@ -323,18 +285,15 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
         {requiresCustomTopic ? (
           <div className="space-y-2">
-            <Label htmlFor="template-ai-custom-topic">주제 직접 입력</Label>
+            <Label htmlFor="training-page-ai-custom-topic">주제 직접 입력</Label>
             <Input
-              id="template-ai-custom-topic"
+              id="training-page-ai-custom-topic"
               aria-label="주제 직접 입력"
               value={customTopic}
               onChange={(event) => setCustomTopic(event.target.value)}
-              placeholder="예: 사내 행사 안내, 정산 마감 안내"
+              placeholder="예: 사내 보안 캠페인 안내, 계정 보호 학습 안내"
               maxLength={60}
             />
-            <p className="text-xs text-muted-foreground">
-              기존 목록에 없는 시나리오를 만들고 싶을 때 직접 입력해 주세요.
-            </p>
           </div>
         ) : null}
 
@@ -342,7 +301,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
           <Label>문체</Label>
           <Select value={tone} onValueChange={(value) => setTone(value as typeof tone)}>
             <SelectTrigger>
-              <SelectValue placeholder="문체를 선택하세요" />
+              <SelectValue placeholder="문체를 선택해 주세요" />
             </SelectTrigger>
             <SelectContent>
               {templateAiToneOptions.map((option) => (
@@ -361,7 +320,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
             onValueChange={(value) => setDifficulty(value as typeof difficulty)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="구분 난이도를 선택하세요" />
+              <SelectValue placeholder="구분 난이도를 선택해 주세요" />
             </SelectTrigger>
             <SelectContent>
               {templateAiDifficultyOptions.map((option) => (
@@ -379,7 +338,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
             aria-label="추가 요청사항"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="원하는 분위기, 대상자 특성, 추가 요구사항을 입력해 주세요."
+            placeholder="원하는 분위기, 포함해야 할 학습 포인트, CTA 문구 등을 입력해 주세요"
             className="min-h-[180px]"
             maxLength={800}
           />
@@ -389,23 +348,28 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
       <div className="space-y-4">
         <Card className="space-y-3 p-5">
-          {renderReferenceAttachmentField({
-            id: "template-ai-mail-body-reference",
-            label: "메일본문 첨부파일",
-            selectedFile: mailBodyReferenceAttachment,
-            onChange: (files) => handleReferenceAttachmentChange("mail", files),
-          })}
-          {renderReferenceAttachmentField({
-            id: "template-ai-malicious-reference",
-            label: "악성메일본문 첨부파일",
-            selectedFile: maliciousPageReferenceAttachment,
-            onChange: (files) => handleReferenceAttachmentChange("malicious", files),
-          })}
+          <div className="space-y-2">
+            <Label htmlFor="training-page-ai-reference">훈련안내페이지 첨부파일</Label>
+            <Input
+              key={`${fileInputResetKey}-reference`}
+              id="training-page-ai-reference"
+              aria-label="훈련안내페이지 첨부파일"
+              type="file"
+              accept={TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT}
+              onChange={(event) => handleReferenceAttachmentChange(event.target.files)}
+            />
+            <p className="text-xs text-muted-foreground">
+              이미지(PNG/JPEG/WEBP/GIF) 또는 HTML 파일 1개를 업로드할 수 있습니다. 최대 2MB.
+            </p>
+            {referenceAttachment ? (
+              <p className="text-xs text-slate-700">선택된 파일: {referenceAttachment.name}</p>
+            ) : null}
+          </div>
         </Card>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-          AI가 생성한 내용과 첨부파일 반영 결과는 초안입니다. 템플릿 작성 화면에서
-          미리보기와 내용을 반드시 검토한 뒤 반영해 주세요.
+          AI가 생성한 훈련안내페이지는 초안입니다. 본문 구조, 학습 안내 문구, 버튼 문구를
+          확인한 뒤 저장해 주세요.
         </div>
 
         <div className="flex flex-col gap-2">
@@ -418,7 +382,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            템플릿 생성
+            AI 훈련안내페이지 생성
           </Button>
           {requiresCustomTopic && !canGenerate ? (
             <p className="text-xs text-destructive">기타를 선택한 경우 주제를 직접 입력해 주세요.</p>
@@ -446,7 +410,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">2단계. 후보 비교 및 선택</h3>
           <p className="text-sm text-muted-foreground">
-            후보 4개를 비교하고 하나를 선택해 현재 템플릿 작성 화면에 반영합니다.
+            후보 4개를 비교하고 하나를 선택해 새 훈련안내페이지 작성 화면에 반영합니다.
           </p>
         </div>
 
@@ -455,11 +419,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
             <ArrowLeft className="mr-2 h-4 w-4" />
             옵션 다시 설정
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleRegenerateAll}
-            disabled={generateMutation.isPending}
-          >
+          <Button variant="outline" onClick={handleRegenerateAll} disabled={generateMutation.isPending}>
             <RefreshCw className="mr-2 h-4 w-4" />
             전체 재생성
           </Button>
@@ -476,7 +436,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
             onClick={handleApply}
             disabled={!selectedCandidate || generateMutation.isPending}
           >
-            선택한 후보 반영
+            선택 후보 반영
           </Button>
         </div>
       </div>
@@ -509,7 +469,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
 
       {visibleCandidates.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          생성된 후보가 없습니다. 옵션을 다시 설정하고 새 템플릿을 생성해 주세요.
+          생성된 후보가 없습니다. 옵션을 다시 설정하고 훈련안내페이지를 생성해 주세요.
         </Card>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -523,7 +483,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-lg font-semibold">{candidate.subject}</p>
+                    <p className="text-lg font-semibold">{candidate.name}</p>
                     <p className="text-sm text-muted-foreground">{candidate.summary}</p>
                   </div>
                   <Button
@@ -535,22 +495,12 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                   </Button>
                 </div>
 
-                <Tabs defaultValue="body" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="body">메일본문</TabsTrigger>
-                    <TabsTrigger value="malicious">악성메일본문</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="body" className="space-y-3">
-                    <div className={candidatePreviewSurfaceClass}>
-                      <TemplatePreviewFrame html={candidate.body} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="malicious" className="space-y-3">
-                    <div className={candidatePreviewSurfaceClass}>
-                      <TemplatePreviewFrame html={candidate.maliciousPageContent} />
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">{candidate.description}</p>
+                  <div className={previewSurfaceClass}>
+                    <TemplatePreviewFrame html={candidate.content} />
+                  </div>
+                </div>
 
                 <div className="flex justify-end">
                   <Button variant="ghost" size="sm" onClick={() => setFocusedCandidate(candidate)}>
@@ -571,14 +521,18 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={step === "options" ? "max-w-3xl" : candidateDialogContentClass}
-          data-testid={step === "options" ? "template-ai-options-dialog" : "template-ai-candidates-dialog"}
+          data-testid={
+            step === "options"
+              ? "training-page-ai-options-dialog"
+              : "training-page-ai-candidates-dialog"
+          }
         >
           <DialogHeader>
-            <DialogTitle>AI 템플릿 생성</DialogTitle>
+            <DialogTitle>AI 훈련안내페이지 생성</DialogTitle>
             <DialogDescription>
               {step === "options"
-                ? "생성 조건을 입력하고 템플릿을 생성합니다."
-                : "후보를 비교하고 하나를 선택해 템플릿 작성 화면에 반영합니다."}
+                ? "생성 조건을 입력하고 훈련안내페이지 후보를 생성합니다."
+                : "후보를 비교하고 하나를 선택해 새 훈련안내페이지 작성 화면에 반영합니다."}
             </DialogDescription>
           </DialogHeader>
 
@@ -592,26 +546,16 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
       >
         <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>{focusedCandidate?.subject ?? "후보 미리보기"}</DialogTitle>
+            <DialogTitle>{focusedCandidate?.name ?? "후보 미리보기"}</DialogTitle>
             <DialogDescription>{focusedCandidate?.summary ?? ""}</DialogDescription>
           </DialogHeader>
           {focusedCandidate ? (
-            <Tabs defaultValue="body" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="body">메일본문</TabsTrigger>
-                <TabsTrigger value="malicious">악성메일본문</TabsTrigger>
-              </TabsList>
-              <TabsContent value="body">
-                <div className={cn(previewSurfaceClass, "max-h-[70vh]")}>
-                  <TemplatePreviewFrame html={focusedCandidate.body} />
-                </div>
-              </TabsContent>
-              <TabsContent value="malicious">
-                <div className={cn(previewSurfaceClass, "max-h-[70vh]")}>
-                  <TemplatePreviewFrame html={focusedCandidate.maliciousPageContent} />
-                </div>
-              </TabsContent>
-            </Tabs>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">{focusedCandidate.description}</p>
+              <div className={focusedPreviewSurfaceClass}>
+                <TemplatePreviewFrame html={focusedCandidate.content} />
+              </div>
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>

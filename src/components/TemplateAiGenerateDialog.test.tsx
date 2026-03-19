@@ -37,6 +37,25 @@ const renderWithClient = (ui: React.ReactElement) => {
   };
 };
 
+const readGenerateFormData = async (request: Request) => {
+  const formData = await request.formData();
+
+  return {
+    topic: String(formData.get("topic") ?? ""),
+    customTopic: String(formData.get("customTopic") ?? ""),
+    tone: String(formData.get("tone") ?? ""),
+    difficulty: String(formData.get("difficulty") ?? ""),
+    prompt: String(formData.get("prompt") ?? ""),
+    generateCount: Number(formData.get("generateCount") ?? 0),
+    preservedCandidates: JSON.parse(String(formData.get("preservedCandidates") ?? "[]")) as Array<{
+      id: string;
+      subject: string;
+    }>,
+    mailBodyReferenceAttachment: formData.get("mailBodyReferenceAttachment"),
+    maliciousPageReferenceAttachment: formData.get("maliciousPageReferenceAttachment"),
+  };
+};
+
 afterEach(() => {
   cleanup();
   pushMock.mockReset();
@@ -48,7 +67,10 @@ describe("TemplateAiGenerateDialog", () => {
     renderWithClient(<TemplateAiGenerateDialog open={true} onOpenChange={() => {}} />);
 
     expect(screen.getByText("1단계. 생성 조건 설정")).toBeInTheDocument();
+    expect(screen.getByLabelText("메일본문 첨부파일")).toBeInTheDocument();
+    expect(screen.getByLabelText("악성메일본문 첨부파일")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "템플릿 생성" })).toBeInTheDocument();
+    expect(screen.queryByText("예상 AI 크레딧 소모")).not.toBeInTheDocument();
     expect(screen.queryByText("2단계. 후보 비교 및 선택")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "전체 재생성" })).not.toBeInTheDocument();
   });
@@ -58,7 +80,7 @@ describe("TemplateAiGenerateDialog", () => {
 
     server.use(
       http.post("/api/templates/ai-generate", async ({ request }) => {
-        const body = (await request.json()) as { topic: string; customTopic: string };
+        const body = await readGenerateFormData(request);
         requests.push(body);
         return HttpResponse.json({
           candidates: buildCandidates("기타", 4),
@@ -200,10 +222,7 @@ describe("TemplateAiGenerateDialog", () => {
 
     server.use(
       http.post("/api/templates/ai-generate", async ({ request }) => {
-        const body = (await request.json()) as {
-          generateCount: number;
-          preservedCandidates: Array<{ id: string; subject: string }>;
-        };
+        const body = await readGenerateFormData(request);
         requests.push(body);
 
         return HttpResponse.json({
@@ -240,10 +259,7 @@ describe("TemplateAiGenerateDialog", () => {
 
     server.use(
       http.post("/api/templates/ai-generate", async ({ request }) => {
-        const body = (await request.json()) as {
-          generateCount: number;
-          preservedCandidates: Array<{ id: string; subject: string }>;
-        };
+        const body = await readGenerateFormData(request);
         requests.push(body);
 
         return HttpResponse.json({
@@ -292,5 +308,50 @@ describe("TemplateAiGenerateDialog", () => {
     expect(savedDraft).not.toBeNull();
     expect(savedDraft).toContain("반영 후보 1");
     expect(pushMock).toHaveBeenCalledWith("/templates/new?source=ai");
+  });
+
+  it("참고 첨부파일을 선택하면 생성 요청에 각 파일이 포함된다", async () => {
+    const requests: Array<{
+      mailBodyReferenceAttachment: FormDataEntryValue | null;
+      maliciousPageReferenceAttachment: FormDataEntryValue | null;
+    }> = [];
+
+    server.use(
+      http.post("/api/templates/ai-generate", async ({ request }) => {
+        const body = await readGenerateFormData(request);
+        requests.push({
+          mailBodyReferenceAttachment: body.mailBodyReferenceAttachment,
+          maliciousPageReferenceAttachment: body.maliciousPageReferenceAttachment,
+        });
+
+        return HttpResponse.json({
+          candidates: buildCandidates("첨부", 4),
+        });
+      }),
+    );
+
+    renderWithClient(<TemplateAiGenerateDialog open={true} onOpenChange={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("메일본문 첨부파일"), {
+      target: {
+        files: [new File(["<div>메일 참고</div>"], "mail-reference.html", { type: "text/html" })],
+      },
+    });
+    fireEvent.change(screen.getByLabelText("악성메일본문 첨부파일"), {
+      target: {
+        files: [new File(["image"], "landing-reference.png", { type: "image/png" })],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "템플릿 생성" }));
+    await screen.findByText("2단계. 후보 비교 및 선택");
+
+    const mailAttachment = requests[0]?.mailBodyReferenceAttachment;
+    const maliciousAttachment = requests[0]?.maliciousPageReferenceAttachment;
+
+    expect(mailAttachment).toBeInstanceOf(File);
+    expect((mailAttachment as File).name).toBe("mail-reference.html");
+    expect(maliciousAttachment).toBeInstanceOf(File);
+    expect((maliciousAttachment as File).name).toBe("landing-reference.png");
   });
 });

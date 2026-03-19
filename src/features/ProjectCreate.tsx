@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -49,6 +49,16 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { listSmtpConfigs } from "@/lib/api";
 import type { SmtpConfigSummary } from "@/types/smtp";
+import {
+  applyTimeToDate,
+  formatTimeInputValue,
+  getDefaultProjectStartDate,
+  isFutureScheduledDateTime,
+  isPastProjectDate,
+  preserveTimeOnDateChange,
+  startOfLocalDay,
+} from "./projectSchedule";
+import { shouldAutoOpenConflictDialog } from "./projectConflictPolicy";
 import {
   AlertCircle,
   ArrowLeftCircle,
@@ -154,7 +164,7 @@ const DEFAULT_VALUES: ProjectFormValues = {
   sendingDomain: "",
   fromName: "",
   fromEmail: "",
-  startDate: new Date(),
+  startDate: getDefaultProjectStartDate(),
   endDate: undefined,
   targetIds: [],
   notificationEmails: [],
@@ -293,9 +303,9 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const isEditMode = mode === "edit" && Boolean(projectId);
   const hydratedProjectIdRef = useRef<string | null>(null);
   const editErrorHandledRef = useRef(false);
+  const hasShownConflictDialogRef = useRef(false);
   const [isTestDialogOpen, setTestDialogOpen] = useState(false);
   const [isConflictDialogOpen, setConflictDialogOpen] = useState(false);
-  const lastConflictSignatureRef = useRef("");
   const [testRecipient, setTestRecipient] = useState("");
   const [targetSearchTerm, setTargetSearchTerm] = useState("");
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
@@ -398,7 +408,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       sendingDomain: existingProject.sendingDomain ?? "",
       fromName: existingProject.fromName ?? "",
       fromEmail: existingProject.fromEmail ?? "",
-      startDate: Number.isNaN(startDate.getTime()) ? new Date() : startDate,
+      startDate: Number.isNaN(startDate.getTime()) ? getDefaultProjectStartDate() : startDate,
       endDate:
         parsedEndDate && !Number.isNaN(parsedEndDate.getTime())
           ? parsedEndDate
@@ -805,26 +815,22 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const previewData = previewQuery.data;
   const conflictItems = previewData?.conflicts ?? [];
   const hasConflicts = conflictItems.length > 0;
-  const conflictSignature = useMemo(
-    () =>
-      conflictItems
-        .map((conflict) => conflict.projectId)
-        .sort()
-        .join("|"),
-    [conflictItems],
-  );
 
   useEffect(() => {
-    if (!conflictSignature) {
-      lastConflictSignatureRef.current = "";
+    if (!hasConflicts) {
       setConflictDialogOpen(false);
       return;
     }
-    if (conflictSignature !== lastConflictSignatureRef.current) {
-      lastConflictSignatureRef.current = conflictSignature;
+    if (
+      shouldAutoOpenConflictDialog({
+        hasConflicts,
+        hasShownConflictDialog: hasShownConflictDialogRef.current,
+      })
+    ) {
+      hasShownConflictDialogRef.current = true;
       setConflictDialogOpen(true);
     }
-  }, [conflictSignature]);
+  }, [hasConflicts]);
 
   const isFormValid = form.formState.isValid;
   const formErrors = flattenErrorMessages(form.formState.errors as Record<string, unknown>);
@@ -835,10 +841,37 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
     return `${format(startDateValue, "yyyy")} · Q${quarter}`;
   }, [startDateValue]);
 
+  const scheduleTimeValue = formatTimeInputValue(startDateValue);
+
+  const handleStartDateChange = useCallback(
+    (date?: Date) => {
+      if (!date) return;
+      form.setValue("startDate", preserveTimeOnDateChange(date, startDateValue), {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      setStartDatePopoverOpen(false);
+    },
+    [form, startDateValue],
+  );
+
+  const handleStartTimeChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const current = startDateValue ?? getDefaultProjectStartDate();
+      form.setValue("startDate", applyTimeToDate(current, event.target.value), {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+    },
+    [form, startDateValue],
+  );
+
   const isScheduleDisabled =
     !isFormValid ||
     !startDateValue ||
-    startDateValue.getTime() <= Date.now();
+    !isFutureScheduledDateTime(startDateValue);
 
   const testSendDisabled =
     !templateId ||
@@ -850,7 +883,10 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
 
   const buildProjectPayload = useCallback(
     (values: ProjectFormValues, status: string): CreateProjectRequest => {
-      const startDateIso = asIsoString(values.startDate) ?? new Date().toISOString();
+      const effectiveStartDate =
+        status === "진행중" ? getDefaultProjectStartDate() : values.startDate;
+      const startDateIso =
+        asIsoString(effectiveStartDate) ?? getDefaultProjectStartDate().toISOString();
       const fallbackEndDate = status === STATUS_TEMP
         ? startDateIso
         : new Date(
@@ -1128,10 +1164,10 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
 
       if (mode === "schedule") {
         const startDate = values.startDate;
-        if (!startDate || Number.isNaN(startDate.getTime()) || startDate.getTime() <= Date.now()) {
+        if (!isFutureScheduledDateTime(startDate)) {
           toast({
-            title: "예약 시작일 확인",
-            description: "예약 생성은 시작일을 현재 이후로 설정해야 합니다.",
+            title: "예약 발송 시각 확인",
+            description: "예약 생성은 현재 이후의 날짜와 시각을 설정해야 합니다.",
             variant: "destructive",
           });
           return;
@@ -1756,15 +1792,26 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                               <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={(date) => {
-                                  if (!date) return;
-                                  field.onChange(date);
-                                  setStartDatePopoverOpen(false);
-                                }}
+                                onSelect={handleStartDateChange}
+                                disabled={(date) => isPastProjectDate(date)}
                                 initialFocus
                               />
                             </PopoverContent>
                           </Popover>
+                          <div className="space-y-2">
+                            <FormLabel className="text-xs text-muted-foreground">
+                              예약 발송 시각
+                            </FormLabel>
+                            <Input
+                              type="time"
+                              step={60}
+                              value={scheduleTimeValue}
+                              onChange={handleStartTimeChange}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              바로 생성은 현재 시점으로 시작되고, 예약 생성은 선택한 날짜와 시각을 사용합니다.
+                            </p>
+                          </div>
                           {projectQuarterBadge ? (
                             <p className="text-xs text-muted-foreground">
                               <Badge variant="outline">{projectQuarterBadge}</Badge>
@@ -1808,6 +1855,15 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                                     setEndDatePopoverOpen(false);
                                   }
                                 }}
+                                disabled={(date) => {
+                                  if (isPastProjectDate(date)) {
+                                    return true;
+                                  }
+                                  return Boolean(
+                                    startDateValue &&
+                                      startOfLocalDay(date).getTime() < startOfLocalDay(startDateValue).getTime(),
+                                  );
+                                }}
                                 initialFocus
                               />
                             </PopoverContent>
@@ -1832,11 +1888,11 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
             <Clock className="h-4 w-4" />
             {startDateValue ? (
               <span>
-                {format(startDateValue, "yyyy-MM-dd")} 시작
+                {format(startDateValue, "yyyy-MM-dd HH:mm")} 시작
                 {endDateValue ? ` · ${format(endDateValue, "yyyy-MM-dd")} 종료` : ""}
               </span>
             ) : (
-              <span>시작일을 현재 이후로 설정하면 예약 생성이 활성화됩니다.</span>
+              <span>오늘 날짜부터 생성할 수 있고, 예약 생성은 미래 시각을 설정해야 합니다.</span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">

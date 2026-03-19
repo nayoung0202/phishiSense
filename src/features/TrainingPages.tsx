@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Edit, Trash2, FileText, Eye, Sun, Moon } from "lucide-react";
+import { Plus, Search, Edit, Trash2, FileText, Eye, Sun, Moon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { type TrainingPage } from "@shared/schema";
 import { format } from "date-fns";
@@ -22,11 +22,13 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { SafeText } from "@/components/security/SafeText";
+import { TrainingPageAiGenerateDialog } from "@/components/TrainingPageAiGenerateDialog";
 
 export default function TrainingPages() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("dark");
+  const [isAiGenerateOpen, setIsAiGenerateOpen] = useState(false);
 
   const { data: pages = [], isLoading } = useQuery<TrainingPage[]>({
     queryKey: ["/api/training-pages"],
@@ -64,17 +66,33 @@ export default function TrainingPages() {
     previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
 
   return (
+    <>
+    <TrainingPageAiGenerateDialog
+      open={isAiGenerateOpen}
+      onOpenChange={setIsAiGenerateOpen}
+    />
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold mb-2">훈련 안내 페이지 관리</h1>
         </div>
-        <Link href="/training-pages/new">
-          <Button data-testid="button-new-page">
-            <Plus className="w-4 h-4 mr-2" />
-            새 안내 페이지 생성
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="default"
+            data-testid="button-ai-training-page-create"
+            onClick={() => setIsAiGenerateOpen(true)}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI 훈련안내페이지 생성
           </Button>
-        </Link>
+          <Link href="/training-pages/new">
+            <Button data-testid="button-new-page">
+              <Plus className="w-4 h-4 mr-2" />
+              새 안내 페이지 생성
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="p-6">
@@ -189,5 +207,6 @@ export default function TrainingPages() {
         )}
       </Card>
     </div>
+    </>
   );
 }

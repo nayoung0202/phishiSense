@@ -1,0 +1,175 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const generateTrainingPageAiCandidatesMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/server/services/trainingPageAi", async () => {
+  const actual = await vi.importActual<typeof import("@/server/services/trainingPageAi")>(
+    "@/server/services/trainingPageAi",
+  );
+
+  return {
+    ...actual,
+    generateTrainingPageAiCandidates: generateTrainingPageAiCandidatesMock,
+  };
+});
+
+import { TrainingPageAiServiceError } from "@/server/services/trainingPageAi";
+import { POST } from "./route";
+
+describe("POST /api/training-pages/ai-generate", () => {
+  beforeEach(() => {
+    generateTrainingPageAiCandidatesMock.mockReset();
+  });
+
+  it("훈련안내페이지 후보를 반환한다", async () => {
+    generateTrainingPageAiCandidatesMock.mockResolvedValue({
+      candidates: [
+        {
+          id: "candidate-1",
+          name: "보안 학습 안내",
+          description: "학습용 페이지 설명",
+          content: '<div><button type="button">내용 확인</button></div>',
+          summary: "기본 학습 후보",
+        },
+      ],
+      usage: {
+        promptTokenCount: 100,
+        candidatesTokenCount: 200,
+        totalTokenCount: 300,
+        estimatedCredits: 1,
+        model: "gemini-2.5-flash-lite",
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/training-pages/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "shipping",
+          customTopic: "",
+          tone: "formal",
+          difficulty: "easy",
+          prompt: "",
+          generateCount: 1,
+          preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.candidates).toHaveLength(1);
+    expect(generateTrainingPageAiCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "shipping",
+        preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
+      }),
+    );
+  });
+
+  it("multipart 첨부파일 요청을 파싱해 서비스로 전달한다", async () => {
+    generateTrainingPageAiCandidatesMock.mockResolvedValue({
+      candidates: [
+        {
+          id: "candidate-1",
+          name: "첨부 참고 후보",
+          description: "첨부 참고 설명",
+          content: "<section><p>첨부를 참고한 훈련안내페이지입니다.</p></section>",
+          summary: "첨부 참고 요약",
+        },
+      ],
+      usage: {
+        promptTokenCount: 100,
+        candidatesTokenCount: 200,
+        totalTokenCount: 300,
+        estimatedCredits: 1,
+        model: "gemini-2.5-flash-lite",
+      },
+    });
+
+    const formData = new FormData();
+    formData.set("topic", "shipping");
+    formData.set("customTopic", "");
+    formData.set("tone", "formal");
+    formData.set("difficulty", "medium");
+    formData.set("prompt", "첨부 참고");
+    formData.set("generateCount", "1");
+    formData.set("preservedCandidates", "[]");
+    formData.set(
+      "referenceAttachment",
+      new File(["<div>훈련 페이지 참고</div>"], "training-reference.html", { type: "text/html" }),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/training-pages/ai-generate", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateTrainingPageAiCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceAttachment: expect.objectContaining({
+          name: "training-reference.html",
+          kind: "html",
+          textContent: "<div>훈련 페이지 참고</div>",
+        }),
+      }),
+    );
+  });
+
+  it("기타 주제를 선택하고 직접 입력이 없으면 400을 반환한다", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/training-pages/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "other",
+          customTopic: "",
+          tone: "informational",
+          difficulty: "medium",
+          prompt: "",
+          generateCount: 4,
+          preservedCandidates: [],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(generateTrainingPageAiCandidatesMock).not.toHaveBeenCalled();
+  });
+
+  it("Gemini 일시 장애면 503 안내 문구를 반환한다", async () => {
+    generateTrainingPageAiCandidatesMock.mockRejectedValue(
+      new TrainingPageAiServiceError({
+        status: 503,
+        code: "gemini_service_unavailable",
+        message: "AI 훈련안내페이지 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+        retryable: true,
+      }),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/training-pages/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          topic: "other",
+          customTopic: "파일 확인 학습 안내",
+          tone: "informational",
+          difficulty: "medium",
+          prompt: "",
+          generateCount: 4,
+          preservedCandidates: [],
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: "AI 훈련안내페이지 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+      code: "gemini_service_unavailable",
+      retryable: true,
+    });
+  });
+});

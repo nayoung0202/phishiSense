@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { TemplatePreviewFrame } from "./template-preview-frame";
 
 describe("TemplatePreviewFrame", () => {
-  it("기본 미리보기는 링크와 폼 상호작용을 비활성화한다", () => {
+  it("기본 미리보기에서는 iframe과 내부 요소 모두 상호작용이 차단된다", () => {
     render(
       <TemplatePreviewFrame
         html={'<form action="/submit"><a href="/landing">이동</a><button type="submit">제출</button></form>'}
@@ -13,13 +13,17 @@ describe("TemplatePreviewFrame", () => {
 
     const frame = screen.getByTitle("template-preview-frame");
     expect(frame).toHaveAttribute("srcdoc");
+    expect(frame).toHaveClass("pointer-events-none");
+    expect(frame).toHaveAttribute("tabindex", "-1");
     expect(frame.getAttribute("srcdoc")).toContain("pointer-events: none !important;");
   });
 
-  it("interactive가 true이면 상호작용 차단 CSS를 넣지 않는다", () => {
+  it("interactive가 true이면 iframe 상호작용 차단을 풀어 준다", () => {
     render(<TemplatePreviewFrame html={'<a href="/landing">이동</a>'} interactive={true} />);
 
     const frame = screen.getByTitle("template-preview-frame");
+    expect(frame).not.toHaveClass("pointer-events-none");
+    expect(frame).toHaveAttribute("tabindex", "0");
     expect(frame.getAttribute("srcdoc")).not.toContain(
       "a, a *, button, button *, input, select, textarea, label, form { pointer-events: none !important; }",
     );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -28,6 +29,10 @@ import { type TrainingPage, insertTrainingPageSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import {
+  TRAINING_PAGE_AI_DRAFT_SESSION_KEY,
+  type TrainingPageAiDraft,
+} from "@shared/trainingPageAi";
 
 export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: string }) {
   const router = useRouter();
@@ -35,6 +40,7 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
   const { toast } = useToast();
   const normalizedPageId = trainingPageId ?? "";
   const isNew = normalizedPageId.length === 0;
+  const [appliedAiDraftId, setAppliedAiDraftId] = useState<string | null>(null);
 
   const { data: page } = useQuery<TrainingPage>({
     queryKey: ["/api/training-pages", normalizedPageId],
@@ -49,26 +55,16 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
       content: page?.content || "",
       status: page?.status || "active",
     },
-    values: page ? {
-      name: page.name,
-      description: page.description || "",
-      content: page.content,
-      status: page.status || "active",
-    } : undefined,
+    values: page
+      ? {
+          name: page.name,
+          description: page.description || "",
+          content: page.content,
+          status: page.status || "active",
+        }
+      : undefined,
   });
   const contentValue = form.watch("content") ?? "";
-  const previewSubmitUrl = "/example-domain?type=submit";
-  const previewSubmitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
-  const previewContentHtml = contentValue.replace(previewSubmitTokenReplacer, previewSubmitUrl);
-
-  const handleInsertSubmitUrl = () => {
-    const currentContent = form.getValues("content") ?? "";
-    const block =
-      '<form action="{{SUBMIT_URL}}" method="post"><button type="submit">제출하기</button></form>';
-    const separator = currentContent.endsWith("\n") ? "\n" : "\n\n";
-    const nextContent = currentContent ? `${currentContent}${separator}${block}` : block;
-    form.setValue("content", nextContent, { shouldDirty: true, shouldTouch: true });
-  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -90,6 +86,51 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
   const onSubmit = (data: any) => {
     saveMutation.mutate(data);
   };
+
+  useEffect(() => {
+    if (!isNew || typeof window === "undefined" || appliedAiDraftId) {
+      return;
+    }
+
+    const rawDraft = window.sessionStorage.getItem(TRAINING_PAGE_AI_DRAFT_SESSION_KEY);
+    if (!rawDraft) {
+      return;
+    }
+
+    let draft: TrainingPageAiDraft;
+    try {
+      draft = JSON.parse(rawDraft) as TrainingPageAiDraft;
+    } catch {
+      window.sessionStorage.removeItem(TRAINING_PAGE_AI_DRAFT_SESSION_KEY);
+      return;
+    }
+
+    const hasExistingContent = [
+      form.getValues("name"),
+      form.getValues("description"),
+      form.getValues("content"),
+    ].some((value) => String(value ?? "").trim().length > 0);
+
+    if (
+      hasExistingContent &&
+      !window.confirm("현재 작성 중인 내용을 AI 생성 결과로 대체합니다. 계속하시겠습니까?")
+    ) {
+      return;
+    }
+
+    form.reset({
+      name: draft.name,
+      description: draft.description,
+      content: draft.content,
+      status: "active",
+    });
+    setAppliedAiDraftId(draft.id);
+    window.sessionStorage.removeItem(TRAINING_PAGE_AI_DRAFT_SESSION_KEY);
+    toast({
+      title: "AI 훈련안내페이지 초안 반영 완료",
+      description: "AI가 생성한 훈련안내페이지 초안을 편집 화면에 반영했습니다. 저장 전 내용을 확인해 주세요.",
+    });
+  }, [appliedAiDraftId, form, isNew, toast]);
 
   return (
     <div className="p-6 space-y-6">
@@ -130,7 +171,11 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
                 <FormItem>
                   <FormLabel>설명</FormLabel>
                   <FormControl>
-                    <Input placeholder="페이지에 대한 간단한 설명" {...field} data-testid="input-description" />
+                    <Input
+                      placeholder="페이지에 대한 간단한 설명"
+                      {...field}
+                      data-testid="input-description"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -165,19 +210,6 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>페이지 내용</FormLabel>
-                  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleInsertSubmitUrl}
-                    >
-                      제출 URL 삽입
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      제출하기 버튼/폼에 사용합니다.
-                    </span>
-                  </div>
                   <FormControl>
                     <div data-testid="editor-content">
                       <RichTextEditor
@@ -185,7 +217,7 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
                         onChange={field.onChange}
                         onBlur={field.onBlur}
                         placeholder="안내 페이지에 표시할 내용을 입력하세요."
-                        previewHtml={previewContentHtml}
+                        previewHtml={contentValue}
                       />
                     </div>
                   </FormControl>

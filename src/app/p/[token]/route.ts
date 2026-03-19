@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
+import { normalizeTrainingUrlPlaceholders } from "@shared/templateTokens";
 import { neutralizePreviewModalHtml } from "@/lib/templatePreview";
-import {
-  getPublicPhishingContextByTrackingToken,
-  updateProjectForTenant,
-  updateProjectTargetForTenant,
-} from "@/server/tenant/tenantStorage";
+import { buildHtmlErrorResponse, HTML_RESPONSE_SECURITY_HEADERS } from "@/server/lib/htmlErrorPage";
 import {
   buildSubmitFormUrl,
   buildTrainingLinkUrl,
   injectTrainingLink,
 } from "@/server/lib/trainingLink";
-import { normalizeTrainingUrlPlaceholders } from "@shared/templateTokens";
+import {
+  getPublicPhishingContextByTrackingToken,
+  updateProjectForTenant,
+  updateProjectTargetForTenant,
+} from "@/server/tenant/tenantStorage";
 
 type RouteContext = {
   params: Promise<{
@@ -23,34 +24,26 @@ const trainingTokenReplacer = /\{\{\s*TRAINING_URL\s*\}\}/gi;
 const submitTokenMatcher = /\{\{\s*SUBMIT_URL\s*\}\}/i;
 const submitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
 const formTagMatcher = /<form\b/i;
-const securityHeaders = {
-  "Content-Security-Policy":
-    "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; font-src data: http: https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none';",
-};
 
-const buildHtmlResponse = (message: string, status: number) =>
-  new NextResponse(
-    `<!doctype html><html lang="ko"><head><meta charset="utf-8" /><title>훈련 시뮬레이션</title></head><body><p>${message}</p></body></html>`,
-    {
-      status,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...securityHeaders,
-      },
-    },
-  );
+const buildMissingLandingResponse = (message: string) =>
+  buildHtmlErrorResponse({
+    status: 404,
+    title: "페이지를 찾을 수 없습니다.",
+    message,
+    label: "Phishing Landing",
+  });
 
 export async function GET(_request: Request, { params }: RouteContext) {
   try {
     const { token } = await params;
     const normalized = token?.trim();
     if (!normalized) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingLandingResponse("잘못된 주소이거나 더 이상 유효하지 않은 공개 링크입니다.");
     }
 
     const context = await getPublicPhishingContextByTrackingToken(normalized);
     if (!context) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingLandingResponse("잘못된 주소이거나 더 이상 유효하지 않은 공개 링크입니다.");
     }
 
     const { tenantId, projectTarget, project, template } = context;
@@ -81,8 +74,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     if (isFallback) {
       const isTest = projectTarget.status === "test";
       const banner = isTest
-        ? "<div style=\"background:#fef3c7; color:#92400e; padding:12px 16px; border-radius:12px; margin-bottom:16px; font-size:13px; font-weight:600;\">악성 본문이 설정되지 않아 메일 본문을 임시로 표시합니다.</div>"
-        : "<div style=\"background:#f8fafc; color:#64748b; padding:8px 12px; border-radius:8px; margin-bottom:12px; font-size:12px;\">콘텐츠 미설정으로 임시 화면을 표시합니다.</div>";
+        ? '<div style="background:#fef3c7; color:#92400e; padding:12px 16px; border-radius:12px; margin-bottom:16px; font-size:13px; font-weight:600;">악성 본문이 설정되지 않아 메일 본문을 임시로 표시합니다.</div>'
+        : '<div style="background:#f8fafc; color:#64748b; padding:8px 12px; border-radius:8px; margin-bottom:12px; font-size:12px;">콘텐츠 미설정으로 임시 화면을 표시합니다.</div>';
       renderedHtml = `${banner}${renderedHtml}`;
     }
 
@@ -109,7 +102,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        ...securityHeaders,
+        ...HTML_RESPONSE_SECURITY_HEADERS,
       },
     });
     response.cookies.set("ps_flow_token", normalized, {
@@ -120,6 +113,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
     });
     return response;
   } catch {
-    return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+    return buildMissingLandingResponse("요청한 피싱 랜딩 페이지를 불러오지 못했습니다.");
   }
 }

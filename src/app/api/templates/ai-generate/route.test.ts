@@ -115,6 +115,69 @@ describe("POST /api/templates/ai-generate", () => {
     );
   });
 
+  it("multipart 첨부파일 요청을 파싱해 내부 AI 요청으로 전달한다", async () => {
+    generateTemplateAiCandidatesMock.mockResolvedValue({
+      candidates: [
+        {
+          id: "candidate-1",
+          subject: "첨부 참고 템플릿",
+          body: '<a href="{{LANDING_URL}}">확인</a>',
+          maliciousPageContent:
+            '<form action="{{TRAINING_URL}}"><input name="name" /><button type="submit">제출</button></form>',
+          summary: "첨부 참고형 후보",
+        },
+      ],
+      usage: {
+        promptTokenCount: 120,
+        candidatesTokenCount: 240,
+        totalTokenCount: 360,
+        estimatedCredits: 1,
+        model: "gemini-2.5-flash-lite",
+      },
+    });
+
+    const formData = new FormData();
+    formData.set("topic", "shipping");
+    formData.set("customTopic", "");
+    formData.set("tone", "formal");
+    formData.set("difficulty", "medium");
+    formData.set("prompt", "첨부 참고");
+    formData.set("generateCount", "1");
+    formData.set("preservedCandidates", "[]");
+    formData.set(
+      "mailBodyReferenceAttachment",
+      new File(["<div>메일 참고</div>"], "mail-reference.html", { type: "text/html" }),
+    );
+    formData.set(
+      "maliciousPageReferenceAttachment",
+      new File(["image"], "landing-reference.png", { type: "image/png" }),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/templates/ai-generate", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateTemplateAiCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mailBodyReferenceAttachment: expect.objectContaining({
+          name: "mail-reference.html",
+          kind: "html",
+          textContent: "<div>메일 참고</div>",
+        }),
+        maliciousPageReferenceAttachment: expect.objectContaining({
+          name: "landing-reference.png",
+          kind: "image",
+          mimeType: "image/png",
+          base64Data: expect.any(String),
+        }),
+      }),
+    );
+  });
+
   it("기타 주제를 선택하고 직접 입력이 없으면 400을 반환한다", async () => {
     const response = await POST(
       new Request("http://localhost/api/templates/ai-generate", {

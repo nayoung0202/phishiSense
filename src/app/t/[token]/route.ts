@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildHtmlErrorResponse, HTML_RESPONSE_SECURITY_HEADERS } from "@/server/lib/htmlErrorPage";
+import { buildPhishingLinkUrl, buildSubmitFormUrl } from "@/server/lib/trainingLink";
 import {
   getPublicTrainingContextByTrackingToken,
   updateProjectForTenant,
   updateProjectTargetForTenant,
 } from "@/server/tenant/tenantStorage";
-import { buildPhishingLinkUrl, buildSubmitFormUrl } from "@/server/lib/trainingLink";
 
 type RouteContext = {
   params: Promise<{
@@ -12,30 +13,22 @@ type RouteContext = {
   }>;
 };
 
-const securityHeaders = {
-  "Content-Security-Policy":
-    "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; font-src data: http: https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none';",
-};
 const submitTokenReplacer = /\{\{\s*SUBMIT_URL\s*\}\}/gi;
 
-const buildHtmlResponse = (message: string, status: number) =>
-  new NextResponse(
-    `<!doctype html><html lang="ko"><head><meta charset="utf-8" /><title>훈련 안내</title></head><body><p>${message}</p></body></html>`,
-    {
-      status,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...securityHeaders,
-      },
-    },
-  );
+const buildMissingTrainingResponse = (message: string) =>
+  buildHtmlErrorResponse({
+    status: 404,
+    title: "훈련 안내 페이지를 찾을 수 없습니다.",
+    message,
+    label: "Training Page",
+  });
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const { token } = await params;
     const normalized = token?.trim();
     if (!normalized) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingTrainingResponse("잘못된 주소이거나 더 이상 유효하지 않은 훈련 안내 링크입니다.");
     }
 
     const flowToken = request.cookies.get("ps_flow_token")?.value ?? "";
@@ -45,12 +38,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     const context = await getPublicTrainingContextByTrackingToken(normalized);
     if (!context) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingTrainingResponse("잘못된 주소이거나 더 이상 유효하지 않은 훈련 안내 링크입니다.");
     }
 
     const { tenantId, projectTarget, project, trainingPage } = context;
     if (trainingPage.status === "inactive") {
-      return buildHtmlResponse("훈련 안내 페이지가 비활성 상태입니다.", 404);
+      return buildMissingTrainingResponse("현재 이 훈련 안내 페이지는 비활성 상태입니다.");
     }
 
     const now = new Date();
@@ -85,7 +78,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        ...securityHeaders,
+        ...HTML_RESPONSE_SECURITY_HEADERS,
       },
     });
     response.cookies.set("ps_flow_token", "", {
@@ -94,6 +87,6 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     });
     return response;
   } catch {
-    return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+    return buildMissingTrainingResponse("요청한 훈련 안내 페이지를 불러오지 못했습니다.");
   }
 }

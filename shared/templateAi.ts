@@ -2,6 +2,18 @@ import { z } from "zod";
 
 export const TEMPLATE_AI_DRAFT_SESSION_KEY = "phishsense.template.ai-draft";
 export const DEFAULT_TEMPLATE_AI_MODEL = "gemini-2.5-flash-lite";
+export const TEMPLATE_AI_REFERENCE_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
+export const TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT =
+  ".html,.htm,image/png,image/jpeg,image/webp,image/gif";
+
+const templateAiReferenceHtmlExtensions = [".html", ".htm"] as const;
+const templateAiReferenceHtmlMimeTypes = ["text/html", "application/xhtml+xml"] as const;
+const templateAiReferenceImageMimeTypes = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+] as const;
 
 export const templateAiTopicOptions = [
   "shipping",
@@ -59,6 +71,81 @@ export const resolveTemplateAiTopicText = (args: {
   return templateAiTopicLabels[args.topic];
 };
 
+export const resolveTemplateAiReferenceAttachmentKind = (args: {
+  name: string;
+  mimeType?: string | null;
+}) => {
+  const normalizedMimeType = args.mimeType?.trim().toLowerCase() ?? "";
+  const normalizedName = args.name.trim().toLowerCase();
+
+  if (
+    templateAiReferenceHtmlMimeTypes.includes(
+      normalizedMimeType as (typeof templateAiReferenceHtmlMimeTypes)[number],
+    ) ||
+    templateAiReferenceHtmlExtensions.some((extension) => normalizedName.endsWith(extension))
+  ) {
+    return "html" as const;
+  }
+
+  if (
+    templateAiReferenceImageMimeTypes.includes(
+      normalizedMimeType as (typeof templateAiReferenceImageMimeTypes)[number],
+    )
+  ) {
+    return "image" as const;
+  }
+
+  return null;
+};
+
+export const validateTemplateAiReferenceAttachmentMeta = (args: {
+  name: string;
+  mimeType?: string | null;
+  size: number;
+}) => {
+  if (args.size <= 0) {
+    return "빈 파일은 업로드할 수 없습니다.";
+  }
+
+  if (args.size > TEMPLATE_AI_REFERENCE_ATTACHMENT_MAX_BYTES) {
+    return "첨부파일은 2MB 이하만 업로드할 수 있습니다.";
+  }
+
+  if (!resolveTemplateAiReferenceAttachmentKind(args)) {
+    return "이미지(PNG/JPEG/WEBP/GIF) 또는 HTML 파일만 업로드할 수 있습니다.";
+  }
+
+  return null;
+};
+
+export const templateAiReferenceAttachmentSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(100),
+    kind: z.enum(["html", "image"]),
+    textContent: z.string().max(20_000).optional(),
+    base64Data: z.string().max(4_000_000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === "html" && !value.textContent?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["textContent"],
+        message: "HTML 첨부 내용이 비어 있습니다.",
+      });
+    }
+
+    if (value.kind === "image" && !value.base64Data?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["base64Data"],
+        message: "이미지 첨부 데이터가 비어 있습니다.",
+      });
+    }
+  });
+
+export type TemplateAiReferenceAttachment = z.infer<typeof templateAiReferenceAttachmentSchema>;
+
 export const templateAiRequestSchema = z
   .object({
     topic: z.enum(templateAiTopicOptions),
@@ -84,6 +171,8 @@ export const templateAiRequestSchema = z
       )
       .max(3)
       .default([]),
+    mailBodyReferenceAttachment: templateAiReferenceAttachmentSchema.optional(),
+    maliciousPageReferenceAttachment: templateAiReferenceAttachmentSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.topic === "other" && value.customTopic.length === 0) {

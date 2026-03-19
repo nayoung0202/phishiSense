@@ -1,23 +1,25 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import {
-  templateAiGenerateResponseSchema,
-  type TemplateAiRequest,
-  templateAiRequestSchema,
+  trainingPageAiGenerateResponseSchema,
+  type TrainingPageAiRequest,
+  trainingPageAiRequestSchema,
+} from "@shared/trainingPageAi";
+import {
   resolveTemplateAiReferenceAttachmentKind,
   validateTemplateAiReferenceAttachmentMeta,
 } from "@shared/templateAi";
 import {
-  generateTemplateAiCandidates,
-  TemplateAiServiceError,
-} from "@/server/services/templateAi";
+  generateTrainingPageAiCandidates,
+  TrainingPageAiServiceError,
+} from "@/server/services/trainingPageAi";
 
-class TemplateAiRequestParseError extends Error {
+class TrainingPageAiRequestParseError extends Error {
   status: number;
 
   constructor(message: string, status = 400) {
     super(message);
-    this.name = "TemplateAiRequestParseError";
+    this.name = "TrainingPageAiRequestParseError";
     this.status = status;
   }
 }
@@ -30,14 +32,11 @@ const parseJsonArrayField = <T>(value: FormDataEntryValue | null, fallback: T): 
   try {
     return JSON.parse(value) as T;
   } catch {
-    throw new TemplateAiRequestParseError("AI 템플릿 생성 요청이 올바르지 않습니다.");
+    throw new TrainingPageAiRequestParseError("AI 훈련안내페이지 생성 요청이 올바르지 않습니다.");
   }
 };
 
-const parseReferenceAttachment = async (
-  value: FormDataEntryValue | null,
-  label: string,
-) => {
+const parseReferenceAttachment = async (value: FormDataEntryValue | null) => {
   if (!(value instanceof File) || value.name.trim().length === 0) {
     return undefined;
   }
@@ -49,7 +48,7 @@ const parseReferenceAttachment = async (
   });
 
   if (validationMessage) {
-    throw new TemplateAiRequestParseError(`${label}: ${validationMessage}`);
+    throw new TrainingPageAiRequestParseError(`훈련안내페이지 첨부파일: ${validationMessage}`);
   }
 
   const kind = resolveTemplateAiReferenceAttachmentKind({
@@ -58,15 +57,17 @@ const parseReferenceAttachment = async (
   });
 
   if (!kind) {
-    throw new TemplateAiRequestParseError(
-      `${label}: 이미지(PNG/JPEG/WEBP/GIF) 또는 HTML 파일만 업로드할 수 있습니다.`,
+    throw new TrainingPageAiRequestParseError(
+      "훈련안내페이지 첨부파일: 이미지(PNG/JPEG/WEBP/GIF) 또는 HTML 파일만 업로드할 수 있습니다.",
     );
   }
 
   if (kind === "html") {
     const textContent = (await value.text()).trim();
     if (!textContent) {
-      throw new TemplateAiRequestParseError(`${label}: 빈 HTML 파일은 사용할 수 없습니다.`);
+      throw new TrainingPageAiRequestParseError(
+        "훈련안내페이지 첨부파일: 빈 HTML 파일은 사용할 수 없습니다.",
+      );
     }
 
     return {
@@ -85,15 +86,15 @@ const parseReferenceAttachment = async (
   } as const;
 };
 
-const parseTemplateAiRequest = async (request: Request): Promise<TemplateAiRequest> => {
+const parseTrainingPageAiRequest = async (request: Request): Promise<TrainingPageAiRequest> => {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
 
   if (!contentType.includes("multipart/form-data")) {
-    return templateAiRequestSchema.parse(await request.json());
+    return trainingPageAiRequestSchema.parse(await request.json());
   }
 
   const formData = await request.formData();
-  return templateAiRequestSchema.parse({
+  return trainingPageAiRequestSchema.parse({
     topic: formData.get("topic"),
     customTopic: formData.get("customTopic"),
     tone: formData.get("tone"),
@@ -101,38 +102,31 @@ const parseTemplateAiRequest = async (request: Request): Promise<TemplateAiReque
     prompt: formData.get("prompt"),
     generateCount: Number(formData.get("generateCount") ?? 4),
     preservedCandidates: parseJsonArrayField(formData.get("preservedCandidates"), []),
-    mailBodyReferenceAttachment: await parseReferenceAttachment(
-      formData.get("mailBodyReferenceAttachment"),
-      "메일본문 첨부파일",
-    ),
-    maliciousPageReferenceAttachment: await parseReferenceAttachment(
-      formData.get("maliciousPageReferenceAttachment"),
-      "악성메일본문 첨부파일",
-    ),
+    referenceAttachment: await parseReferenceAttachment(formData.get("referenceAttachment")),
   });
 };
 
 export async function POST(request: Request) {
   try {
-    const payload = await parseTemplateAiRequest(request);
-    const result = await generateTemplateAiCandidates(payload);
-    return NextResponse.json(templateAiGenerateResponseSchema.parse(result));
+    const payload = await parseTrainingPageAiRequest(request);
+    const result = await generateTrainingPageAiCandidates(payload);
+    return NextResponse.json(trainingPageAiGenerateResponseSchema.parse(result));
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "AI 템플릿 생성 요청이 올바르지 않습니다.", issues: error.errors },
+        { error: "AI 훈련안내페이지 생성 요청이 올바르지 않습니다.", issues: error.errors },
         { status: 400 },
       );
     }
 
-    if (error instanceof TemplateAiRequestParseError) {
+    if (error instanceof TrainingPageAiRequestParseError) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status },
       );
     }
 
-    if (error instanceof TemplateAiServiceError) {
+    if (error instanceof TrainingPageAiServiceError) {
       return NextResponse.json(
         {
           error: error.message,
@@ -143,7 +137,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const message = error instanceof Error ? error.message : "template_ai_generate_failed";
+    const message =
+      error instanceof Error ? error.message : "training_page_ai_generate_failed";
     return NextResponse.json(
       { error: message },
       { status: 500 },

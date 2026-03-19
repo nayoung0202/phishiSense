@@ -86,11 +86,17 @@ export function TemplatePreviewFrame({
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full border-0", theme === "dark" ? "bg-slate-950" : "bg-white", className)}
+      className={cn(
+        "w-full border-0",
+        !interactive && "pointer-events-none",
+        theme === "dark" ? "bg-slate-950" : "bg-white",
+        className,
+      )}
       style={{ height: `${contentHeight}px` }}
       srcDoc={srcDoc}
       sandbox="allow-same-origin"
       title="template-preview-frame"
+      tabIndex={interactive ? 0 : -1}
     />
   );
 }

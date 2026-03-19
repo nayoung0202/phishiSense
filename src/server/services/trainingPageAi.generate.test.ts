@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TemplateAiRequest } from "@shared/templateAi";
+import type { TrainingPageAiRequest } from "@shared/trainingPageAi";
 import {
-  generateTemplateAiCandidates,
-  TemplateAiServiceError,
-} from "./templateAi";
+  generateTrainingPageAiCandidates,
+  TrainingPageAiServiceError,
+} from "./trainingPageAi";
 
-const baseRequest: TemplateAiRequest = {
+const baseRequest: TrainingPageAiRequest = {
   topic: "other",
-  customTopic: "수신 파일 재다운로드",
+  customTopic: "파일 확인 훈련 안내",
   tone: "informational",
   difficulty: "medium",
   prompt: "",
@@ -35,7 +35,7 @@ const buildGeminiUnavailableResponse = () =>
 
 const buildGeminiSuccessResponse = (
   candidateCount: number,
-  maliciousPageContent = '<form action="{{TRAINING_URL}}"><input name="email" /><button type="submit">제출</button></form>',
+  content = '<div><button type="button">확인</button></div>',
 ) =>
   new Response(
     JSON.stringify({
@@ -46,9 +46,9 @@ const buildGeminiSuccessResponse = (
               {
                 text: JSON.stringify({
                   candidates: Array.from({ length: candidateCount }, (_, index) => ({
-                    subject: `후보 ${index + 1}`,
-                    body: '<div><a href="{{LANDING_URL}}">확인</a></div>',
-                    maliciousPageContent,
+                    name: `훈련 후보 ${index + 1}`,
+                    description: `설명 ${index + 1}`,
+                    content,
                     summary: `요약 ${index + 1}`,
                   })),
                 }),
@@ -71,7 +71,7 @@ const buildGeminiSuccessResponse = (
     },
   );
 
-describe("generateTemplateAiCandidates", () => {
+describe("generateTrainingPageAiCandidates", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubEnv("GEMINI_API_KEY", "test-key");
@@ -92,23 +92,23 @@ describe("generateTemplateAiCandidates", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const resultPromise = generateTemplateAiCandidates(baseRequest).catch((caught) => caught);
+    const resultPromise = generateTrainingPageAiCandidates(baseRequest).catch((caught) => caught);
 
     await vi.runAllTimersAsync();
 
     const error = await resultPromise;
 
-    expect(error).toBeInstanceOf(TemplateAiServiceError);
+    expect(error).toBeInstanceOf(TrainingPageAiServiceError);
     expect(error).toMatchObject({
       status: 503,
       code: "gemini_service_unavailable",
       retryable: true,
-      message: "AI 템플릿 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
+      message: "AI 훈련안내페이지 생성 요청이 일시적으로 많습니다. 잠시 후 다시 시도하세요.",
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("재시도 중 정상 응답이 오면 후보를 반환한다", async () => {
+  it("정상 응답이면 SUBMIT_URL 없이도 후보를 반환한다", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(buildGeminiUnavailableResponse())
@@ -116,15 +116,15 @@ describe("generateTemplateAiCandidates", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const resultPromise = generateTemplateAiCandidates(baseRequest);
+    const resultPromise = generateTrainingPageAiCandidates(baseRequest);
 
     await vi.runAllTimersAsync();
 
     await expect(resultPromise).resolves.toMatchObject({
       candidates: expect.arrayContaining([
         expect.objectContaining({
-          subject: "후보 1",
-          maliciousPageContent: expect.stringContaining('action="{{TRAINING_URL}}"'),
+          name: "훈련 후보 1",
+          content: expect.stringContaining('type="button"'),
         }),
       ]),
       usage: expect.objectContaining({
@@ -137,58 +137,26 @@ describe("generateTemplateAiCandidates", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("폼 action이 이미 있으면 별도 훈련 안내 링크를 자동 추가하지 않는다", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(buildGeminiSuccessResponse(1));
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await generateTemplateAiCandidates({
-      ...baseRequest,
-      generateCount: 1,
-    });
-
-    expect(result.candidates[0]?.maliciousPageContent).toContain('action="{{TRAINING_URL}}"');
-    expect(result.candidates[0]?.maliciousPageContent).not.toContain('href="{{TRAINING_URL}}"');
-  });
-
-  it("오타난 TRAINING_URL 토큰을 제출 동선 기준으로 정규화한다", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      buildGeminiSuccessResponse(
-        1,
-        '<form action="{{tranning_url}}}"><input name="email" /><button type="submit">제출</button></form>',
-      ),
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await generateTemplateAiCandidates({
-      ...baseRequest,
-      generateCount: 1,
-    });
-
-    expect(result.candidates[0]?.maliciousPageContent).toContain('action="{{TRAINING_URL}}"');
-    expect(result.candidates[0]?.maliciousPageContent).not.toContain("tranning_url");
-    expect(result.candidates[0]?.maliciousPageContent).not.toContain('href="{{TRAINING_URL}}"');
-  });
-
-  it("별도 링크만 있고 제출 동선에 TRAINING_URL이 없으면 invalid response로 처리한다", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      buildGeminiSuccessResponse(
-        1,
-        '<form><input name="email" /><button type="submit">제출</button></form><a href="{{TRAINING_URL}}">훈련 안내</a>',
-      ),
-    );
+  it("단순 안내형 HTML도 안전 규칙만 통과하면 후보로 반환한다", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        buildGeminiSuccessResponse(1, "<section><p>학습 안내를 다시 확인해 주세요.</p></section>"),
+      );
 
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      generateTemplateAiCandidates({
+      generateTrainingPageAiCandidates({
         ...baseRequest,
         generateCount: 1,
       }),
-    ).rejects.toMatchObject({
-      status: 502,
-      code: "gemini_invalid_response",
+    ).resolves.toMatchObject({
+      candidates: expect.arrayContaining([
+        expect.objectContaining({
+          content: "<section><p>학습 안내를 다시 확인해 주세요.</p></section>",
+        }),
+      ]),
     });
   });
 
@@ -197,20 +165,14 @@ describe("generateTemplateAiCandidates", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await generateTemplateAiCandidates({
+    await generateTrainingPageAiCandidates({
       ...baseRequest,
       generateCount: 1,
-      mailBodyReferenceAttachment: {
-        name: "mail-reference.png",
+      referenceAttachment: {
+        name: "training-reference.png",
         mimeType: "image/png",
         kind: "image",
         base64Data: "ZmFrZS1pbWFnZQ==",
-      },
-      maliciousPageReferenceAttachment: {
-        name: "landing-reference.html",
-        mimeType: "text/html",
-        kind: "html",
-        textContent: "<div>악성본문 참고</div>",
       },
     });
 
@@ -229,7 +191,7 @@ describe("generateTemplateAiCandidates", () => {
     expect(requestBody.contents[0]?.parts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          text: expect.stringContaining("mail-reference.png"),
+          text: expect.stringContaining("training-reference.png"),
         }),
         expect.objectContaining({
           inlineData: {
@@ -239,6 +201,5 @@ describe("generateTemplateAiCandidates", () => {
         }),
       ]),
     );
-    expect(requestBody.contents[0]?.parts[0]?.text).toContain("<div>악성본문 참고</div>");
   });
 });

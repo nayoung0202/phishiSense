@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildHtmlErrorResponse } from "@/server/lib/htmlErrorPage";
+import { buildSubmitUrl } from "@/server/lib/trainingLink";
 import {
   getPublicProjectContextByTrackingToken,
   updateProjectForTenant,
   updateProjectTargetForTenant,
 } from "@/server/tenant/tenantStorage";
-import { buildSubmitUrl } from "@/server/lib/trainingLink";
 
 type RouteContext = {
   params: Promise<{
@@ -12,34 +13,25 @@ type RouteContext = {
   }>;
 };
 
-const securityHeaders = {
-  "Content-Security-Policy":
-    "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; font-src data: http: https:; base-uri 'none'; form-action 'self'; frame-ancestors 'none';",
-};
-
-const buildHtmlResponse = (message: string, status: number) =>
-  new NextResponse(
-    `<!doctype html><html lang="ko"><head><meta charset="utf-8" /><title>제출 처리</title></head><body><p>${message}</p></body></html>`,
-    {
-      status,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...securityHeaders,
-      },
-    },
-  );
+const buildMissingSubmitResponse = (message: string) =>
+  buildHtmlErrorResponse({
+    status: 404,
+    title: "제출 경로를 찾을 수 없습니다.",
+    message,
+    label: "Submit Route",
+  });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { token } = await params;
     const normalized = token?.trim();
     if (!normalized) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingSubmitResponse("잘못된 제출 주소이거나 더 이상 유효하지 않은 링크입니다.");
     }
 
     const context = await getPublicProjectContextByTrackingToken(normalized);
     if (!context) {
-      return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+      return buildMissingSubmitResponse("잘못된 제출 주소이거나 더 이상 유효하지 않은 링크입니다.");
     }
 
     const { tenantId, projectTarget, project } = context;
@@ -78,6 +70,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
     return response;
   } catch {
-    return buildHtmlResponse("페이지를 찾을 수 없습니다.", 404);
+    return buildMissingSubmitResponse("요청한 제출 경로를 불러오지 못했습니다.");
   }
 }
