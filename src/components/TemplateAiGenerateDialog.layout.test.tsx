@@ -52,11 +52,11 @@ describe("TemplateAiGenerateDialog layout", () => {
     );
   });
 
-  it("renders non-interactive iframe previews for generated candidates", async () => {
+  it("renders non-interactive shadow DOM previews for generated candidates", async () => {
     server.use(
       http.post("/api/templates/ai-generate", () =>
         HttpResponse.json({
-          candidates: buildCandidates("iframe", 4),
+          candidates: buildCandidates("shadow", 4),
         }),
       ),
     );
@@ -68,6 +68,6 @@ describe("TemplateAiGenerateDialog layout", () => {
 
     const frames = await screen.findAllByTitle("template-preview-frame");
     expect(frames.length).toBeGreaterThan(0);
-    expect(frames[0].getAttribute("srcdoc")).toContain("pointer-events: none !important;");
+    expect(frames[0].shadowRoot?.innerHTML).toContain("pointer-events: none !important;");
   });
 });

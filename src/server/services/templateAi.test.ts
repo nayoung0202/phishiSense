@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   estimateTemplateAiCredits,
   findUnsafeTemplateHtmlIssues,
@@ -183,5 +183,29 @@ describe("templateAi helpers", () => {
     expect(prompt).toContain("<div>메일 참고 레이아웃</div>");
     expect(prompt).toContain("landing-reference.png");
     expect(prompt).toContain("Treat that image as the primary basis for malicious page.");
+  });
+
+  it("프롬프트에 현재 날짜 기준을 넣어 과거 연도 생성을 억제한다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-19T09:00:00Z"));
+
+    try {
+      const prompt = buildTemplateAiPrompt({
+        topic: "shipping",
+        customTopic: "",
+        tone: "urgent-request",
+        difficulty: "medium",
+        prompt: "",
+        generateCount: 2,
+        preservedCandidates: [],
+      });
+
+      expect(prompt).toContain("Current date context:");
+      expect(prompt).toContain("- today: 2026-03-19");
+      expect(prompt).toContain("- current year: 2026");
+      expect(prompt).toContain("Do not mention past years such as 2023");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

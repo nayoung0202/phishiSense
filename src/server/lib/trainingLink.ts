@@ -26,7 +26,7 @@ export const buildSubmitFormUrl = (token: string) =>
   `${getAppBaseUrl()}/p/${encodeURIComponent(token)}/submit`;
 
 export const buildOpenPixelUrl = (token: string) =>
-  `${getAppBaseUrl()}/o/${encodeURIComponent(token)}.gif`;
+  `${getAppBaseUrl()}/o/${encodeURIComponent(token)}`;
 
 export const buildTrainingLinkUrl = (token: string) => buildSubmitUrl(token);
 

@@ -324,6 +324,21 @@ A reference image for ${label} will be attached after this prompt. Treat that im
   `.trim();
 };
 
+const buildCurrentDatePromptContext = (now = new Date()) => {
+  const currentDate = now.toISOString().slice(0, 10);
+  const currentYear = currentDate.slice(0, 4);
+
+  return `
+Current date context:
+- today: ${currentDate}
+- current year: ${currentYear}
+- If you mention a specific date or year, align it with this current date context unless the user explicitly requests another period.
+- Avoid inserting a year unless it materially helps the scenario.
+- Do not mention past years such as 2023 unless the user explicitly asks for historical or legacy content.
+- Any deadline, notice window, or dated announcement should feel current for ${currentYear}.
+  `.trim();
+};
+
 const buildGeminiRequestParts = (request: TemplateAiRequest) => {
   const parts: Array<
     | { text: string }
@@ -428,6 +443,7 @@ export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
   const topicText = resolveTemplateAiTopicText(request);
   const toneText = templateAiToneLabels[request.tone];
   const difficultyText = templateAiDifficultyLabels[request.difficulty];
+  const currentDateContext = buildCurrentDatePromptContext();
   const attachmentText = [
     buildReferenceAttachmentPrompt("mail body", request.mailBodyReferenceAttachment),
     buildReferenceAttachmentPrompt(
@@ -482,6 +498,8 @@ ${attachmentText}
 
 Variation instructions:
 ${preservedText}
+
+${currentDateContext}
 
 Reference mail-body HTML shape:
 ${referenceMailBodyHtml}

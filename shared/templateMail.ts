@@ -2,6 +2,7 @@ import type { Template } from "@shared/schema";
 
 const landingTokenMatcher = /\{\{\s*LANDING_URL\s*\}\}/i;
 const landingTokenReplacer = /\{\{\s*LANDING_URL\s*\}\}/gi;
+const openPixelMatcher = /\{\{\s*OPEN_PIXEL_URL\s*\}\}/i;
 const openPixelReplacer = /\{\{\s*OPEN_PIXEL_URL\s*\}\}/gi;
 
 type AutoInsertKind = "link" | "button";
@@ -80,10 +81,14 @@ export const buildMailHtml = (
 ): MailBuildResult => {
   const htmlBody = template.body ?? "";
   const hasLandingToken = landingTokenMatcher.test(htmlBody);
+  const hasOpenPixelToken = openPixelMatcher.test(htmlBody);
   let output = htmlBody.replace(landingTokenReplacer, landingUrl);
 
   if (openPixelUrl) {
     output = output.replace(openPixelReplacer, openPixelUrl);
+    if (!hasOpenPixelToken) {
+      output = `${output}<img src="${openPixelUrl}" alt="" width="1" height="1" style="display:block;width:1px;height:1px;border:0;opacity:0" />`;
+    }
   } else {
     output = output.replace(openPixelReplacer, "");
   }

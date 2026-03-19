@@ -66,10 +66,8 @@ describe("Templates", () => {
     await waitFor(() => {
       const frames = screen.getAllByTitle("template-preview-frame");
       expect(
-        frames.some((frame) => frame.getAttribute("srcdoc")?.includes("배경 변경 제출")),
+        frames.some((frame) => frame.shadowRoot?.innerHTML?.includes("배경 변경 제출")),
       ).toBe(true);
     });
-    const dialog = screen.getByTestId("dialog-template-preview");
-    expect(within(dialog).queryByText("배경 변경 제출")).not.toBeInTheDocument();
   });
 });

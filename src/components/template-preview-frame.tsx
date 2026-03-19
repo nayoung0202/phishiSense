@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { extractBodyHtml } from "@/lib/html";
 import { cn } from "@/lib/utils";
 import {
   neutralizePreviewModalHtml,
+  stripPreviewScriptTags,
   TEMPLATE_PREVIEW_SANDBOX_CLASS,
   TEMPLATE_PREVIEW_SANDBOX_CSS,
 } from "@/lib/templatePreview";
@@ -22,27 +23,23 @@ export function TemplatePreviewFrame({
   interactive = false,
   theme = "light",
 }: TemplatePreviewFrameProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [contentHeight, setContentHeight] = useState(minHeight);
+  const hostRef = useRef<HTMLDivElement>(null);
   const safeHtml = useMemo(
-    () => neutralizePreviewModalHtml(extractBodyHtml(html)),
+    () => stripPreviewScriptTags(neutralizePreviewModalHtml(extractBodyHtml(html))),
     [html],
   );
   const bodyBackground = theme === "dark" ? "#020617" : "#ffffff";
   const bodyTextColor = theme === "dark" ? "#f8fafc" : "#0f172a";
   const linkColor = theme === "dark" ? "#38bdf8" : "#0284c7";
 
-  const srcDoc = useMemo(
+  const shadowContent = useMemo(
     () =>
       [
-        "<!DOCTYPE html>",
-        "<html>",
-        "<head>",
-        '<meta charset="utf-8" />',
         "<style>",
-        `body { margin: 0; padding: 1rem; background: ${bodyBackground}; color: ${bodyTextColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }`,
+        `*, *::before, *::after { box-sizing: border-box; }`,
+        `:host { display: block; min-height: ${minHeight}px; background: ${bodyBackground}; color: ${bodyTextColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }`,
+        `.${TEMPLATE_PREVIEW_SANDBOX_CLASS} { padding: 1rem; }`,
         `a { color: ${linkColor}; text-decoration: underline; }`,
-        "*, *::before, *::after { box-sizing: border-box; }",
         "img { max-width: 100%; height: auto; display: block; }",
         "input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }",
         "label { display: block; margin-bottom: 0.35rem; font-weight: 600; }",
@@ -55,46 +52,30 @@ export function TemplatePreviewFrame({
           : "",
         TEMPLATE_PREVIEW_SANDBOX_CSS,
         "</style>",
-        "</head>",
-        `<body class="${TEMPLATE_PREVIEW_SANDBOX_CLASS}">`,
+        `<div class="${TEMPLATE_PREVIEW_SANDBOX_CLASS}">`,
         safeHtml || "",
-        "</body>",
-        "</html>",
+        "</div>",
       ].join(""),
-    [bodyBackground, bodyTextColor, interactive, linkColor, safeHtml],
+    [bodyBackground, bodyTextColor, interactive, linkColor, minHeight, safeHtml],
   );
 
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-    const handleLoad = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return;
-        const height = doc.body?.scrollHeight ?? minHeight;
-        setContentHeight(Math.max(minHeight, height));
-      } catch {
-        setContentHeight(minHeight);
-      }
-    };
-    iframe.addEventListener("load", handleLoad);
-    return () => {
-      iframe.removeEventListener("load", handleLoad);
-    };
-  }, [srcDoc, minHeight]);
+    const host = hostRef.current;
+    if (!host) return;
+    const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    shadow.innerHTML = shadowContent;
+  }, [shadowContent]);
 
   return (
-    <iframe
-      ref={iframeRef}
+    <div
+      ref={hostRef}
       className={cn(
-        "w-full border-0",
+        "w-full",
         !interactive && "pointer-events-none",
         theme === "dark" ? "bg-slate-950" : "bg-white",
         className,
       )}
-      style={{ height: `${contentHeight}px` }}
-      srcDoc={srcDoc}
-      sandbox="allow-same-origin"
+      style={{ minHeight: `${minHeight}px` }}
       title="template-preview-frame"
       tabIndex={interactive ? 0 : -1}
     />

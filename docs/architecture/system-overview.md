@@ -86,7 +86,8 @@ shared/         공용 스키마와 타입
 1. 프로젝트에서 발송 작업이 생성되면 `send_jobs`에 큐가 쌓입니다.
 2. 발송 워커가 작업을 선점합니다.
 3. 템플릿 검증, 추적 토큰 생성, SMTP 전송을 수행합니다.
-4. 결과는 `project_targets`, `send_jobs`, `projects` 집계에 반영됩니다.
+4. 메일 오픈은 공개 오픈 픽셀 라우트, 링크 클릭은 피싱 랜딩 라우트, 제출은 훈련 안내/제출 라우트를 통해 추적됩니다.
+5. 결과는 `project_targets`, `send_jobs`, `projects` 집계에 반영됩니다.
 
 ### 플랫폼 entitlement 동기화
 

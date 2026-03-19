@@ -139,3 +139,13 @@ export const neutralizePreviewModalHtml = (html: string) => {
 
   return convertDialogToStaticContainer(stripFullscreenWrapper(html));
 };
+
+export const stripPreviewScriptTags = (html: string) => {
+  if (!html) {
+    return "";
+  }
+
+  return html
+    .replace(/<script\b[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+};

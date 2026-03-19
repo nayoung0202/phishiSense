@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -473,6 +474,73 @@ export default function Dashboard() {
     if (currentMonthIndex < 0 || currentMonthIndex >= availableMonthKeys.length - 1) return;
     setSelectedMonthKey(availableMonthKeys[currentMonthIndex + 1] ?? null);
   };
+
+  if (!isLoading && projects.length === 0) {
+    return (
+      <div className="p-6 space-y-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">대시보드</h1>
+            <p className="text-sm text-muted-foreground">
+              첫 훈련을 아직 시작하지 않았습니다. AI로 메일을 만들고 실제 메일을 직접 받아보며
+              집계까지 확인해 보세요.
+            </p>
+          </div>
+          <Link href="/projects/new">
+            <Button data-testid="button-new-project">
+              <Plus className="mr-2 h-4 w-4" />
+              새 프로젝트
+            </Button>
+          </Link>
+        </div>
+
+        <Card className="overflow-hidden border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-0 text-slate-950">
+          <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="space-y-4">
+              <Badge variant="outline" className="border-sky-300 text-sky-700">
+                추천 시작 경로
+              </Badge>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold tracking-tight text-slate-950">
+                  첫 피싱 시뮬레이션 체험
+                </h2>
+                <p className="max-w-2xl text-sm text-slate-600">
+                  AI로 피싱 메일과 훈련 안내 페이지를 생성한 뒤, 내 이메일로 실제 프로젝트를
+                  발송하고 오픈, 클릭, 제출 집계를 프로젝트 상세에서 직접 확인할 수 있습니다.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/projects/experience">
+                  <Button size="lg" className="bg-slate-950 text-white hover:bg-slate-800">
+                    체험 시작하기
+                  </Button>
+                </Link>
+                <Link href="/admin/smtp">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+                  >
+                    SMTP 먼저 설정
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-900/10 bg-slate-950 p-5 text-white shadow-sm">
+              <p className="text-sm font-semibold text-sky-100">체험 순서</p>
+              <ol className="mt-3 space-y-3 text-sm text-slate-100">
+                <li>1. AI로 피싱 메일 생성</li>
+                <li>2. AI로 훈련 안내 페이지 생성</li>
+                <li>3. SMTP 연결 확인</li>
+                <li>4. 내 메일로 실제 발송</li>
+                <li>5. 프로젝트 상세에서 이벤트 확인</li>
+              </ol>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-8">
