@@ -1813,9 +1813,9 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                             </p>
                           </div>
                           {projectQuarterBadge ? (
-                            <p className="text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground">
                               <Badge variant="outline">{projectQuarterBadge}</Badge>
-                            </p>
+                            </div>
                           ) : null}
                           <FormMessage />
                         </FormItem>
