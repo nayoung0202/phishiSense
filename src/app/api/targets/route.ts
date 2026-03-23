@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { insertTargetSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import {
-  createTargetForTenant,
+  createTargetForTenantWithinSeatLimit,
   findTargetByEmailInTenant,
   getTargetsForTenant,
 } from "@/server/tenant/tenantStorage";
@@ -10,6 +10,10 @@ import {
   buildReadyTenantErrorResponse,
   requireReadyTenant,
 } from "@/server/tenant/currentTenant";
+import {
+  isTargetSeatLimitError,
+  resolveTargetSeatLimit,
+} from "@/server/services/targetSeatCapacity";
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +27,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { tenantId } = await requireReadyTenant(request);
+    const { tenantId, platform } = await requireReadyTenant(request);
     const payload = await request.json();
     const validated = insertTargetSchema.parse(payload);
     const existing = await findTargetByEmailInTenant(tenantId, validated.email);
@@ -33,9 +37,27 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
-    const target = await createTargetForTenant(tenantId, validated);
+    const seatLimit = resolveTargetSeatLimit(platform);
+    const target = await createTargetForTenantWithinSeatLimit(
+      tenantId,
+      validated,
+      seatLimit,
+    );
     return NextResponse.json(target, { status: 201 });
   } catch (error) {
+    if (isTargetSeatLimitError(error)) {
+      return NextResponse.json(
+        {
+          error: error.code,
+          message: error.message,
+          seatLimit: error.seatLimit,
+          usedSeats: error.usedSeats,
+          remainingSeats: error.remainingSeats,
+        },
+        { status: error.status },
+      );
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json(
         { error: "Invalid target data", issues: error.errors },

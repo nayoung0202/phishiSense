@@ -22,6 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { SafeText } from "@/components/security/SafeText";
 import { importTrainingTargetsExcel, type ImportTrainingTargetsResponse } from "@/lib/api";
+import {
+  resolveDisplayedTargetSeatLimit,
+  type PlatformSeatContext,
+  TargetSeatUsageSummary,
+} from "@/components/targets/TargetSeatUsageSummary";
 
 const parseDepartments = (department: Target["department"]): string[] => {
   if (!department) return [];
@@ -96,6 +101,9 @@ export default function Targets() {
   const { data: targets = [], isLoading } = useQuery<Target[]>({
     queryKey: ["/api/targets"],
   });
+  const platformContextQuery = useQuery<PlatformSeatContext>({
+    queryKey: ["/api/auth/platform-context"],
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -114,6 +122,7 @@ export default function Targets() {
     () => filterTargetsBySearch(targets, searchTerm),
     [targets, searchTerm],
   );
+  const displayedSeatLimit = resolveDisplayedTargetSeatLimit(platformContextQuery.data);
 
   const isAllSelected =
     filteredTargets.length > 0 &&
@@ -258,6 +267,12 @@ export default function Targets() {
           </Link>
         </div>
       </div>
+
+      <TargetSeatUsageSummary
+        usedSeats={targets.length}
+        seatLimit={displayedSeatLimit}
+        isLoading={platformContextQuery.isLoading}
+      />
 
       <Card className="p-6">
         <div className="mb-6 relative">

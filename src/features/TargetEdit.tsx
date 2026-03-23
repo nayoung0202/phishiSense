@@ -45,6 +45,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useCustomDepartments } from "@/hooks/useCustomDepartments";
 import { CustomDepartmentManager } from "@/components/CustomDepartmentManager";
 import { cn } from "@/lib/utils";
+import {
+  resolveDisplayedTargetSeatLimit,
+  type PlatformSeatContext,
+  TargetSeatUsageSummary,
+} from "@/components/targets/TargetSeatUsageSummary";
 
 const targetFormSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요."),
@@ -197,6 +202,9 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
   const { data: allTargets = [] } = useQuery<Target[]>({
     queryKey: ["/api/targets"],
   });
+  const platformContextQuery = useQuery<PlatformSeatContext>({
+    queryKey: ["/api/auth/platform-context"],
+  });
 
   const departmentOptions = useMemo(() => {
     const base = buildDepartmentOptions(allTargets);
@@ -246,6 +254,12 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
     () => normalizeTags(target?.tags ?? null),
     [target],
   );
+  const displayedSeatLimit = resolveDisplayedTargetSeatLimit(platformContextQuery.data);
+  const remainingSeats =
+    typeof displayedSeatLimit === "number"
+      ? Math.max(displayedSeatLimit - allTargets.length, 0)
+      : null;
+  const isSeatLimitReached = isNew && remainingSeats === 0;
 
   const form = useForm<TargetFormValues>({
     resolver: zodResolver(targetFormSchema),
@@ -498,13 +512,26 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
       if (error instanceof Error && error.message.startsWith("409:")) {
         const rawBody = error.message.slice(4).trim();
         try {
-          const parsed = JSON.parse(rawBody) as { message?: string };
-          setDuplicateEmailMessage(
-            parsed.message ?? "이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요.",
-          );
+          const parsed = JSON.parse(rawBody) as { error?: string; message?: string };
+          if (parsed.error === "duplicate_email") {
+            setDuplicateEmailMessage(
+              parsed.message ?? "이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요.",
+            );
+            return;
+          }
+
+          toast({
+            title: "저장 실패",
+            description: parsed.message ?? "훈련대상 저장 중 오류가 발생했습니다.",
+            variant: "destructive",
+          });
           return;
         } catch {
-          setDuplicateEmailMessage("이미 등록된 이메일입니다. 다른 이메일을 입력한 뒤 다시 저장하세요.");
+          toast({
+            title: "저장 실패",
+            description: "훈련대상 저장 중 오류가 발생했습니다.",
+            variant: "destructive",
+          });
           return;
         }
       }
@@ -539,6 +566,14 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
       <Card className="p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {isNew ? (
+              <TargetSeatUsageSummary
+                usedSeats={allTargets.length}
+                seatLimit={displayedSeatLimit}
+                isLoading={platformContextQuery.isLoading}
+              />
+            ) : null}
+
             <FormField
               control={form.control}
               name="name"
@@ -934,7 +969,7 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
             <div className="flex items-center gap-4 pt-4">
               <Button
                 type="submit"
-                disabled={saveMutation.isPending || !mainDepartmentValue}
+                disabled={saveMutation.isPending || !mainDepartmentValue || isSeatLimitReached}
                 data-testid="button-save"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -946,6 +981,11 @@ export default function TargetEdit({ targetId }: { targetId?: string }) {
                 </Button>
               </Link>
             </div>
+            {isSeatLimitReached ? (
+              <p className="text-sm text-destructive">
+                등록 가능한 자리가 모두 사용 중입니다. 기존 대상자를 정리하거나 시트를 늘린 뒤 다시 추가해 주세요.
+              </p>
+            ) : null}
           </form>
         </Form>
       </Card>

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eachDayOfInterval, getISOWeek } from "date-fns";
+import { eq, sql } from "drizzle-orm";
 import type {
   InsertProject,
   InsertProjectTarget,
@@ -20,6 +21,8 @@ import type {
   Template,
   TrainingPage,
 } from "@shared/schema";
+import { db } from "@/server/db";
+import { targets as targetsTable } from "@/server/db/schema";
 import { generateTrainingLinkToken } from "@/server/lib/trainingLink";
 import { normalizePlainText } from "@/server/lib/validation/text";
 import {
@@ -97,6 +100,7 @@ import {
   type SendValidationResult,
 } from "@/server/services/templateSendValidation";
 import { sanitizeHtml } from "@/server/utils/sanitizeHtml";
+import { TargetSeatLimitError } from "@/server/services/targetSeatCapacity";
 
 type ProjectUpdate = Partial<InsertProject> & {
   sendValidationError?: string | null;
@@ -632,21 +636,73 @@ export async function findTargetByEmailInTenant(tenantId: string, email: string)
   return findTargetByEmailForTenant(tenantId, email);
 }
 
+const sanitizeTargetInsert = (tenantId: string, target: InsertTarget) => ({
+  tenantId,
+  name: normalizePlainText(target.name, 200),
+  email: target.email,
+  department: target.department ? normalizePlainText(target.department, 200) : null,
+  tags: target.tags
+    ? target.tags
+        .map((tag) => normalizePlainText(tag, 120))
+        .filter((tag) => tag.length > 0)
+    : null,
+  status: target.status ?? "active",
+});
+
 export async function createTargetForTenant(
   tenantId: string,
   target: InsertTarget,
 ) {
-  return createTargetRecord({
-    tenantId,
-    name: normalizePlainText(target.name, 200),
-    email: target.email,
-    department: target.department ? normalizePlainText(target.department, 200) : null,
-    tags: target.tags
-      ? target.tags
-          .map((tag) => normalizePlainText(tag, 120))
-          .filter((tag) => tag.length > 0)
-      : null,
-    status: target.status ?? "active",
+  return createTargetRecord(sanitizeTargetInsert(tenantId, target));
+}
+
+export async function createTargetForTenantWithinSeatLimit(
+  tenantId: string,
+  target: InsertTarget,
+  seatLimit: number | null,
+) {
+  const payload = sanitizeTargetInsert(tenantId, target);
+
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`targets-seat:${tenantId}`}))`,
+    );
+
+    if (typeof seatLimit === "number") {
+      const countRows = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(targetsTable)
+        .where(eq(targetsTable.tenantId, tenantId));
+      const usedSeats = countRows[0]?.count ?? 0;
+      const remainingSeats = Math.max(seatLimit - usedSeats, 0);
+
+      if (remainingSeats < 1) {
+        throw new TargetSeatLimitError({
+          seatLimit,
+          usedSeats,
+          remainingSeats,
+        });
+      }
+    }
+
+    const rows = await tx
+      .insert(targetsTable)
+      .values({
+        id: randomUUID(),
+        tenantId: payload.tenantId,
+        name: payload.name,
+        email: payload.email,
+        department: payload.department,
+        tags: payload.tags,
+        status: payload.status,
+        createdAt: new Date(),
+      })
+      .returning();
+    const createdTarget = rows[0];
+    if (!createdTarget) {
+      throw new Error("대상을 저장하지 못했습니다.");
+    }
+    return createdTarget;
   });
 }
 

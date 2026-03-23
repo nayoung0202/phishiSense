@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import {
-  createTargetForTenant,
+  createTargetForTenantWithinSeatLimit,
   findTargetByEmailInTenant,
 } from "@/server/tenant/tenantStorage";
 import {
   buildReadyTenantErrorResponse,
   requireReadyTenant,
 } from "@/server/tenant/currentTenant";
+import {
+  isTargetSeatLimitError,
+  resolveTargetSeatLimit,
+} from "@/server/services/targetSeatCapacity";
 
 const HEADER_TITLES = ["이름", "이메일", "소속", "태그", "상태"] as const;
 const REQUIRED_HEADERS = new Set(["이름", "이메일", "소속"]);
@@ -19,12 +23,22 @@ const isExcelMime = (file: File) =>
   file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
   file.name.toLowerCase().endsWith(".xlsx");
 
+const isUploadedExcelFile = (value: FormDataEntryValue | null): value is File =>
+  typeof value === "object" &&
+  value !== null &&
+  "arrayBuffer" in value &&
+  typeof value.arrayBuffer === "function" &&
+  "name" in value &&
+  typeof value.name === "string" &&
+  "type" in value &&
+  typeof value.type === "string";
+
 export async function POST(request: NextRequest) {
   try {
-    const { tenantId } = await requireReadyTenant(request);
+    const { tenantId, platform } = await requireReadyTenant(request);
     const formData = await request.formData();
     const file = formData.get("file");
-    if (!(file instanceof File)) {
+    if (!isUploadedExcelFile(file)) {
       return NextResponse.json({ message: "엑셀 파일을 업로드하세요." }, { status: 400 });
     }
     if (!isExcelMime(file)) {
@@ -74,6 +88,7 @@ export async function POST(request: NextRequest) {
     let successCount = 0;
     let failCount = 0;
     let totalRows = 0;
+    const seatLimit = resolveTargetSeatLimit(platform);
 
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
@@ -123,14 +138,30 @@ export async function POST(request: NextRequest) {
               .filter((tag) => tag.length > 0)
           : null;
 
-      await createTargetForTenant(tenantId, {
-        name,
-        email,
-        department: org,
-        tags,
-        status: normalizedStatus,
-      });
-      successCount += 1;
+      try {
+        await createTargetForTenantWithinSeatLimit(tenantId, {
+          name,
+          email,
+          department: org,
+          tags,
+          status: normalizedStatus,
+        }, seatLimit);
+        successCount += 1;
+      } catch (error) {
+        if (isTargetSeatLimitError(error)) {
+          failCount += 1;
+          if (failures.length < FAILURE_LIMIT) {
+            failures.push({
+              rowNumber,
+              email,
+              reason: error.message,
+            });
+          }
+          continue;
+        }
+
+        throw error;
+      }
     }
 
     return NextResponse.json({

@@ -48,6 +48,8 @@
 | SMTP 설정 | `/api/admin/smtp-configs`, `/api/admin/smtp-configs/[smtpAccountId]`, `/api/admin/smtp-configs/[smtpAccountId]/test`, `/api/admin/tenants/[tenantId]/smtp-config`, `/api/admin/tenants/[tenantId]/smtp-config/test` |
 | 대상자 일괄 업로드 | `/api/admin/training-targets/import`, `/api/admin/training-targets/template.xlsx` |
 
+- `POST /api/targets`와 `POST /api/admin/training-targets/import`는 tenant의 활성 entitlement `seatLimit`을 초과하는 대상자 추가를 허용하지 않습니다.
+
 ## 문서화 원칙
 
 - 상세 request/response 스펙이 장기 운영상 중요해지면 이 디렉터리에 개별 문서를 추가합니다.

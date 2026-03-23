@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike } from "drizzle-orm";
+import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { InsertTarget, Target } from "@shared/schema";
 import { db } from "../db";
@@ -14,6 +14,14 @@ export async function listTargetsForTenant(tenantId: string): Promise<Target[]> 
     .from(targets)
     .where(eq(targets.tenantId, tenantId))
     .orderBy(desc(targets.createdAt));
+}
+
+export async function countTargetsForTenant(tenantId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(targets)
+    .where(eq(targets.tenantId, tenantId));
+  return rows[0]?.count ?? 0;
 }
 
 export async function hasTargets(): Promise<boolean> {
