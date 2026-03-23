@@ -54,6 +54,7 @@ type ApiError = Error & {
 
 const previewLandingUrl = "/example-domain?type=landing";
 const previewOpenPixelUrl = "https://example.com/o/preview";
+const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const extractDomainFromEmail = (value: string | null | undefined) => {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -64,12 +65,12 @@ const extractDomainFromEmail = (value: string | null | undefined) => {
 const resolveExperienceSmtp = (smtpConfigs: SmtpConfigSummary[]) =>
   smtpConfigs
     .filter((config) => config.isActive && config.hasPassword)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+    .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0] ?? null;
 
 const deriveSendingDomain = (smtpConfig: SmtpConfigSummary) => {
   const domain = smtpConfig.allowedRecipientDomains?.[0]?.trim().toLowerCase();
   if (domain) return domain;
-  return extractDomainFromEmail(smtpConfig.fromEmail);
+  return extractDomainFromEmail(smtpConfig.username);
 };
 
 const buildExperienceProjectName = (subject: string) => {
@@ -179,10 +180,12 @@ export default function ProjectExperienceWizard() {
   );
 
   const [recipientEmail, setRecipientEmail] = useState<string | null>(null);
+  const [senderEmail, setSenderEmail] = useState<string | null>(null);
 
   const sessionEmail = sessionQuery.data?.user?.email?.trim() ?? "";
   const sessionName = sessionQuery.data?.user?.name?.trim() ?? "";
   const currentRecipient = recipientEmail ?? sessionEmail;
+  const currentSender = senderEmail ?? sessionEmail;
 
   const selectedTemplateCandidate =
     templateCandidates.find((candidate) => candidate.id === selectedTemplateCandidateId) ?? null;
@@ -324,6 +327,17 @@ export default function ProjectExperienceWizard() {
       if (!trimmedRecipient) {
         throw new Error("수신 이메일을 입력하세요.");
       }
+      if (!emailRegex.test(trimmedRecipient)) {
+        throw new Error("수신 이메일 형식을 확인하세요.");
+      }
+
+      const trimmedSender = currentSender.trim();
+      if (!trimmedSender) {
+        throw new Error("발신 이메일을 입력하세요.");
+      }
+      if (!emailRegex.test(trimmedSender)) {
+        throw new Error("발신 이메일 형식을 확인하세요.");
+      }
 
       const targets = await requestJson<Target[]>("/api/targets");
       let target = targets.find((item) => item.email.trim().toLowerCase() === trimmedRecipient.toLowerCase());
@@ -341,7 +355,7 @@ export default function ProjectExperienceWizard() {
         });
       }
 
-      const sendingDomain = deriveSendingDomain(activeSmtpConfig);
+      const sendingDomain = deriveSendingDomain(activeSmtpConfig) || extractDomainFromEmail(trimmedSender);
       if (!sendingDomain) {
         throw new Error("SMTP 설정에서 발신 도메인을 확인할 수 없습니다.");
       }
@@ -359,7 +373,7 @@ export default function ProjectExperienceWizard() {
           trainingPageId: savedTrainingPage.id,
           sendingDomain,
           fromName: sessionName || "PhishSense",
-          fromEmail: activeSmtpConfig.fromEmail,
+          fromEmail: trimmedSender,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           notificationEmails: [trimmedRecipient],
           startDate: now.toISOString(),
@@ -417,7 +431,7 @@ export default function ProjectExperienceWizard() {
     if (refreshedSmtpConfig) {
       toast({
         title: "SMTP 연결 확인 완료",
-        description: `${refreshedSmtpConfig.fromEmail} 발신 주소를 확인했습니다. 다음 단계로 이동합니다.`,
+        description: `${refreshedSmtpConfig.host}:${refreshedSmtpConfig.port} 연결을 확인했습니다. 다음 단계로 이동합니다.`,
       });
       window.setTimeout(() => {
         focusStepCard(deliveryStepRef.current);
@@ -765,8 +779,8 @@ export default function ProjectExperienceWizard() {
           </div>
           <h2 className="text-2xl font-semibold">SMTP 연결 확인</h2>
           <p className="text-sm text-muted-foreground">
-            실제 메일 수신 체험은 활성화된 SMTP 설정이 있어야 진행되며, 여기서 확인된
-            발신 이메일이 실제 송신자로 사용됩니다.
+            실제 메일 수신 체험은 활성화된 SMTP 설정이 있어야 진행됩니다. 여기서는
+            전송 계정 연결 상태만 확인하고, 실제 발신 이메일은 다음 단계에서 입력합니다.
           </p>
         </div>
 
@@ -776,10 +790,11 @@ export default function ProjectExperienceWizard() {
               <div className="space-y-1">
                 <p className="font-semibold">SMTP 연결 완료</p>
                 <p>
-                  {activeSmtpConfig.host}:{activeSmtpConfig.port} · 발신 이메일 {activeSmtpConfig.fromEmail}
+                  {activeSmtpConfig.host}:{activeSmtpConfig.port}
+                  {activeSmtpConfig.username ? ` · 계정 ${activeSmtpConfig.username}` : ""}
                 </p>
                 <p className="text-emerald-800">
-                  이 주소가 체험 메일의 실제 발신자로 사용됩니다.
+                  실제 발신 이메일은 다음 단계에서 프로젝트별로 입력합니다.
                 </p>
               </div>
               <Button
@@ -835,7 +850,8 @@ export default function ProjectExperienceWizard() {
           </div>
           <h2 className="text-2xl font-semibold">내 메일로 실제 발송</h2>
           <p className="text-sm text-muted-foreground">
-            방금 만든 리소스로 1인 체험 프로젝트를 생성하고 바로 발송합니다.
+            방금 만든 리소스로 1인 체험 프로젝트를 생성하고 바로 발송합니다. 발신 이메일은
+            이 단계에서 직접 지정합니다.
           </p>
         </div>
 
@@ -848,10 +864,21 @@ export default function ProjectExperienceWizard() {
               onChange={(event) => setRecipientEmail(event.target.value)}
               placeholder="user@company.com"
             />
+            {!emailRegex.test(currentRecipient.trim()) && currentRecipient && (
+              <p className="text-sm text-destructive">올바른 수신 이메일을 입력하세요.</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="sender-email">발신 이메일</Label>
-            <Input id="sender-email" value={activeSmtpConfig?.fromEmail ?? ""} disabled />
+            <Input
+              id="sender-email"
+              value={currentSender}
+              onChange={(event) => setSenderEmail(event.target.value)}
+              placeholder="sender@company.com"
+            />
+            {!emailRegex.test(currentSender.trim()) && currentSender && (
+              <p className="text-sm text-destructive">올바른 발신 이메일을 입력하세요.</p>
+            )}
           </div>
         </div>
 
@@ -861,6 +888,7 @@ export default function ProjectExperienceWizard() {
             <li>템플릿: {savedTemplate?.name ?? "-"}</li>
             <li>훈련 안내 페이지: {savedTrainingPage?.name ?? "-"}</li>
             <li>수신 대상: {currentRecipient || "-"}</li>
+            <li>발신 이메일: {currentSender || "-"}</li>
             <li>프로젝트명: {buildExperienceProjectName(savedTemplate?.subject ?? "")}</li>
           </ul>
         </div>
@@ -868,7 +896,14 @@ export default function ProjectExperienceWizard() {
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => launchExperienceMutation.mutate()}
-            disabled={!savedTemplate || !savedTrainingPage || !smtpReady || launchExperienceMutation.isPending}
+            disabled={
+              !savedTemplate ||
+              !savedTrainingPage ||
+              !smtpReady ||
+              launchExperienceMutation.isPending ||
+              !emailRegex.test(currentRecipient.trim()) ||
+              !emailRegex.test(currentSender.trim())
+            }
           >
             {launchExperienceMutation.isPending ? "프로젝트 생성 및 발송 중..." : "체험 프로젝트 발송하기"}
           </Button>

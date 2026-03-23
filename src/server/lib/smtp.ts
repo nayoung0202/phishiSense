@@ -1,8 +1,10 @@
 import nodemailer from "nodemailer";
 import type { PersistedSmtpConfig } from "../dao/smtpDao";
+import { withSmtpStage } from "./smtpError";
 
 type SendTestEmailOptions = {
   smtpConfig: PersistedSmtpConfig;
+  senderEmail: string;
   toEmail: string;
   subject?: string;
   body?: string;
@@ -28,6 +30,7 @@ const formatTestBodyAsHtml = (body: string) => {
 
 export async function sendTestEmail({
   smtpConfig,
+  senderEmail,
   toEmail,
   subject,
   body,
@@ -57,18 +60,24 @@ export async function sendTestEmail({
   });
 
   try {
-    await transport.verify();
-    const senderEmail = smtpConfig.username?.trim() || smtpConfig.fromEmail;
-    await transport.sendMail({
-      from: smtpConfig.fromName
-        ? `"${smtpConfig.fromName}" <${senderEmail}>`
-        : senderEmail,
-      to: toEmail,
-      replyTo: smtpConfig.replyTo ?? undefined,
-      subject: resolvedSubject,
-      text: resolvedBody,
-      html: formatTestBodyAsHtml(resolvedBody),
-    });
+    try {
+      await transport.verify();
+    } catch (error) {
+      throw withSmtpStage("verify", error);
+    }
+
+    const normalizedSenderEmail = senderEmail.trim();
+    try {
+      await transport.sendMail({
+        from: normalizedSenderEmail,
+        to: toEmail,
+        subject: resolvedSubject,
+        text: resolvedBody,
+        html: formatTestBodyAsHtml(resolvedBody),
+      });
+    } catch (error) {
+      throw withSmtpStage("send", error);
+    }
   } finally {
     if (typeof transport.close === "function") {
       transport.close();

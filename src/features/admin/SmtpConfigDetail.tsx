@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SmtpConfigForm, createEmptySmtpConfig, type SmtpConfigFormHandle } from "@/components/admin/SmtpConfigForm";
 import { SmtpTestPanel } from "@/components/admin/SmtpTestPanel";
-import { getSmtpConfig, testSmtpConfig, updateSmtpConfig } from "@/lib/api";
+import { createSmtpConfig, getSmtpConfig, testSmtpConfig, updateSmtpConfig } from "@/lib/api";
 import type { SmtpConfigResponse, TestSmtpConfigPayload, UpdateSmtpConfigPayload } from "@/types/smtp";
 import { useToast } from "@/hooks/use-toast";
 
 export type SmtpConfigDetailProps = {
-  tenantId: string;
+  smtpAccountId?: string;
+  tenantId?: string;
   mode: "create" | "edit";
   title: string;
   description?: string;
@@ -20,35 +21,52 @@ export type SmtpConfigDetailProps = {
   onSaveSuccess?: () => void;
 };
 
-export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, onSaveSuccess }: SmtpConfigDetailProps) {
+export function SmtpConfigDetail({
+  smtpAccountId,
+  tenantId,
+  mode,
+  title,
+  description,
+  onBack,
+  onSaveSuccess,
+}: SmtpConfigDetailProps) {
   const { toast } = useToast();
   const [formResetKey, setFormResetKey] = useState(0);
   const formRef = useRef<SmtpConfigFormHandle>(null);
   const queryClient = useQueryClient();
 
-  const shouldFetch = mode === "edit" && Boolean(tenantId);
+  const shouldFetch = mode === "edit" && Boolean(smtpAccountId);
   const {
     data: configData,
     error: fetchError,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["smtp-config", tenantId],
-    queryFn: () => getSmtpConfig(tenantId),
+    queryKey: ["smtp-config", smtpAccountId],
+    queryFn: () => getSmtpConfig(smtpAccountId ?? ""),
     enabled: shouldFetch,
   });
 
   const refreshConfig = useCallback(() => {
-    if (!tenantId) return;
+    if (!smtpAccountId) return;
     void refetch();
-  }, [tenantId, refetch]);
+  }, [smtpAccountId, refetch]);
 
   const updateMutation = useMutation({
-    mutationFn: (payload: UpdateSmtpConfigPayload) => updateSmtpConfig(tenantId, payload),
-    onSuccess: () => {
+    mutationFn: (payload: UpdateSmtpConfigPayload) =>
+      mode === "create"
+        ? createSmtpConfig(payload)
+        : updateSmtpConfig(smtpAccountId ?? "", payload),
+    onSuccess: (result) => {
+      const savedConfigId = result?.item?.id ?? smtpAccountId;
       toast({ title: "SMTP 설정을 저장했습니다." });
-      refreshConfig();
       void queryClient.invalidateQueries({ queryKey: ["smtp-configs"] });
+      if (savedConfigId) {
+        void queryClient.invalidateQueries({ queryKey: ["smtp-config", savedConfigId] });
+      }
+      if (mode === "edit") {
+        refreshConfig();
+      }
       if (onSaveSuccess) {
         onSaveSuccess();
       }
@@ -60,7 +78,7 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
   });
 
   const testMutation = useMutation({
-    mutationFn: (payload: TestSmtpConfigPayload) => testSmtpConfig(tenantId, payload),
+    mutationFn: (payload: TestSmtpConfigPayload) => testSmtpConfig(smtpAccountId ?? "", payload),
     onSuccess: (response) => {
       toast({
         title: "테스트 발송을 요청했습니다.",
@@ -75,7 +93,9 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
   });
 
   const handleSave = useCallback(
-    (payload: UpdateSmtpConfigPayload) => updateMutation.mutateAsync(payload),
+    async (payload: UpdateSmtpConfigPayload) => {
+      await updateMutation.mutateAsync(payload);
+    },
     [updateMutation],
   );
 
@@ -117,12 +137,13 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
 
   const initialFormData = useMemo<SmtpConfigResponse | null>(() => {
     if (mode === "create") {
-      return createEmptySmtpConfig(tenantId) as SmtpConfigResponse;
+      return createEmptySmtpConfig(tenantId ?? "") as SmtpConfigResponse;
     }
     return (configData as SmtpConfigResponse | undefined) ?? null;
   }, [configData, mode, tenantId]);
 
   const testPanelData = mode === "edit" ? (configData ?? null) : null;
+  const formIdentifier = smtpAccountId ?? tenantId ?? "new";
 
   return (
     <div className="space-y-6 px-4 py-6 lg:px-8">
@@ -137,7 +158,7 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
               목록으로
             </Button>
           )}
-          <Button variant="outline" onClick={handleRefreshClick} disabled={!tenantId || isFetching}>
+          <Button variant="outline" onClick={handleRefreshClick} disabled={!shouldFetch || isFetching}>
             <RefreshCw className="w-4 h-4 mr-1" /> 새로고침
           </Button>
         </div>
@@ -152,9 +173,9 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
 
       <SmtpConfigForm
         ref={formRef}
-        key={`${tenantId}-${mode}-${formResetKey}`}
+        key={`${formIdentifier}-${mode}-${formResetKey}`}
         mode={mode}
-        tenantId={tenantId}
+        tenantId={tenantId ?? configData?.tenantId ?? ""}
         initialData={initialFormData}
         onSubmit={handleSave}
         isSubmitting={updateMutation.isPending}
@@ -162,7 +183,7 @@ export function SmtpConfigDetail({ tenantId, mode, title, description, onBack, o
       />
 
       <SmtpTestPanel
-        key={`test-${tenantId}-${mode}-${formResetKey}`}
+        key={`test-${formIdentifier}-${mode}-${formResetKey}`}
         onSubmit={handleTest}
         isTesting={testMutation.isPending}
         disabled={!canTest || testMutation.isPending || updateMutation.isPending}

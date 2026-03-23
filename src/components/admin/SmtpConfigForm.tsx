@@ -16,9 +16,6 @@ type FormState = {
   port: number;
   securityMode: SmtpConfigResponse["securityMode"];
   username: string;
-  fromEmail: string;
-  fromName: string;
-  replyTo: string;
   tlsVerify: boolean;
   rateLimitPerMin: number;
   allowedRecipientDomains: string[];
@@ -33,9 +30,6 @@ export const defaultFormState: FormState = {
   port: 587,
   securityMode: "STARTTLS",
   username: "",
-  fromEmail: "alerts@example.com",
-  fromName: "PhishSense",
-  replyTo: "alerts@example.com",
   tlsVerify: true,
   rateLimitPerMin: 60,
   allowedRecipientDomains: [],
@@ -44,14 +38,13 @@ export const defaultFormState: FormState = {
 
 export function createEmptySmtpConfig(tenantId: string): SmtpConfigResponse {
   return {
+    id: "",
     tenantId,
+    name: "",
     host: "",
     port: 587,
     securityMode: "STARTTLS",
     username: "",
-    fromEmail: "alerts@example.com",
-    fromName: "PhishSense",
-    replyTo: "alerts@example.com",
     tlsVerify: true,
     rateLimitPerMin: 60,
     allowedRecipientDomains: [],
@@ -134,9 +127,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
           ? initialData.securityMode
           : "NONE",
       username: initialData.username || "",
-      fromEmail: initialData.fromEmail,
-      fromName: initialData.fromName || "",
-      replyTo: initialData.replyTo || "",
       tlsVerify: initialData.tlsVerify,
       rateLimitPerMin: initialData.rateLimitPerMin,
       allowedRecipientDomains: initialDomain ? [initialDomain] : [],
@@ -171,8 +161,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
   }, []);
 
   const hostValue = (formState.host ?? "").trim();
-  const fromEmailValue = (formState.fromEmail ?? "").trim();
-  const replyToValue = (formState.replyTo ?? "").trim();
 
   const isHostFilled = hostValue.length > 0;
   const hostError = !isHostFilled
@@ -206,8 +194,6 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
     setFormState((prev) => ({
       ...prev,
       allowedRecipientDomains: [nextValue],
-      fromEmail: `alerts@${nextValue}`,
-      replyTo: `alerts@${nextValue}`,
     }));
   }, [domainDraft]);
 
@@ -264,15 +250,12 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
       host: hostValue,
       port: formState.port,
       securityMode: formState.securityMode,
-      fromEmail: fromEmailValue,
       tlsVerify: formState.tlsVerify,
       rateLimitPerMin: formState.rateLimitPerMin,
       isActive: formState.isActive,
     };
 
     if (formState.username.trim()) payload.username = formState.username.trim();
-    if (formState.fromName.trim()) payload.fromName = formState.fromName.trim();
-    if (replyToValue) payload.replyTo = replyToValue;
     if (allowedDomains.length > 0) payload.allowedRecipientDomains = allowedDomains;
     if (passwordInput.length > 0) payload.password = passwordInput;
 
@@ -288,20 +271,16 @@ export const SmtpConfigForm = forwardRef<SmtpConfigFormHandle, SmtpConfigFormPro
   }, [
     allowedDomains,
     canSubmit,
-    formState.fromName,
     formState.isActive,
     formState.port,
     formState.rateLimitPerMin,
-    formState.replyTo,
     formState.securityMode,
     formState.tlsVerify,
     formState.username,
-    fromEmailValue,
     hostValue,
     initialData,
     onSubmit,
     passwordInput,
-    replyToValue,
   ]);
 
   useImperativeHandle(ref, () => ({

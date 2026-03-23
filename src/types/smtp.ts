@@ -1,14 +1,13 @@
 export type SecurityMode = "SMTPS" | "STARTTLS" | "NONE";
 
 export type SmtpConfigResponse = {
+  id: string;
   tenantId: string;
+  name: string;
   host: string;
   port: number;
   securityMode: SecurityMode;
   username?: string | null;
-  fromEmail: string;
-  fromName?: string | null;
-  replyTo?: string | null;
   tlsVerify: boolean;
   rateLimitPerMin: number;
   allowedRecipientDomains?: string[] | null;
@@ -20,14 +19,12 @@ export type SmtpConfigResponse = {
 };
 
 export type UpdateSmtpConfigPayload = {
+  name?: string;
   host: string;
   port: number;
   securityMode: SecurityMode;
   username?: string;
   password?: string;
-  fromEmail: string;
-  fromName?: string;
-  replyTo?: string;
   tlsVerify?: boolean;
   rateLimitPerMin?: number;
   allowedRecipientDomains?: string[];
@@ -35,21 +32,24 @@ export type UpdateSmtpConfigPayload = {
 };
 
 export type TestSmtpConfigPayload = {
+  testSenderEmail: string;
   testRecipientEmail: string;
   testSubject?: string;
   testBody?: string;
 };
 
 export type SmtpConfigSummary = {
+  id: string;
   tenantId: string;
+  name: string;
   host: string;
   port: number;
   securityMode: SecurityMode;
-  fromEmail: string;
+  username?: string | null;
   allowedRecipientDomains?: string[] | null;
   isActive: boolean;
   hasPassword: boolean;
   lastTestedAt?: string | null;
   lastTestStatus?: "success" | "failure" | null;
-  updatedAt: string;
+  updatedAt?: string | null;
 };

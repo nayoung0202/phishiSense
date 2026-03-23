@@ -466,8 +466,8 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         if (normalized) domainSet.add(normalized);
       });
       if (domainSet.size === 0) {
-        const fromDomain = extractDomainFromEmail(config.fromEmail);
-        if (fromDomain) domainSet.add(fromDomain);
+        const usernameDomain = extractDomainFromEmail(config.username);
+        if (usernameDomain) domainSet.add(usernameDomain);
       }
 
       domainSet.forEach((domain) => {

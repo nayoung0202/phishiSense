@@ -41,7 +41,7 @@
 
 | 테이블 | 역할 | 핵심 필드 |
 | --- | --- | --- |
-| `smtp_accounts` | 테넌트별 SMTP 설정 | `host`, `security_mode`, `password_enc`, `allowed_domains_json`, `is_active` |
+| `smtp_accounts` | 테넌트별 다건 SMTP 계정 | `tenant_id`, `host`, `security_mode`, `username`, `password_enc`, `allowed_domains_json`, `is_active` |
 
 ### 예비/레거시
 
@@ -71,8 +71,11 @@
 
 ### SMTP
 
+- `smtp_accounts.tenant_id`: SMTP 계정 소유 tenant 식별자
+- `smtp_accounts.username`: SMTP 인증용 계정 아이디
 - `smtp_accounts.password_enc`: AES-256-GCM 기반 암호문
-- `smtp_accounts.allowed_domains_json`: 테스트 발송 허용 도메인 목록
+- `smtp_accounts.allowed_domains_json`: 테스트 발송 및 프로젝트 발신 도메인 선택에 사용하는 도메인 목록
+- `smtp_accounts.is_active`: 테넌트의 현재 발송 기준 SMTP 계정 여부
 
 ## 상태값 요약
 

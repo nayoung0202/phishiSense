@@ -91,6 +91,7 @@ describe("validateProjectForSend runtime config", () => {
 
   it("테넌트 SMTP 설정이 있으면 환경 변수 없이도 추가 발송 설정 오류 없이 통과한다", async () => {
     const storage = buildStorage({
+      id: "smtp-1",
       tenantId: "tenant-a",
       name: "tenant-a",
       host: "smtp.example.com",
@@ -98,9 +99,6 @@ describe("validateProjectForSend runtime config", () => {
       securityMode: "STARTTLS",
       username: "mailer@example.com",
       password: "secret",
-      fromEmail: "security@example.com",
-      fromName: "보안팀",
-      replyTo: null,
       tlsVerify: true,
       rateLimitPerMin: 60,
       allowedRecipientDomains: ["example.com"],
@@ -113,7 +111,11 @@ describe("validateProjectForSend runtime config", () => {
       updatedAt: null,
     });
 
-    const result = await validateProjectForSend(storage, baseProject);
+    const result = await validateProjectForSend(storage, {
+      ...baseProject,
+      fromName: "보안팀",
+      fromEmail: "security@example.com",
+    });
 
     expect(result).toEqual({ ok: true, issues: [] });
   });
@@ -134,6 +136,7 @@ describe("validateProjectForSend runtime config", () => {
 
   it("테넌트 SMTP 설정이 비활성이면 발송 검증에서 차단한다", async () => {
     const storage = buildStorage({
+      id: "smtp-1",
       tenantId: "tenant-a",
       name: "tenant-a",
       host: "smtp.example.com",
@@ -141,9 +144,6 @@ describe("validateProjectForSend runtime config", () => {
       securityMode: "STARTTLS",
       username: "mailer@example.com",
       password: "secret",
-      fromEmail: "security@example.com",
-      fromName: "보안팀",
-      replyTo: null,
       tlsVerify: true,
       rateLimitPerMin: 60,
       allowedRecipientDomains: ["example.com"],

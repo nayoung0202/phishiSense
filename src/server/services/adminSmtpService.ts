@@ -1,10 +1,14 @@
 import { z } from "zod";
 import {
+  createSmtpConfig,
+  deactivateOtherSmtpConfigsForTenant,
+  deleteSmtpConfigForTenant,
   getSmtpConfig,
+  getSmtpConfigByIdForTenant,
   listSmtpConfigs,
-  upsertSmtpConfig,
+  listSmtpConfigsForTenant,
   updateLastTestResult,
-  deleteSmtpConfig,
+  updateSmtpConfigForTenant,
   type PersistedSmtpConfig,
 } from "../dao/smtpDao";
 import {
@@ -13,6 +17,7 @@ import {
   validateTestRecipientEmail,
 } from "../lib/ssrfGuard";
 import { sendTestEmail } from "../lib/smtp";
+import { normalizeSmtpError } from "../lib/smtpError";
 
 export class AdminSmtpError extends Error {
   status: number;
@@ -26,14 +31,12 @@ export class AdminSmtpError extends Error {
 }
 
 const updateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
   host: z.string().trim().min(1, "SMTP 호스트는 필수입니다."),
   port: z.coerce.number().int(),
   securityMode: z.enum(["SMTPS", "STARTTLS", "NONE"]).default("STARTTLS"),
   username: z.string().trim().min(1).optional(),
   password: z.string().min(1).optional(),
-  fromEmail: z.string().trim().email("유효한 발신 이메일을 입력하세요."),
-  fromName: z.string().trim().optional(),
-  replyTo: z.string().trim().email("회신 이메일 형식이 올바르지 않습니다.").optional(),
   tlsVerify: z.boolean().optional(),
   rateLimitPerMin: z.coerce.number().int().min(1).optional(),
   allowedRecipientDomains: z.array(z.string().trim().min(1)).optional(),
@@ -41,6 +44,10 @@ const updateSchema = z.object({
 });
 
 const testSchema = z.object({
+  testSenderEmail: z
+    .string()
+    .trim()
+    .email("테스트 발신 이메일 형식이 올바르지 않습니다."),
   testRecipientEmail: z.string().trim().min(1, "테스트 수신 이메일을 입력하세요."),
   testSubject: z
     .string()
@@ -71,11 +78,6 @@ const normalizeDomains = (domains?: string[] | null) =>
   ).sort();
 
 const normalizeOptional = (value?: string | null) => (value ?? "").trim() || null;
-const normalizeEmail = (value?: string | null) => {
-  const trimmed = (value ?? "").trim();
-  return trimmed ? trimmed.toLowerCase() : null;
-};
-
 const sanitizeErrorMessage = (raw: string, config: PersistedSmtpConfig) => {
   const secrets = [config.password ?? "", config.username ?? ""]
     .filter((value) => Boolean(value))
@@ -93,32 +95,30 @@ const sanitizeErrorMessage = (raw: string, config: PersistedSmtpConfig) => {
   return sanitized;
 };
 
-const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
-  "535": "SMTP 서버가 사용자명 또는 비밀번호를 거부했습니다. 자격 증명을 다시 확인하세요.",
-  EAUTH: "SMTP 서버 인증에 실패했습니다. 계정 또는 앱 비밀번호를 확인하세요.",
-  ETIMEDOUT: "SMTP 서버 응답이 지연되고 있습니다. 네트워크 및 포트 설정을 확인하세요.",
-  ECONNECTION: "SMTP 서버에 연결하지 못했습니다. 호스트/포트 또는 TLS 설정을 확인하세요.",
+const normalizeTenantId = (tenantId: string) => {
+  const normalizedTenantId = (tenantId || "").trim();
+  if (!normalizedTenantId) {
+    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
+  }
+  return normalizedTenantId;
 };
 
-const mapFriendlySmtpError = (code: string | number, fallback: string) => {
-  const key = String(code).toUpperCase();
-  return FRIENDLY_ERROR_MESSAGES[key] ?? fallback;
-};
-
-const extractCodeFromMessage = (message: string): string | null => {
-  const match = message.match(/\b(5\d{2})\b/);
-  return match ? match[1] : null;
+const normalizeSmtpAccountId = (smtpAccountId: string) => {
+  const normalizedSmtpAccountId = (smtpAccountId || "").trim();
+  if (!normalizedSmtpAccountId) {
+    throw new AdminSmtpError(400, { message: "smtpAccountId 파라미터가 필요합니다." });
+  }
+  return normalizedSmtpAccountId;
 };
 
 export const buildDefaultResponse = (tenantId: string) => ({
+  id: "",
   tenantId,
+  name: "",
   host: "",
   port: 587 as const,
   securityMode: "STARTTLS" as const,
   username: "",
-  fromEmail: "",
-  fromName: "",
-  replyTo: "",
   tlsVerify: true,
   rateLimitPerMin: 60,
   allowedRecipientDomains: [] as string[],
@@ -130,14 +130,13 @@ export const buildDefaultResponse = (tenantId: string) => ({
 });
 
 const toResponsePayload = (config: PersistedSmtpConfig) => ({
+  id: config.id,
   tenantId: config.tenantId,
+  name: config.name,
   host: config.host,
   port: config.port,
   securityMode: config.securityMode,
   username: config.username ?? "",
-  fromEmail: config.fromEmail,
-  fromName: config.fromName ?? "",
-  replyTo: config.replyTo ?? "",
   tlsVerify: config.tlsVerify,
   rateLimitPerMin: config.rateLimitPerMin,
   allowedRecipientDomains: config.allowedRecipientDomains ?? [],
@@ -148,11 +147,24 @@ const toResponsePayload = (config: PersistedSmtpConfig) => ({
   hasPassword: config.hasPassword,
 });
 
-export async function fetchTenantSmtpConfig(tenantId: string) {
-  const normalizedTenantId = (tenantId || "").trim();
-  if (!normalizedTenantId) {
-    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
-  }
+const toSummaryPayload = (config: PersistedSmtpConfig) => ({
+  id: config.id,
+  tenantId: config.tenantId,
+  name: config.name,
+  host: config.host,
+  port: config.port,
+  securityMode: config.securityMode,
+  username: config.username ?? "",
+  allowedRecipientDomains: config.allowedRecipientDomains ?? [],
+  isActive: config.isActive,
+  hasPassword: config.hasPassword,
+  lastTestedAt: config.lastTestedAt ?? null,
+  lastTestStatus: config.lastTestStatus ?? null,
+  updatedAt: config.updatedAt,
+});
+
+export async function fetchActiveTenantSmtpConfig(tenantId: string) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
   const config = await getSmtpConfig(normalizedTenantId);
   if (!config) {
     return buildDefaultResponse(normalizedTenantId);
@@ -160,44 +172,96 @@ export async function fetchTenantSmtpConfig(tenantId: string) {
   return toResponsePayload(config);
 }
 
-export async function fetchSmtpConfigSummaries() {
-  const configs = await listSmtpConfigs();
-  return configs.map((config) => ({
-    tenantId: config.tenantId,
-    host: config.host,
-    port: config.port,
-    securityMode: config.securityMode,
-    fromEmail: config.fromEmail,
-    allowedRecipientDomains: config.allowedRecipientDomains ?? [],
-    isActive: config.isActive,
-    hasPassword: config.hasPassword,
-    lastTestedAt: config.lastTestedAt ?? null,
-    lastTestStatus: config.lastTestStatus ?? null,
-    updatedAt: config.updatedAt,
-  }));
+export async function fetchTenantSmtpConfig(tenantId: string) {
+  return fetchActiveTenantSmtpConfig(tenantId);
 }
 
-export async function deleteTenantSmtpConfig(tenantId: string) {
-  const normalizedTenantId = (tenantId || "").trim();
-  if (!normalizedTenantId) {
-    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
-  }
-  const exists = await getSmtpConfig(normalizedTenantId);
-  if (!exists) {
+export async function fetchTenantSmtpConfigById(tenantId: string, smtpAccountId: string) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedSmtpAccountId = normalizeSmtpAccountId(smtpAccountId);
+  const config = await getSmtpConfigByIdForTenant(normalizedTenantId, normalizedSmtpAccountId);
+  if (!config) {
     throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
   }
-  const deleted = await deleteSmtpConfig(normalizedTenantId);
-  if (!deleted) {
-    throw new AdminSmtpError(500, { message: "SMTP 설정 삭제에 실패했습니다." });
-  }
-  return { ok: true };
+  return toResponsePayload(config);
 }
 
-export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
-  const normalizedTenantId = (tenantId || "").trim();
-  if (!normalizedTenantId) {
-    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
+export async function fetchTenantSmtpConfigSummaries(tenantId: string) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const configs = await listSmtpConfigsForTenant(normalizedTenantId);
+  return configs.map(toSummaryPayload);
+}
+
+const ensureCrossTenantDomainUniqueness = async (
+  tenantId: string,
+  allowedDomains: string[],
+) => {
+  const candidateDomains = new Set<string>(allowedDomains);
+  if (candidateDomains.size === 0) return;
+
+  const configs = await listSmtpConfigs();
+  for (const config of configs) {
+    if (config.tenantId === tenantId) continue;
+    const existingDomains = new Set<string>(normalizeDomains(config.allowedRecipientDomains));
+    const duplicateDomain = Array.from(candidateDomains).find((domain) => existingDomains.has(domain));
+    if (duplicateDomain) {
+      throw new AdminSmtpError(409, {
+        message: `이미 등록된 도메인입니다. (${duplicateDomain})`,
+      });
+    }
   }
+};
+
+const validateDuplicateWithinTenant = (
+  tenantConfigs: PersistedSmtpConfig[],
+  candidateConfig: {
+    smtpAccountId?: string | null;
+    host: string;
+    port: number;
+    securityMode: PersistedSmtpConfig["securityMode"];
+    username: string | null;
+    tlsVerify: boolean;
+    rateLimitPerMin: number;
+    allowedRecipientDomains: string[];
+    isActive: boolean;
+    password?: string | null;
+  },
+) => {
+  const hasSameConfig = tenantConfigs.some((config) => {
+    if (config.id === candidateConfig.smtpAccountId) return false;
+    const existingAllowedDomains = normalizeDomains(config.allowedRecipientDomains);
+    const baseMatches =
+      candidateConfig.host === config.host &&
+      candidateConfig.port === config.port &&
+      candidateConfig.securityMode === config.securityMode &&
+      normalizeOptional(config.username) === candidateConfig.username &&
+      (config.tlsVerify ?? true) === candidateConfig.tlsVerify &&
+      (config.rateLimitPerMin ?? 60) === candidateConfig.rateLimitPerMin &&
+      config.isActive === candidateConfig.isActive &&
+      existingAllowedDomains.join("|") === candidateConfig.allowedRecipientDomains.join("|");
+
+    if (!baseMatches) return false;
+    if (candidateConfig.password) {
+      return (config.password ?? null) === candidateConfig.password;
+    }
+    return true;
+  });
+
+  if (hasSameConfig) {
+    throw new AdminSmtpError(409, { message: "동일한 SMTP 설정이 이미 등록되어 있습니다." });
+  }
+};
+
+const saveTenantSmtpConfigInternal = async (
+  tenantId: string,
+  body: unknown,
+  options?: {
+    smtpAccountId?: string | null;
+  },
+) => {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedSmtpAccountId = normalizeOptional(options?.smtpAccountId);
+
   try {
     const parsed = updateSchema.parse(body);
     const normalized = validateSmtpInput({
@@ -207,91 +271,75 @@ export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
     });
     await assertHostNotPrivateOrLocal(normalized.host);
 
-    const normalizedAllowedDomains = normalizeDomains(parsed.allowedRecipientDomains);
-    const allowedDomains = parsed.allowedRecipientDomains ? normalizedAllowedDomains : undefined;
-    const fromEmailDomain = extractEmailDomain(parsed.fromEmail);
-    const candidateDomains = new Set<string>(normalizedAllowedDomains);
-    if (fromEmailDomain) {
-      candidateDomains.add(fromEmailDomain);
+    const tenantConfigs = await listSmtpConfigsForTenant(normalizedTenantId);
+    const existingConfig = normalizedSmtpAccountId
+      ? tenantConfigs.find((config) => config.id === normalizedSmtpAccountId) ?? null
+      : null;
+
+    if (normalizedSmtpAccountId && !existingConfig) {
+      throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
     }
 
-    const configs = await listSmtpConfigs();
-    for (const config of configs) {
-      if (config.tenantId === normalizedTenantId) continue;
-      const existingDomains = new Set<string>(normalizeDomains(config.allowedRecipientDomains));
-      const existingFromDomain = extractEmailDomain(config.fromEmail);
-      if (existingFromDomain) {
-        existingDomains.add(existingFromDomain);
-      }
-      const duplicateDomain = Array.from(candidateDomains).find((domain) =>
-        existingDomains.has(domain),
-      );
-      if (duplicateDomain) {
-        throw new AdminSmtpError(409, {
-          message: `이미 등록된 도메인입니다. (${duplicateDomain})`,
-        });
-      }
-    }
+    const normalizedAllowedDomains = normalizeDomains(parsed.allowedRecipientDomains);
+    await ensureCrossTenantDomainUniqueness(
+      normalizedTenantId,
+      normalizedAllowedDomains,
+    );
+
+    const shouldActivateByDefault = tenantConfigs.length === 0;
+    const nextIsActive =
+      parsed.isActive ??
+      existingConfig?.isActive ??
+      shouldActivateByDefault;
 
     const candidateConfig = {
+      smtpAccountId: normalizedSmtpAccountId,
       host: normalized.host,
       port: normalized.port,
       securityMode: normalized.securityMode,
       username: normalizeOptional(parsed.username),
-      fromEmail: normalizeEmail(parsed.fromEmail),
-      fromName: normalizeOptional(parsed.fromName),
-      replyTo: normalizeEmail(parsed.replyTo),
       tlsVerify: parsed.tlsVerify ?? true,
       rateLimitPerMin: parsed.rateLimitPerMin ?? 60,
       allowedRecipientDomains: normalizedAllowedDomains,
-      isActive: parsed.isActive ?? true,
+      isActive: nextIsActive,
       password: parsed.password ? parsed.password.trim() : null,
     };
 
-    const hasSameConfig = configs.some((config) => {
-      if (config.tenantId === normalizedTenantId) return false;
-      const existingAllowedDomains = normalizeDomains(config.allowedRecipientDomains);
-      const baseMatches =
-        normalized.host === config.host &&
-        normalized.port === config.port &&
-        normalized.securityMode === config.securityMode &&
-        normalizeOptional(config.username) === candidateConfig.username &&
-        normalizeEmail(config.fromEmail) === candidateConfig.fromEmail &&
-        normalizeOptional(config.fromName) === candidateConfig.fromName &&
-        normalizeEmail(config.replyTo) === candidateConfig.replyTo &&
-        (config.tlsVerify ?? true) === candidateConfig.tlsVerify &&
-        (config.rateLimitPerMin ?? 60) === candidateConfig.rateLimitPerMin &&
-        config.isActive === candidateConfig.isActive &&
-        existingAllowedDomains.join("|") === candidateConfig.allowedRecipientDomains.join("|");
+    validateDuplicateWithinTenant(tenantConfigs, candidateConfig);
 
-      if (!baseMatches) return false;
-      if (candidateConfig.password) {
-        return (config.password ?? null) === candidateConfig.password;
-      }
-      return true;
-    });
-
-    if (hasSameConfig) {
-      throw new AdminSmtpError(409, { message: "동일한 SMTP 설정이 이미 등록되어 있습니다." });
-    }
-
-    await upsertSmtpConfig({
-      tenantId: normalizedTenantId,
+    const payload = {
+      name: normalizeOptional(parsed.name) ?? normalizeOptional(parsed.username) ?? normalized.host,
       host: normalized.host,
       port: normalized.port,
       securityMode: normalized.securityMode,
       username: parsed.username?.trim() || null,
       password: parsed.password ?? undefined,
-      fromEmail: parsed.fromEmail.trim(),
-      fromName: parsed.fromName?.trim() || null,
-      replyTo: parsed.replyTo?.trim() || null,
       tlsVerify: parsed.tlsVerify ?? true,
       rateLimitPerMin: parsed.rateLimitPerMin ?? 60,
-      allowedRecipientDomains: allowedDomains,
-      isActive: parsed.isActive ?? true,
-    });
+      allowedRecipientDomains: normalizedAllowedDomains,
+      isActive: nextIsActive,
+    };
 
-    return { ok: true };
+    const savedConfig = normalizedSmtpAccountId
+      ? await updateSmtpConfigForTenant(normalizedTenantId, normalizedSmtpAccountId, payload)
+      : await createSmtpConfig({
+          tenantId: normalizedTenantId,
+          ...payload,
+        });
+
+    if (savedConfig.isActive) {
+      await deactivateOtherSmtpConfigsForTenant(normalizedTenantId, savedConfig.id);
+    }
+
+    const refreshedConfig = await getSmtpConfigByIdForTenant(normalizedTenantId, savedConfig.id);
+    if (!refreshedConfig) {
+      throw new AdminSmtpError(500, { message: "SMTP 설정을 저장하지 못했습니다." });
+    }
+
+    return {
+      ok: true,
+      item: toResponsePayload(refreshedConfig),
+    };
   } catch (error) {
     if (error instanceof AdminSmtpError) {
       throw error;
@@ -309,18 +357,70 @@ export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
       message: error instanceof Error ? error.message : "SMTP 설정 저장 중 오류가 발생했습니다.",
     });
   }
+};
+
+export async function createTenantSmtpConfig(tenantId: string, body: unknown) {
+  return saveTenantSmtpConfigInternal(tenantId, body);
 }
 
-export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
-  const normalizedTenantId = (tenantId || "").trim();
-  if (!normalizedTenantId) {
-    throw new AdminSmtpError(400, { message: "tenantId 파라미터가 필요합니다." });
+export async function updateTenantSmtpConfig(
+  tenantId: string,
+  smtpAccountId: string,
+  body: unknown,
+) {
+  const normalizedSmtpAccountId = normalizeSmtpAccountId(smtpAccountId);
+  return saveTenantSmtpConfigInternal(tenantId, body, { smtpAccountId: normalizedSmtpAccountId });
+}
+
+export async function saveTenantSmtpConfig(tenantId: string, body: unknown) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const activeConfig = await getSmtpConfig(normalizedTenantId);
+  return saveTenantSmtpConfigInternal(normalizedTenantId, body, {
+    smtpAccountId: activeConfig?.id ?? null,
+  });
+}
+
+export async function deleteTenantSmtpConfigById(tenantId: string, smtpAccountId: string) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedSmtpAccountId = normalizeSmtpAccountId(smtpAccountId);
+  const exists = await getSmtpConfigByIdForTenant(normalizedTenantId, normalizedSmtpAccountId);
+  if (!exists) {
+    throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
   }
+  const deleted = await deleteSmtpConfigForTenant(normalizedTenantId, normalizedSmtpAccountId);
+  if (!deleted) {
+    throw new AdminSmtpError(500, { message: "SMTP 설정 삭제에 실패했습니다." });
+  }
+  return { ok: true };
+}
+
+export async function deleteTenantSmtpConfig(tenantId: string) {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const activeConfig = await getSmtpConfig(normalizedTenantId);
+  if (!activeConfig) {
+    throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
+  }
+  return deleteTenantSmtpConfigById(normalizedTenantId, activeConfig.id);
+}
+
+const testTenantSmtpConfigInternal = async (
+  tenantId: string,
+  body: unknown,
+  options?: { smtpAccountId?: string | null },
+) => {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedSmtpAccountId = normalizeOptional(options?.smtpAccountId);
 
   let recipientEmail: string | null = null;
+  let senderEmail: string | null = null;
+  let config: PersistedSmtpConfig | null = null;
+
   try {
     const parsedBody = testSchema.parse(body);
-    const config = await getSmtpConfig(normalizedTenantId);
+    config = normalizedSmtpAccountId
+      ? await getSmtpConfigByIdForTenant(normalizedTenantId, normalizedSmtpAccountId)
+      : await getSmtpConfig(normalizedTenantId);
+
     if (!config) {
       throw new AdminSmtpError(404, { message: "SMTP 설정이 존재하지 않습니다." });
     }
@@ -328,11 +428,11 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
     const fallbackSet = new Set(
       (config.allowedRecipientDomains ?? []).map((domain) => domain.trim().toLowerCase()),
     );
-    const fromDomain = extractEmailDomain(config.fromEmail);
-    if (fromDomain) fallbackSet.add(fromDomain);
     const usernameDomain = extractEmailDomain(config.username);
     if (usernameDomain) fallbackSet.add(usernameDomain);
     const fallbackDomains = Array.from(fallbackSet);
+    const normalizedSender = parsedBody.testSenderEmail.trim().toLowerCase();
+    senderEmail = normalizedSender;
 
     const normalizedRecipient = validateTestRecipientEmail(
       parsedBody.testRecipientEmail,
@@ -363,6 +463,7 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
     const passwordSample = config.password ?? "";
     console.log("[SMTP_TEST_DEBUG]", {
       tenantId: normalizedTenantId,
+      smtpAccountId: config.id,
       host: config.host,
       port: config.port,
       securityMode: config.securityMode,
@@ -375,12 +476,14 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
 
     await sendTestEmail({
       smtpConfig: config,
+      senderEmail: normalizedSender,
       toEmail: normalizedRecipient,
       subject: parsedBody.testSubject,
       body: parsedBody.testBody,
     });
     await updateLastTestResult({
       tenantId: normalizedTenantId,
+      smtpAccountId: config.id,
       success: true,
       errorMessage: null,
     });
@@ -397,27 +500,36 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
       });
     }
 
-    const config = normalizedTenantId ? await getSmtpConfig(normalizedTenantId) : null;
     const sanitizedMessage =
       config && error instanceof Error
         ? sanitizeErrorMessage(error.message, config)
         : "SMTP 테스트 중 오류가 발생했습니다.";
+    const normalizedError = normalizeSmtpError(error, {
+      rawMessage: sanitizedMessage,
+      senderEmail,
+    });
 
-    if (normalizedTenantId) {
+    if (config) {
       await updateLastTestResult({
         tenantId: normalizedTenantId,
+        smtpAccountId: config.id,
         success: false,
-        errorMessage: sanitizedMessage,
+        errorMessage: normalizedError.message,
       });
     }
 
-    const rawCode =
-      (error as any)?.responseCode || (error as any)?.code || (error as any)?.errno || null;
     const shouldLogStack = process.env.NODE_ENV !== "production";
     const errorLog: Record<string, unknown> = {
       tenantId: normalizedTenantId,
+      smtpAccountId: config?.id ?? normalizedSmtpAccountId ?? null,
+      senderEmail,
       recipientEmail,
-      code: rawCode,
+      providerCode: normalizedError.providerCode,
+      smtpCode: normalizedError.smtpCode,
+      smtpClass: normalizedError.smtpClass,
+      category: normalizedError.category,
+      retryable: normalizedError.retryable,
+      stage: normalizedError.stage,
       message: error instanceof Error ? error.message : String(error),
     };
     if (shouldLogStack && error instanceof Error && error.stack) {
@@ -425,16 +537,21 @@ export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
     }
     console.error("[SMTP_TEST_FAILED]", errorLog);
 
-    const inferredCode =
-      rawCode ??
-      (error instanceof Error ? extractCodeFromMessage(error.message) : null) ??
-      extractCodeFromMessage(sanitizedMessage);
-
-    const userMessage =
-      typeof inferredCode === "number" || typeof inferredCode === "string"
-        ? mapFriendlySmtpError(inferredCode, sanitizedMessage)
-        : sanitizedMessage;
-
-    throw new AdminSmtpError(400, { message: userMessage });
+    throw new AdminSmtpError(normalizedError.httpStatus, {
+      message: normalizedError.message,
+    });
   }
+};
+
+export async function testTenantSmtpConfigById(
+  tenantId: string,
+  smtpAccountId: string,
+  body: unknown,
+) {
+  const normalizedSmtpAccountId = normalizeSmtpAccountId(smtpAccountId);
+  return testTenantSmtpConfigInternal(tenantId, body, { smtpAccountId: normalizedSmtpAccountId });
+}
+
+export async function testTenantSmtpConfig(tenantId: string, body: unknown) {
+  return testTenantSmtpConfigInternal(tenantId, body);
 }

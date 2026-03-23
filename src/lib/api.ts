@@ -20,6 +20,11 @@ type ApiErrorBody = {
   error?: string;
 };
 
+type RequestJsonError = Error & {
+  status?: number;
+  body?: unknown;
+};
+
 async function requestJson<TResponse = unknown>(
   path: string,
   init: RequestInit = {},
@@ -51,28 +56,44 @@ async function requestJson<TResponse = unknown>(
   if (!response.ok) {
     const body = parsedBody as ApiErrorBody;
     const message = body?.message || body?.error || response.statusText;
-    throw new Error(message || "알 수 없는 오류가 발생했습니다.");
+    const error = new Error(message || "알 수 없는 오류가 발생했습니다.") as RequestJsonError;
+    error.status = response.status;
+    error.body = parsedBody;
+    throw error;
   }
 
   return parsedBody as TResponse;
 }
 
-function buildTenantPath(tenantId: string, suffix: string) {
-  return `${ADMIN_BASE_PATH}/tenants/${tenantId}${suffix}`;
+function buildSmtpConfigPath(smtpAccountId?: string) {
+  return smtpAccountId
+    ? `${ADMIN_BASE_PATH}/smtp-configs/${smtpAccountId}`
+    : `${ADMIN_BASE_PATH}/smtp-configs`;
 }
 
-export async function getSmtpConfig(tenantId: string) {
-  return requestJson<SmtpConfigResponse>(
-    buildTenantPath(tenantId, "/smtp-config"),
-  );
+export async function getSmtpConfig(smtpAccountId: string) {
+  return requestJson<SmtpConfigResponse>(buildSmtpConfigPath(smtpAccountId));
 }
 
 export async function listSmtpConfigs() {
   return requestJson<SmtpConfigSummary[]>(`${ADMIN_BASE_PATH}/smtp-configs`);
 }
 
+export async function createSmtpConfig(payload: UpdateSmtpConfigPayload) {
+  const body: UpdateSmtpConfigPayload = { ...payload };
+
+  if (!body.password) {
+    delete body.password;
+  }
+
+  return requestJson<{ ok: boolean; item: SmtpConfigResponse }>(buildSmtpConfigPath(), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function updateSmtpConfig(
-  tenantId: string,
+  smtpAccountId: string,
   payload: UpdateSmtpConfigPayload,
 ) {
   const body: UpdateSmtpConfigPayload = { ...payload };
@@ -81,18 +102,18 @@ export async function updateSmtpConfig(
     delete body.password;
   }
 
-  return requestJson<void>(buildTenantPath(tenantId, "/smtp-config"), {
+  return requestJson<{ ok: boolean; item: SmtpConfigResponse }>(buildSmtpConfigPath(smtpAccountId), {
     method: "PUT",
     body: JSON.stringify(body),
   });
 }
 
 export async function testSmtpConfig(
-  tenantId: string,
+  smtpAccountId: string,
   payload: TestSmtpConfigPayload,
 ) {
   return requestJson<{ message?: string }>(
-    buildTenantPath(tenantId, "/smtp-config/test"),
+    `${buildSmtpConfigPath(smtpAccountId)}/test`,
     {
       method: "POST",
       body: JSON.stringify(payload),
@@ -100,8 +121,8 @@ export async function testSmtpConfig(
   );
 }
 
-export async function deleteSmtpConfig(tenantId: string) {
-  return requestJson<void>(buildTenantPath(tenantId, "/smtp-config"), {
+export async function deleteSmtpConfig(smtpAccountId: string) {
+  return requestJson<void>(buildSmtpConfigPath(smtpAccountId), {
     method: "DELETE",
   });
 }

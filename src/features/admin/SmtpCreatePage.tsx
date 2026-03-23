@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { createNewTenantId } from "@/lib/tenant";
+import { useAutoTenantId } from "@/lib/tenant";
 import { SmtpConfigDetail } from "@/features/admin/SmtpConfigDetail";
 
 export default function SmtpCreatePage() {
-  const tenantId = useMemo(() => createNewTenantId(), []);
+  const tenantId = useAutoTenantId();
   const router = useRouter();
 
   return (

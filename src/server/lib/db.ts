@@ -7,9 +7,6 @@ export type TenantSmtpConfig = {
   securityMode: "SMTPS" | "STARTTLS" | "NONE";
   username?: string | null;
   password?: string | null;
-  fromEmail: string;
-  fromName?: string | null;
-  replyTo?: string | null;
   tlsVerify: boolean;
   rateLimitPerMin: number;
   allowedRecipientDomains: string[];
@@ -33,9 +30,6 @@ export type UpsertTenantSmtpConfig = {
   securityMode: "SMTPS" | "STARTTLS" | "NONE";
   username?: string | null;
   password?: string | null;
-  fromEmail: string;
-  fromName?: string | null;
-  replyTo?: string | null;
   tlsVerify: boolean;
   rateLimitPerMin: number;
   allowedRecipientDomains?: string[];
@@ -72,9 +66,6 @@ export async function upsertTenantSmtpConfig(payload: UpsertTenantSmtpConfig) {
     securityMode: payload.securityMode,
     username: payload.username ?? null,
     password: payload.password ?? existing?.password ?? null,
-    fromEmail: payload.fromEmail,
-    fromName: payload.fromName ?? null,
-    replyTo: payload.replyTo ?? null,
     tlsVerify: payload.tlsVerify,
     rateLimitPerMin: payload.rateLimitPerMin,
     allowedRecipientDomains: payload.allowedRecipientDomains

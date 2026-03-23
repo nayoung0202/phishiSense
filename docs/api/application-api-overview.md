@@ -45,7 +45,7 @@
 
 | 리소스 | 주요 경로 |
 | --- | --- |
-| SMTP 설정 | `/api/admin/smtp-configs`, `/api/admin/tenants/[tenantId]/smtp-config`, `/api/admin/tenants/[tenantId]/smtp-config/test` |
+| SMTP 설정 | `/api/admin/smtp-configs`, `/api/admin/smtp-configs/[smtpAccountId]`, `/api/admin/smtp-configs/[smtpAccountId]/test`, `/api/admin/tenants/[tenantId]/smtp-config`, `/api/admin/tenants/[tenantId]/smtp-config/test` |
 | 대상자 일괄 업로드 | `/api/admin/training-targets/import`, `/api/admin/training-targets/template.xlsx` |
 
 ## 문서화 원칙

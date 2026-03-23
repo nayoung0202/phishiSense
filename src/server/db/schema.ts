@@ -4,6 +4,7 @@ import {
   integer,
   boolean,
   timestamp,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
@@ -36,28 +37,33 @@ export {
   reportSettings,
 };
 
-export const smtpAccountsTable = pgTable("smtp_accounts", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  host: text("host").notNull(),
-  port: integer("port").notNull(),
-  secure: boolean("secure").notNull().default(false),
-  securityMode: text("security_mode").notNull(),
-  username: text("username"),
-  passwordEnc: text("password_enc").notNull(),
-  fromEmail: text("from_email"),
-  fromName: text("from_name"),
-  replyTo: text("reply_to"),
-  tlsVerify: boolean("tls_verify").notNull().default(true),
-  rateLimitPerMin: integer("rate_limit_per_min").notNull().default(60),
-  allowedDomainsJson: text("allowed_domains_json"),
-  isActive: boolean("is_active").notNull().default(true),
-  lastTestedAt: timestampColumn("last_tested_at"),
-  lastTestStatus: text("last_test_status"),
-  lastTestError: text("last_test_error"),
-  createdAt: timestampColumn("created_at").defaultNow(),
-  updatedAt: timestampColumn("updated_at").defaultNow(),
-});
+export const smtpAccountsTable = pgTable(
+  "smtp_accounts",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    name: text("name").notNull(),
+    host: text("host").notNull(),
+    port: integer("port").notNull(),
+    secure: boolean("secure").notNull().default(false),
+    securityMode: text("security_mode").notNull(),
+    username: text("username"),
+    passwordEnc: text("password_enc").notNull(),
+    tlsVerify: boolean("tls_verify").notNull().default(true),
+    rateLimitPerMin: integer("rate_limit_per_min").notNull().default(60),
+    allowedDomainsJson: text("allowed_domains_json"),
+    isActive: boolean("is_active").notNull().default(true),
+    lastTestedAt: timestampColumn("last_tested_at"),
+    lastTestStatus: text("last_test_status"),
+    lastTestError: text("last_test_error"),
+    createdAt: timestampColumn("created_at").defaultNow(),
+    updatedAt: timestampColumn("updated_at").defaultNow(),
+  },
+  (table) => ({
+    tenantIdx: index("smtp_accounts_tenant_idx").on(table.tenantId),
+    tenantActiveIdx: index("smtp_accounts_tenant_active_idx").on(table.tenantId, table.isActive),
+  }),
+);
 
 export const platformEntitlements = pgTable(
   "platform_entitlements",

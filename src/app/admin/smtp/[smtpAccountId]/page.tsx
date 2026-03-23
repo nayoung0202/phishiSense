@@ -2,12 +2,12 @@ import SmtpEditPage from "@/features/admin/SmtpEditPage";
 
 type Props = {
   params: Promise<{
-    tenantId: string;
+    smtpAccountId: string;
   }>;
 };
 
 export default async function AdminSmtpEditPage({ params }: Props) {
-  const { tenantId } = await params;
+  const { smtpAccountId } = await params;
 
-  return <SmtpEditPage tenantId={tenantId} />;
+  return <SmtpEditPage smtpAccountId={smtpAccountId} />;
 }

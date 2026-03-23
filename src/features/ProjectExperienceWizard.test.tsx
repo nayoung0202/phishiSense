@@ -71,11 +71,12 @@ const buildSavedTrainingPage = () => ({
 });
 
 const buildSmtpConfig = () => ({
+  id: "smtp-1",
   tenantId: "tenant-1",
   host: "smtp.example.com",
   port: 587,
   securityMode: "STARTTLS" as const,
-  fromEmail: "alerts@example.com",
+  username: "alerts@example.com",
   allowedRecipientDomains: ["example.com"],
   isActive: true,
   hasPassword: true,

@@ -36,11 +36,14 @@ export function SmtpTestPanel({
   testSubject,
   testBody,
 }: Props) {
+  const [sender, setSender] = useState("");
   const [recipient, setRecipient] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const emailValue = recipient.trim();
-  const isEmailValid = emailRegex.test(emailValue);
+  const senderValue = sender.trim();
+  const recipientValue = recipient.trim();
+  const isSenderValid = emailRegex.test(senderValue);
+  const isRecipientValid = emailRegex.test(recipientValue);
   const subjectValue = typeof testSubject === "string" ? testSubject.trim() : "";
   const bodyValue = typeof testBody === "string" ? testBody.trim() : "";
   const hasCustomMessage = subjectValue.length > 0 || bodyValue.length > 0;
@@ -68,10 +71,13 @@ export function SmtpTestPanel({
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
-      if (disabled || !isEmailValid || !isMessageValid) return;
+      if (disabled || !isSenderValid || !isRecipientValid || !isMessageValid) return;
       setErrorMessage(null);
       try {
-        const payload: TestSmtpConfigPayload = { testRecipientEmail: emailValue };
+        const payload: TestSmtpConfigPayload = {
+          testSenderEmail: senderValue,
+          testRecipientEmail: recipientValue,
+        };
         if (subjectValue.length > 0) {
           payload.testSubject = subjectValue;
         }
@@ -85,7 +91,17 @@ export function SmtpTestPanel({
         }
       }
     },
-    [disabled, isEmailValid, isMessageValid, onSubmit, emailValue, subjectValue, bodyValue],
+    [
+      bodyValue,
+      disabled,
+      isMessageValid,
+      isRecipientValid,
+      isSenderValid,
+      onSubmit,
+      recipientValue,
+      senderValue,
+      subjectValue,
+    ],
   );
 
   useEffect(() => {
@@ -98,14 +114,26 @@ export function SmtpTestPanel({
     <Card>
       <CardHeader>
         <CardTitle>SMTP 테스트 발송</CardTitle>
-        <CardDescription>허용된 도메인으로 테스트 메일을 전송해 연결 상태와 템플릿 렌더링을 확인합니다.</CardDescription>
+        <CardDescription>발신 이메일과 수신 이메일을 직접 넣어 연결 상태와 템플릿 렌더링을 확인합니다.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="smtp-test-email">테스트 수신 이메일 *</Label>
+            <Label htmlFor="smtp-test-sender-email">테스트 발신 이메일 *</Label>
             <Input
-              id="smtp-test-email"
+              id="smtp-test-sender-email"
+              type="email"
+              value={sender}
+              onChange={(event) => setSender(event.target.value)}
+              placeholder="sender@example.com"
+              disabled={disabled}
+            />
+            {!isSenderValid && sender && <p className="text-sm text-destructive">올바른 발신 이메일을 입력하세요.</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="smtp-test-recipient-email">테스트 수신 이메일 *</Label>
+            <Input
+              id="smtp-test-recipient-email"
               type="email"
               value={recipient}
               onChange={(event) => setRecipient(event.target.value)}
@@ -115,7 +143,7 @@ export function SmtpTestPanel({
             <p className="text-xs text-muted-foreground">
               허용된 도메인만 사용할 수 있습니다. (예: user@example.com) / {domainHint}
             </p>
-            {!isEmailValid && recipient && <p className="text-sm text-destructive">올바른 이메일을 입력하세요.</p>}
+            {!isRecipientValid && recipient && <p className="text-sm text-destructive">올바른 수신 이메일을 입력하세요.</p>}
             {disabledReason && (
               <p className="text-xs text-amber-600 mt-1">{disabledReason}</p>
             )}
@@ -145,7 +173,10 @@ export function SmtpTestPanel({
               </div>
             </div>
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <Button type="submit" disabled={disabled || !isEmailValid || !isMessageValid || !!isTesting}>
+              <Button
+                type="submit"
+                disabled={disabled || !isSenderValid || !isRecipientValid || !isMessageValid || !!isTesting}
+              >
                 {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : "테스트 발송"}
               </Button>
             </div>

@@ -1,6 +1,7 @@
 import process from "node:process";
 import type { Project } from "@shared/schema";
 import type { PersistedSmtpConfig } from "../dao/smtpDao";
+import { normalizeSmtpError } from "../lib/smtpError";
 import { findMissingSmtpKey, normalizeOptionalString } from "./projectsShared";
 
 export type RuntimeSendConfigIssueCode =
@@ -39,16 +40,6 @@ export type RuntimeSendConfig = {
   sender: RuntimeSenderInfo;
 };
 
-const extractErrorCodeFromMessage = (message: string) => {
-  const statusMatch = message.match(/\b(5\d{2})\b/);
-  if (statusMatch) {
-    return statusMatch[1];
-  }
-
-  const codeMatch = message.match(/\b(E[A-Z_]+)\b/);
-  return codeMatch ? codeMatch[1].toUpperCase() : null;
-};
-
 const hasSecretValue = (value?: string | null) => typeof value === "string" && value.length > 0;
 
 const readOptionalSecret = (value?: string | null) => (typeof value === "string" ? value : null);
@@ -74,7 +65,7 @@ const resolveTenantTransportConfig = (smtpConfig: PersistedSmtpConfig): RuntimeT
   user: normalizeOptionalString(smtpConfig.username),
   pass: readOptionalSecret(smtpConfig.password),
   allowInvalidTls: smtpConfig.tlsVerify === false,
-  replyTo: normalizeOptionalString(smtpConfig.replyTo),
+  replyTo: null,
 });
 
 export const collectRuntimeSendConfigIssues = (
@@ -109,30 +100,26 @@ export const collectRuntimeSendConfigIssues = (
 
   const fromName =
     normalizeOptionalString(project.fromName) ||
-    normalizeOptionalString(smtpConfig?.fromName) ||
     normalizeOptionalString(process.env.MAIL_FROM_NAME);
   if (!fromName) {
     issues.push({
       code: "sender_name_missing",
-      message: "프로젝트 발신자 이름, 테넌트 SMTP 발신자 이름 또는 MAIL_FROM_NAME 환경 변수가 필요합니다.",
+      message: "프로젝트 발신자 이름 또는 MAIL_FROM_NAME 환경 변수가 필요합니다.",
     });
   }
 
   const fromEmail =
     normalizeOptionalString(project.fromEmail) ||
-    normalizeOptionalString(smtpConfig?.fromEmail) ||
     normalizeOptionalString(process.env.MAIL_FROM_EMAIL);
   if (!fromEmail) {
     issues.push({
       code: "sender_email_missing",
-      message:
-        "프로젝트 발신 이메일, 테넌트 SMTP 발신 이메일 또는 MAIL_FROM_EMAIL 환경 변수가 필요합니다.",
+      message: "프로젝트 발신 이메일 또는 MAIL_FROM_EMAIL 환경 변수가 필요합니다.",
     });
   } else if (!fromEmail.includes("@")) {
     issues.push({
       code: "sender_email_invalid",
-      message:
-        "프로젝트 발신 이메일, 테넌트 SMTP 발신 이메일 또는 MAIL_FROM_EMAIL 환경 변수 형식이 올바르지 않습니다.",
+      message: "프로젝트 발신 이메일 또는 MAIL_FROM_EMAIL 환경 변수 형식이 올바르지 않습니다.",
     });
   }
 
@@ -151,11 +138,9 @@ export const resolveRuntimeSendConfig = (
   const transport = smtpConfig ? resolveTenantTransportConfig(smtpConfig) : resolveEnvTransportConfig();
   const fromName =
     normalizeOptionalString(project.fromName) ||
-    normalizeOptionalString(smtpConfig?.fromName) ||
     normalizeOptionalString(process.env.MAIL_FROM_NAME);
   const fromEmail =
     normalizeOptionalString(project.fromEmail) ||
-    normalizeOptionalString(smtpConfig?.fromEmail) ||
     normalizeOptionalString(process.env.MAIL_FROM_EMAIL);
 
   return {
@@ -172,40 +157,24 @@ export const formatRuntimeSendError = (
   error: unknown,
   options?: { senderEmail?: string | null; transportSource?: RuntimeTransportConfig["source"] },
 ) => {
-  const raw =
-    error instanceof Error ? error.message : typeof error === "string" ? error : "알 수 없는 오류";
-  const code =
-    (typeof error === "object" &&
-      error !== null &&
-      "responseCode" in error &&
-      typeof (error as { responseCode?: unknown }).responseCode !== "undefined" &&
-      String((error as { responseCode?: unknown }).responseCode)) ||
-    (typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      typeof (error as { code?: unknown }).code !== "undefined" &&
-      String((error as { code?: unknown }).code).toUpperCase()) ||
-    extractErrorCodeFromMessage(raw);
+  const normalized = normalizeSmtpError(error, {
+    senderEmail: options?.senderEmail,
+  });
 
-  if (code === "551" || /not authorised to send from this header address/i.test(raw)) {
+  if (normalized.category === "sender_rejected") {
     const sender = options?.senderEmail ? ` (${options.senderEmail})` : "";
     const source = options?.transportSource === "tenant" ? "테넌트 SMTP 설정" : "환경 변수 SMTP 설정";
-    return `${source}으로 발신 주소${sender} 사용이 거부되었습니다. 프로젝트 발신 이메일과 SMTP 계정의 send-as/alias 권한을 확인하세요. 원본 응답: ${raw}`;
-  }
-
-  if (code === "535" || code === "EAUTH") {
-    return "SMTP 서버 인증에 실패했습니다. 사용자명, 비밀번호 또는 앱 비밀번호를 확인하세요.";
+    return `${source}으로 발신 주소${sender} 사용이 거부되었습니다. 프로젝트 발신 이메일과 SMTP 계정의 send-as/alias 권한을 확인하세요. 원본 응답: ${normalized.rawMessage}`;
   }
 
   if (
-    code === "ETIMEDOUT" ||
-    code === "ECONNECTION" ||
-    code === "ECONNREFUSED" ||
-    code === "ENETUNREACH" ||
-    code === "EHOSTUNREACH"
+    normalized.category === "auth" ||
+    normalized.category === "network" ||
+    normalized.category === "temporary" ||
+    normalized.category === "permanent"
   ) {
-    return "SMTP 서버 연결에 실패했습니다. 호스트, 포트, TLS 설정을 확인하세요.";
+    return normalized.message;
   }
 
-  return raw;
+  return normalized.rawMessage;
 };

@@ -52,19 +52,19 @@ export default function SmtpListPage() {
   }, [items]);
 
   const deleteMutation = useMutation({
-    mutationFn: async (tenantId: string) => {
-      await deleteSmtpConfig(tenantId);
-      return tenantId;
+    mutationFn: async (smtpAccountId: string) => {
+      await deleteSmtpConfig(smtpAccountId);
+      return smtpAccountId;
     },
-    onMutate: (tenantId) => {
-      setDeletingId(tenantId);
+    onMutate: (smtpAccountId) => {
+      setDeletingId(smtpAccountId);
     },
-    onSuccess: (tenantId) => {
+    onSuccess: (smtpAccountId) => {
       toast({
         title: "SMTP 설정을 삭제했습니다.",
       });
       void queryClient.invalidateQueries({ queryKey: ["smtp-configs"] });
-      void queryClient.invalidateQueries({ queryKey: ["smtp-config", tenantId] });
+      void queryClient.invalidateQueries({ queryKey: ["smtp-config", smtpAccountId] });
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "삭제에 실패했습니다.";
@@ -75,9 +75,9 @@ export default function SmtpListPage() {
     },
   });
 
-  const handleDelete = (tenantId: string) => {
+  const handleDelete = (smtpAccountId: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
-    deleteMutation.mutate(tenantId);
+    deleteMutation.mutate(smtpAccountId);
   };
 
   return (
@@ -103,6 +103,7 @@ export default function SmtpListPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>계정 아이디</TableHead>
                     <TableHead>호스트</TableHead>
                     <TableHead>도메인</TableHead>
                     <TableHead>포트</TableHead>
@@ -115,7 +116,8 @@ export default function SmtpListPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedItems.map((item) => (
-                    <TableRow key={item.tenantId}>
+                    <TableRow key={item.id}>
+                      <TableCell>{item.username || "-"}</TableCell>
                       <TableCell>{item.host || "-"}</TableCell>
                       <TableCell>{formatDomains(item.allowedRecipientDomains)}</TableCell>
                       <TableCell>{item.port}</TableCell>
@@ -147,15 +149,15 @@ export default function SmtpListPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/admin/smtp/${item.tenantId}`)}
+                            onClick={() => router.push(`/admin/smtp/${item.id}`)}
                           >
                             수정
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={deleteMutation.isPending && deletingId === item.tenantId}
-                            onClick={() => handleDelete(item.tenantId)}
+                            disabled={deleteMutation.isPending && deletingId === item.id}
+                            onClick={() => handleDelete(item.id)}
                           >
                             삭제
                           </Button>

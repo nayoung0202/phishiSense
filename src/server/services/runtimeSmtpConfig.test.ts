@@ -12,6 +12,7 @@ const baseProject = {
 };
 
 const tenantSmtpConfig: PersistedSmtpConfig = {
+  id: "smtp-1",
   tenantId: "tenant-a",
   name: "tenant-a",
   host: "smtp.example.com",
@@ -19,9 +20,6 @@ const tenantSmtpConfig: PersistedSmtpConfig = {
   securityMode: "STARTTLS",
   username: "mailer@example.com",
   password: "secret",
-  fromEmail: "security@example.com",
-  fromName: "보안팀",
-  replyTo: "reply@example.com",
   tlsVerify: true,
   rateLimitPerMin: 60,
   allowedRecipientDomains: ["example.com"],
@@ -59,7 +57,7 @@ describe("runtimeSmtpConfig", () => {
     expect(resolved.sender).toEqual({
       fromName: "프로젝트 발신자",
       fromEmail: "project@example.com",
-      replyTo: "reply@example.com",
+      replyTo: null,
     });
   });
 

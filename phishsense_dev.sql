@@ -230,6 +230,7 @@ ALTER TABLE public.send_jobs OWNER TO phishsense;
 
 CREATE TABLE public.smtp_accounts (
     id text NOT NULL,
+    tenant_id text NOT NULL,
     name text NOT NULL,
     host text NOT NULL,
     port integer NOT NULL,
@@ -237,9 +238,6 @@ CREATE TABLE public.smtp_accounts (
     security_mode text NOT NULL,
     username text,
     password_enc text NOT NULL,
-    from_email text,
-    from_name text,
-    reply_to text,
     tls_verify boolean DEFAULT true NOT NULL,
     rate_limit_per_min integer DEFAULT 60 NOT NULL,
     allowed_domains_json text,
@@ -631,10 +629,10 @@ e4741277-7ad5-41e7-9f8a-04fe5900ce88	b46f38f0-b27e-4edc-a043-9f1cfeadb3cc	done	2
 -- Data for Name: smtp_accounts; Type: TABLE DATA; Schema: public; Owner: phishsense
 --
 
-COPY public.smtp_accounts (id, name, host, port, secure, security_mode, username, password_enc, from_email, from_name, reply_to, tls_verify, rate_limit_per_min, allowed_domains_json, is_active, last_tested_at, last_test_status, last_test_error, created_at, updated_at) FROM stdin;
-tenant-042cb11c-db6b-4a69-a05e-94b1887504a2	tenant-042cb11c-db6b-4a69-a05e-94b1887504a2	smtp.fastmail.com	587	f	STARTTLS	nayeong.ju@evriz.co.kr	d7de0619de1eef25fa2d7313:1bf7501f49b0f487d2996fd8c8126212:66eb437ec48979bff8973a3b16e76494	alerts@aceenginering.co.kr	PhishSense	alerts@aceenginering.co.kr	t	60	["aceenginering.co.kr"]	t	2025-12-29 06:43:08.624	success	\N	2025-12-29 06:42:50.687	2025-12-29 06:43:08.624
-tenant-bc17afd2-8ef3-42f8-bdb5-2fde21bc9952	tenant-bc17afd2-8ef3-42f8-bdb5-2fde21bc9952	smtp.fastmail.com	465	t	SMTPS	seonghyeon.heo@evriz.co.kr	b82a3b5cd8608b1b62a93a19:b2a4f5f1b068d8b5d4dc06bb216781a6:f11899f7a94d7063ba1fc3a0262528c3	alerts@evriz.co.kr	PhishSense	alerts@evriz.co.kr	t	60	["evriz.co.kr"]	t	2025-12-29 12:01:22.774	success	\N	2025-12-29 11:07:59.949	2025-12-29 12:01:22.774
-tenant-b4c4fdd2-f5ce-4629-af06-7134cc1b4376	tenant-b4c4fdd2-f5ce-4629-af06-7134cc1b4376	smtp.fastmail.com	465	t	SMTPS	nayeong.ju@evriz.co.kr	4162724897d4c967246dc212:cd2500233d709492a0af4ba8ddef2f0b:af38ed327e5188d85d6531936aaecf84	alerts@evriz.co.kr	PhishSense	alerts@evriz.co.kr	t	60	["evriz.co.kr"]	t	2026-01-29 03:49:29.506	success	\N	2025-12-29 06:41:46.406	2026-01-29 03:49:29.506
+COPY public.smtp_accounts (id, tenant_id, name, host, port, secure, security_mode, username, password_enc, tls_verify, rate_limit_per_min, allowed_domains_json, is_active, last_tested_at, last_test_status, last_test_error, created_at, updated_at) FROM stdin;
+tenant-042cb11c-db6b-4a69-a05e-94b1887504a2	tenant-042cb11c-db6b-4a69-a05e-94b1887504a2	tenant-042cb11c-db6b-4a69-a05e-94b1887504a2	smtp.fastmail.com	587	f	STARTTLS	nayeong.ju@evriz.co.kr	d7de0619de1eef25fa2d7313:1bf7501f49b0f487d2996fd8c8126212:66eb437ec48979bff8973a3b16e76494	t	60	["aceenginering.co.kr"]	t	2025-12-29 06:43:08.624	success	\N	2025-12-29 06:42:50.687	2025-12-29 06:43:08.624
+tenant-bc17afd2-8ef3-42f8-bdb5-2fde21bc9952	tenant-bc17afd2-8ef3-42f8-bdb5-2fde21bc9952	tenant-bc17afd2-8ef3-42f8-bdb5-2fde21bc9952	smtp.fastmail.com	465	t	SMTPS	seonghyeon.heo@evriz.co.kr	b82a3b5cd8608b1b62a93a19:b2a4f5f1b068d8b5d4dc06bb216781a6:f11899f7a94d7063ba1fc3a0262528c3	t	60	["evriz.co.kr"]	t	2025-12-29 12:01:22.774	success	\N	2025-12-29 11:07:59.949	2025-12-29 12:01:22.774
+tenant-b4c4fdd2-f5ce-4629-af06-7134cc1b4376	tenant-b4c4fdd2-f5ce-4629-af06-7134cc1b4376	tenant-b4c4fdd2-f5ce-4629-af06-7134cc1b4376	smtp.fastmail.com	465	t	SMTPS	nayeong.ju@evriz.co.kr	4162724897d4c967246dc212:cd2500233d709492a0af4ba8ddef2f0b:af38ed327e5188d85d6531936aaecf84	t	60	["evriz.co.kr"]	t	2026-01-29 03:49:29.506	success	\N	2025-12-29 06:41:46.406	2026-01-29 03:49:29.506
 \.
 
 
@@ -816,6 +814,20 @@ ALTER TABLE ONLY public.users
 --
 
 CREATE UNIQUE INDEX platform_entitlements_tenant_product_idx ON public.platform_entitlements USING btree (tenant_id, product_id);
+
+
+--
+-- Name: smtp_accounts_tenant_active_idx; Type: INDEX; Schema: public; Owner: phishsense
+--
+
+CREATE INDEX smtp_accounts_tenant_active_idx ON public.smtp_accounts USING btree (tenant_id, is_active);
+
+
+--
+-- Name: smtp_accounts_tenant_idx; Type: INDEX; Schema: public; Owner: phishsense
+--
+
+CREATE INDEX smtp_accounts_tenant_idx ON public.smtp_accounts USING btree (tenant_id);
 
 
 --
