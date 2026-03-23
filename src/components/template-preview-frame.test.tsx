@@ -36,6 +36,8 @@ describe("TemplatePreviewFrame", () => {
     const host = screen.getByTitle("template-preview-frame");
     expect(getShadowHtml(host)).toContain("background: #020617;");
     expect(getShadowHtml(host)).toContain("color: #f8fafc;");
+    expect(getShadowHtml(host)).toContain("background: #ffffff;");
+    expect(getShadowHtml(host)).toContain("color: #0f172a;");
   });
 
   it("body 태그가 포함된 HTML은 body 내부만 추출해 렌더링한다", () => {

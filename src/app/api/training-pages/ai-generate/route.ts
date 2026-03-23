@@ -102,8 +102,7 @@ const parseTrainingPageAiRequest = async (request: Request): Promise<TrainingPag
       try {
         const formData = await clonedRequest.formData();
         return trainingPageAiRequestSchema.parse({
-          topic: formData.get("topic"),
-          customTopic: formData.get("customTopic"),
+          tone: formData.get("tone"),
           prompt: formData.get("prompt"),
           generateCount: Number(formData.get("generateCount") ?? 4),
           preservedCandidates: parseJsonArrayField(formData.get("preservedCandidates"), []),
@@ -117,8 +116,7 @@ const parseTrainingPageAiRequest = async (request: Request): Promise<TrainingPag
 
   const formData = await request.formData();
   return trainingPageAiRequestSchema.parse({
-    topic: formData.get("topic"),
-    customTopic: formData.get("customTopic"),
+    tone: formData.get("tone"),
     prompt: formData.get("prompt"),
     generateCount: Number(formData.get("generateCount") ?? 4),
     preservedCandidates: parseJsonArrayField(formData.get("preservedCandidates"), []),

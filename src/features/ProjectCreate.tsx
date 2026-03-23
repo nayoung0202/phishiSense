@@ -56,6 +56,7 @@ import {
   isFutureScheduledDateTime,
   isPastProjectDate,
   preserveTimeOnDateChange,
+  resolveProjectStartDate,
   startOfLocalDay,
 } from "./projectSchedule";
 import { shouldAutoOpenConflictDialog } from "./projectConflictPolicy";
@@ -206,6 +207,7 @@ const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
 
 const asIsoString = (value: Date | undefined) => (value ? value.toISOString() : undefined);
 const STATUS_TEMP = "임시";
+const STATUS_RUNNING = "진행중";
 
 const splitDepartmentTags = (value?: string | null): string[] => {
   if (!value) return [];
@@ -883,8 +885,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
 
   const buildProjectPayload = useCallback(
     (values: ProjectFormValues, status: string): CreateProjectRequest => {
-      const effectiveStartDate =
-        status === "진행중" ? getDefaultProjectStartDate() : values.startDate;
+      const effectiveStartDate = resolveProjectStartDate(values.startDate);
       const startDateIso =
         asIsoString(effectiveStartDate) ?? getDefaultProjectStartDate().toISOString();
       const fallbackEndDate = status === STATUS_TEMP
@@ -1174,7 +1175,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         }
       }
 
-      const status = mode === "run" ? "진행중" : mode === "schedule" ? "예약" : STATUS_TEMP;
+      const status = mode === "run" ? STATUS_RUNNING : mode === "schedule" ? "예약" : STATUS_TEMP;
       const payload = buildProjectPayload(values, status);
 
       if (tempProjectId) {
@@ -1798,19 +1799,40 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                               />
                             </PopoverContent>
                           </Popover>
-                          <div className="space-y-2">
-                            <FormLabel className="text-xs text-muted-foreground">
-                              예약 발송 시각
-                            </FormLabel>
-                            <Input
-                              type="time"
-                              step={60}
-                              value={scheduleTimeValue}
-                              onChange={handleStartTimeChange}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              바로 생성은 현재 시점으로 시작되고, 예약 생성은 선택한 날짜와 시각을 사용합니다.
-                            </p>
+                          <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 rounded-full bg-background p-2 shadow-sm">
+                                <Clock className="h-4 w-4 text-primary" />
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-3">
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <FormLabel className="text-sm font-medium text-foreground">
+                                      예약 발송 시각
+                                    </FormLabel>
+                                    <Badge variant="outline" className="bg-background text-[11px]">
+                                      기본값: 현재 시각
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    필요하면 발송 시각을 직접 수정할 수 있습니다.
+                                  </p>
+                                </div>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                  <div className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm">
+                                    {field.value ? format(field.value, "yyyy-MM-dd") : "날짜 선택"}
+                                  </div>
+                                  <div className="hidden text-muted-foreground sm:block">·</div>
+                                  <Input
+                                    type="time"
+                                    step={60}
+                                    value={scheduleTimeValue}
+                                    onChange={handleStartTimeChange}
+                                    className="w-full bg-background sm:max-w-[160px]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
                           </div>
                           {projectQuarterBadge ? (
                             <div className="text-xs text-muted-foreground">

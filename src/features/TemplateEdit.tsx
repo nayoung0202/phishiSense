@@ -47,11 +47,39 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { neutralizePreviewModalHtml } from "@/lib/templatePreview";
 import { cn } from "@/lib/utils";
 import {
   TEMPLATE_AI_DRAFT_SESSION_KEY,
   type TemplateAiDraft,
 } from "@shared/templateAi";
+
+const normalizeAiDraftForEditor = (html: string) =>
+  neutralizePreviewModalHtml(html)
+    .replace(/<style\b[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\sstyle=(["'])([\s\S]*?)\1/gi, (_match, quote: string, rawStyle: string) => {
+      const nextStyle = rawStyle
+        .replace(/(?:^|;)\s*position\s*:\s*fixed\s*(?=;|$)/gi, "")
+        .replace(/(?:^|;)\s*inset\s*:\s*0\s*(?=;|$)/gi, "")
+        .replace(/(?:^|;)\s*top\s*:\s*0\s*(?=;|$)/gi, "")
+        .replace(/(?:^|;)\s*right\s*:\s*0\s*(?=;|$)/gi, "")
+        .replace(/(?:^|;)\s*bottom\s*:\s*0\s*(?=;|$)/gi, "")
+        .replace(/(?:^|;)\s*left\s*:\s*0\s*(?=;|$)/gi, "")
+        .replace(/^\s*;\s*|\s*;\s*$/g, "")
+        .trim();
+
+      return nextStyle ? ` style=${quote}${nextStyle}${quote}` : "";
+    })
+    .replace(/\sclass=(["'])([\s\S]*?)\1/gi, (_match, quote: string, rawClassName: string) => {
+      const nextClassName = rawClassName
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter((className) => className !== "fixed" && className !== "inset-0")
+        .join(" ");
+
+      return nextClassName ? ` class=${quote}${nextClassName}${quote}` : "";
+    })
+    .trim();
 
 export default function TemplateEdit({ templateId }: { templateId?: string }) {
   const router = useRouter();
@@ -202,8 +230,8 @@ export default function TemplateEdit({ templateId }: { templateId?: string }) {
     form.reset({
       name: draft.subject,
       subject: draft.subject,
-      body: draft.body,
-      maliciousPageContent: draft.maliciousPageContent,
+      body: normalizeAiDraftForEditor(draft.body),
+      maliciousPageContent: normalizeAiDraftForEditor(draft.maliciousPageContent),
       autoInsertLandingEnabled: true,
       autoInsertLandingLabel: "문서 확인하기",
       autoInsertLandingKind: "link",

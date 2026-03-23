@@ -58,11 +58,14 @@ const DEFAULT_TONE: (typeof templateAiToneOptions)[number] = "informational";
 const DEFAULT_DIFFICULTY: (typeof templateAiDifficultyOptions)[number] = "medium";
 
 const previewSurfaceClass =
-  "site-scrollbar max-h-[420px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  "site-scrollbar max-h-[420px] overflow-y-auto rounded-lg bg-slate-50 p-4 text-slate-900";
+const optionsDialogContentClass =
+  "w-[min(94vw,960px)] max-w-3xl h-[min(760px,88vh)] overflow-hidden p-5";
 const candidateDialogContentClass =
-  "w-[min(94vw,1120px)] max-w-[1120px] max-h-[88vh] overflow-y-auto p-5";
+  "w-[min(94vw,1120px)] max-w-[1120px] h-[88vh] overflow-hidden p-5";
 const candidatePreviewSurfaceClass =
-  "site-scrollbar max-h-[320px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  "site-scrollbar max-h-[320px] overflow-y-auto rounded-lg bg-slate-50 p-4 text-slate-900";
+const focusedDialogContentClass = "max-w-5xl h-[88vh] overflow-hidden";
 
 const getGenerateErrorMessage = (error: unknown) => {
   if (!(error instanceof Error)) {
@@ -441,7 +444,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
   );
 
   const renderCandidatesStep = () => (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">2단계. 후보 비교 및 선택</h3>
@@ -541,12 +544,18 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
                     <TabsTrigger value="malicious">악성메일본문</TabsTrigger>
                   </TabsList>
                   <TabsContent value="body" className="space-y-3">
-                    <div className={candidatePreviewSurfaceClass}>
+                    <div
+                      className={candidatePreviewSurfaceClass}
+                      data-testid="template-ai-candidate-preview-surface"
+                    >
                       <TemplatePreviewFrame html={candidate.body} />
                     </div>
                   </TabsContent>
                   <TabsContent value="malicious" className="space-y-3">
-                    <div className={candidatePreviewSurfaceClass}>
+                    <div
+                      className={candidatePreviewSurfaceClass}
+                      data-testid="template-ai-candidate-preview-surface"
+                    >
                       <TemplatePreviewFrame html={candidate.maliciousPageContent} />
                     </div>
                   </TabsContent>
@@ -570,7 +579,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className={step === "options" ? "max-w-3xl" : candidateDialogContentClass}
+          className={step === "options" ? optionsDialogContentClass : candidateDialogContentClass}
           data-testid={step === "options" ? "template-ai-options-dialog" : "template-ai-candidates-dialog"}
         >
           <DialogHeader>
@@ -590,7 +599,7 @@ export function TemplateAiGenerateDialog({ open, onOpenChange }: Props) {
         open={Boolean(focusedCandidate)}
         onOpenChange={(nextOpen) => !nextOpen && setFocusedCandidate(null)}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className={focusedDialogContentClass}>
           <DialogHeader>
             <DialogTitle>{focusedCandidate?.subject ?? "후보 미리보기"}</DialogTitle>
             <DialogDescription>{focusedCandidate?.summary ?? ""}</DialogDescription>

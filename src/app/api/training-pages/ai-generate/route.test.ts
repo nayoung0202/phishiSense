@@ -45,8 +45,7 @@ describe("POST /api/training-pages/ai-generate", () => {
       new Request("http://localhost/api/training-pages/ai-generate", {
         method: "POST",
         body: JSON.stringify({
-          topic: "shipping",
-          customTopic: "",
+          tone: "informational",
           prompt: "핵심 주의 문구를 짧게 넣어 주세요.",
           generateCount: 1,
           preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
@@ -59,7 +58,7 @@ describe("POST /api/training-pages/ai-generate", () => {
     expect(body.candidates).toHaveLength(1);
     expect(generateTrainingPageAiCandidatesMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        topic: "shipping",
+        tone: "informational",
         prompt: "핵심 주의 문구를 짧게 넣어 주세요.",
         preservedCandidates: [{ id: "keep-1", name: "기존 후보" }],
       }),
@@ -90,8 +89,7 @@ describe("POST /api/training-pages/ai-generate", () => {
       new Request("http://localhost/api/training-pages/ai-generate", {
         method: "POST",
         body: JSON.stringify({
-          topic: "shipping",
-          customTopic: "",
+          tone: "formal",
           prompt: "",
           generateCount: 1,
           preservedCandidates: [],
@@ -117,13 +115,11 @@ describe("POST /api/training-pages/ai-generate", () => {
     );
   });
 
-  it("기타 주제를 선택하고 직접 입력이 없으면 400을 반환한다", async () => {
+  it("문체 값이 없으면 400을 반환한다", async () => {
     const response = await POST(
       new Request("http://localhost/api/training-pages/ai-generate", {
         method: "POST",
         body: JSON.stringify({
-          topic: "other",
-          customTopic: "",
           prompt: "",
           generateCount: 4,
           preservedCandidates: [],
@@ -149,8 +145,7 @@ describe("POST /api/training-pages/ai-generate", () => {
       new Request("http://localhost/api/training-pages/ai-generate", {
         method: "POST",
         body: JSON.stringify({
-          topic: "other",
-          customTopic: "파일 확인 학습 안내",
+          tone: "internal-notice",
           prompt: "",
           generateCount: 4,
           preservedCandidates: [],

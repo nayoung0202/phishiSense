@@ -5,14 +5,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Edit, Trash2, FileText, Eye, Sun, Moon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { type TrainingPage } from "@shared/schema";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
-import { extractBodyHtml } from "@/lib/html";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +21,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { SafeText } from "@/components/security/SafeText";
 import { TrainingPageAiGenerateDialog } from "@/components/TrainingPageAiGenerateDialog";
+import { TemplatePreviewFrame } from "@/components/template-preview-frame";
 
 export default function TrainingPages() {
   const queryClient = useQueryClient();
@@ -60,10 +59,9 @@ export default function TrainingPages() {
 
   const previewSurfaceClass =
     previewTheme === "dark"
-      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-4 text-slate-50"
-      : "site-scrollbar rounded-md border border-slate-200 bg-white p-4 text-slate-900";
-  const previewProseClass =
-    previewTheme === "dark" ? "prose prose-invert max-w-none" : "prose max-w-none";
+      ? "site-scrollbar rounded-md border border-slate-800 bg-slate-950 p-2 text-slate-50"
+      : "site-scrollbar rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-900";
+  const previewScrollableSurfaceClass = `${previewSurfaceClass} max-h-[60vh] overflow-y-auto`;
 
   return (
     <>
@@ -123,18 +121,9 @@ export default function TrainingPages() {
                       <FileText className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">
-                          <SafeText value={page.name} fallback="-" />
-                        </h3>
-                        <Badge className={
-                          page.status === "active" 
-                            ? "bg-green-500/20 text-green-400" 
-                            : "bg-gray-500/20 text-gray-400"
-                        }>
-                          {page.status === "active" ? "활성" : "비활성"}
-                        </Badge>
-                      </div>
+                      <h3 className="mb-1 font-semibold truncate">
+                        <SafeText value={page.name} fallback="-" />
+                      </h3>
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         <SafeText value={page.description} fallback="설명 없음" />
                       </p>
@@ -177,10 +166,11 @@ export default function TrainingPages() {
                               </div>
                             </div>
                           </DialogHeader>
-                          <div className={previewSurfaceClass}>
-                            <div
-                              className={previewProseClass}
-                              dangerouslySetInnerHTML={{ __html: extractBodyHtml(page.content) }}
+                          <div className={previewScrollableSurfaceClass}>
+                            <TemplatePreviewFrame
+                              html={page.content}
+                              theme={previewTheme}
+                              className="rounded-md shadow-sm"
                             />
                           </div>
                         </DialogContent>

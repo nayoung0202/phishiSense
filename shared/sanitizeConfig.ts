@@ -32,6 +32,7 @@ export const SANITIZE_ALLOWED_TAGS = [
   "strong",
   "sub",
   "sup",
+  "style",
   "select",
   "option",
   "table",

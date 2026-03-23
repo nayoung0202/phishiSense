@@ -161,10 +161,6 @@ describe("templateAi helpers", () => {
       },
     });
 
-    expect(prompt).toContain("Reference mail-body HTML shape:");
-    expect(prompt).toContain('href="{{LANDING_URL}}"');
-    expect(prompt).toContain("Reference malicious-page HTML shape:");
-    expect(prompt).toContain('action="{{TRAINING_URL}}"');
     expect(prompt).toContain(
       "The main submit CTA in the malicious page must route to {{TRAINING_URL}} via form action or submit formaction.",
     );
@@ -174,15 +170,42 @@ describe("templateAi helpers", () => {
     expect(prompt).not.toContain('href="{{TRAINING_URL}}" target="_blank" rel="noopener noreferrer"');
     expect(prompt).not.toContain("visible anchor link that points to {{TRAINING_URL}}");
     expect(prompt).not.toContain("secondary training link below the form");
-    expect(prompt).toContain(
-      "that attachment is the primary basis for that section's output",
-    );
-    expect(prompt).toContain("prioritize them over the built-in reference HTML");
+    expect(prompt).toContain("Global generation mode:");
+    expect(prompt).toContain("attachment-assisted generation with attachment-locked reproduction");
     expect(prompt).toContain("Reference attachments:");
     expect(prompt).toContain("mail-reference.html");
     expect(prompt).toContain("<div>메일 참고 레이아웃</div>");
     expect(prompt).toContain("landing-reference.png");
-    expect(prompt).toContain("Treat that image as the primary basis for malicious page.");
+    expect(prompt).toContain("attachment-locked reproduction");
+    expect(prompt).toContain("Recreate this mail body as closely as possible");
+    expect(prompt).toContain("Recreate the uploaded file as closely as possible");
+    expect(prompt).toContain("If no attachment is provided for a section, build that section from the internal reference baseline while adapting it to the user's requested topic, tone, difficulty, and extra requirements.");
+    expect(prompt).toContain("If an attachment is provided for a section, reproduce that section as closely as possible");
+    expect(prompt).toContain("Make the result feel plausible and realistic enough");
+  });
+
+  it("첨부가 없으면 내부 레퍼런스 기준 생성 모드를 사용한다", () => {
+    const prompt = buildTemplateAiPrompt({
+      topic: "shipping",
+      customTopic: "",
+      tone: "informational",
+      difficulty: "easy",
+      prompt: "사내 공지처럼 보이게 해 주세요.",
+      generateCount: 2,
+      preservedCandidates: [],
+    });
+
+    expect(prompt).toContain(
+      "internal-reference-guided generation without uploaded section references",
+    );
+    expect(prompt).toContain(
+      "mail body generation mode: internal reference-guided generation",
+    );
+    expect(prompt).toContain(
+      "malicious page generation mode: internal reference-guided generation",
+    );
+    expect(prompt).toContain("Reference mail-body HTML shape:");
+    expect(prompt).toContain("Reference malicious-page HTML shape:");
   });
 
   it("프롬프트에 현재 날짜 기준을 넣어 과거 연도 생성을 억제한다", () => {

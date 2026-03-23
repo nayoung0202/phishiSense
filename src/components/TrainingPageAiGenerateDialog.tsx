@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import {
   TEMPLATE_AI_REFERENCE_ATTACHMENT_ACCEPT,
-  templateAiTopicLabels,
-  templateAiTopicOptions,
+  templateAiToneLabels,
+  templateAiToneOptions,
   validateTemplateAiReferenceAttachmentMeta,
 } from "@shared/templateAi";
 import {
@@ -44,13 +44,16 @@ type Props = {
 
 type DialogStep = "options" | "candidates";
 
-const DEFAULT_TOPIC: (typeof templateAiTopicOptions)[number] = "shipping";
+const DEFAULT_TONE: (typeof templateAiToneOptions)[number] = "informational";
+const optionsDialogContentClass =
+  "w-[min(94vw,840px)] max-w-[840px] max-h-[88vh] overflow-y-auto p-5";
 const previewSurfaceClass =
-  "site-scrollbar max-h-[320px] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  "site-scrollbar max-h-[320px] overflow-y-auto rounded-lg bg-slate-50 p-4 text-slate-900";
 const focusedPreviewSurfaceClass =
-  "site-scrollbar max-h-[70vh] overflow-y-auto rounded-md border border-slate-200 bg-white p-4 text-slate-900";
+  "site-scrollbar max-h-[70vh] overflow-y-auto rounded-lg bg-slate-50 p-4 text-slate-900";
 const candidateDialogContentClass =
-  "w-[min(94vw,1120px)] max-w-[1120px] max-h-[88vh] overflow-y-auto p-5";
+  "w-[min(94vw,1120px)] max-w-[1120px] h-[88vh] overflow-hidden p-5";
+const focusedDialogContentClass = "max-w-5xl h-[88vh] overflow-hidden";
 
 const getGenerateErrorMessage = (error: unknown) => {
   if (!(error instanceof Error)) {
@@ -75,8 +78,7 @@ const getGenerateErrorMessage = (error: unknown) => {
 export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<DialogStep>("options");
-  const [topic, setTopic] = useState<(typeof templateAiTopicOptions)[number]>(DEFAULT_TOPIC);
-  const [customTopic, setCustomTopic] = useState("");
+  const [tone, setTone] = useState<(typeof templateAiToneOptions)[number]>(DEFAULT_TONE);
   const [prompt, setPrompt] = useState("");
   const [candidates, setCandidates] = useState<TrainingPageAiCandidate[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -86,8 +88,6 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [fileInputResetKey, setFileInputResetKey] = useState(0);
 
-  const requiresCustomTopic = topic === "other";
-  const canGenerate = !requiresCustomTopic || customTopic.trim().length > 0;
   const visibleCandidates = candidates.slice(pairPage * 2, pairPage * 2 + 2);
   const maxPairPage = Math.max(0, Math.ceil(candidates.length / 2) - 1);
   const selectedCandidate =
@@ -95,8 +95,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
 
   const resetDialogState = () => {
     setStep("options");
-    setTopic(DEFAULT_TOPIC);
-    setCustomTopic("");
+    setTone(DEFAULT_TONE);
     setPrompt("");
     setCandidates([]);
     setSelectedCandidateId(null);
@@ -116,8 +115,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   const generateMutation = useMutation({
     mutationFn: async (preservedCandidates: TrainingPageAiCandidate[]) => {
       const formData = new FormData();
-      formData.set("topic", topic);
-      formData.set("customTopic", customTopic);
+      formData.set("tone", tone);
       formData.set("prompt", prompt);
       formData.set("generateCount", String(4 - preservedCandidates.length));
       formData.set(
@@ -183,7 +181,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   };
 
   const handleGenerate = () => {
-    if (!canGenerate || attachmentError) return;
+    if (attachmentError) return;
     setSelectedCandidateId(null);
     setFocusedCandidate(null);
     setPairPage(0);
@@ -244,39 +242,25 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">1단계. 생성 조건 설정</h3>
           <p className="text-sm text-muted-foreground">
-            주제를 선택하면 AI가 제목과 안내 구성을 자동으로 생성합니다.
+            문체를 선택하면 AI가 훈련안내페이지 제목과 안내 구성을 자동으로 생성합니다.
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label>주제</Label>
-          <Select value={topic} onValueChange={(value) => setTopic(value as typeof topic)}>
+          <Label>문체</Label>
+          <Select value={tone} onValueChange={(value) => setTone(value as typeof tone)}>
             <SelectTrigger>
-              <SelectValue placeholder="주제를 선택해 주세요" />
+              <SelectValue placeholder="문체를 선택해 주세요" />
             </SelectTrigger>
             <SelectContent>
-              {templateAiTopicOptions.map((option) => (
+              {templateAiToneOptions.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {templateAiTopicLabels[option]}
+                  {templateAiToneLabels[option]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-
-        {requiresCustomTopic ? (
-          <div className="space-y-2">
-            <Label htmlFor="training-page-ai-custom-topic">주제 직접 입력</Label>
-            <Input
-              id="training-page-ai-custom-topic"
-              aria-label="주제 직접 입력"
-              value={customTopic}
-              onChange={(event) => setCustomTopic(event.target.value)}
-              placeholder="예: 사내 보안 캠페인 안내, 계정 보호 학습 안내"
-              maxLength={60}
-            />
-          </div>
-        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="training-page-ai-prompt">추가 요청사항</Label>
@@ -315,14 +299,14 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         </Card>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-          주제에 맞는 필수 안전 안내 문구는 자동으로 포함됩니다. 예를 들어 계정 보안 주제는
-          메일 링크 대신 공식 사이트나 공식 앱에 직접 접속해 확인하라는 안내가 기본 포함됩니다.
+          피싱 대응 기본 수칙은 자동으로 포함됩니다. 메일 링크를 바로 누르지 말고 공식 사이트나
+          공식 앱에 직접 접속해 확인하라는 안내가 기본 포함됩니다.
         </div>
 
         <div className="flex flex-col gap-2">
           <Button
             onClick={handleGenerate}
-            disabled={generateMutation.isPending || !canGenerate || Boolean(attachmentError)}
+            disabled={generateMutation.isPending || Boolean(attachmentError)}
           >
             {generateMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -331,9 +315,6 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
             )}
             AI 훈련안내페이지 생성
           </Button>
-          {requiresCustomTopic && !canGenerate ? (
-            <p className="text-xs text-destructive">기타를 선택한 경우 주제를 직접 입력해 주세요.</p>
-          ) : null}
           {candidates.length > 0 ? (
             <Button
               variant="outline"
@@ -352,7 +333,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
   );
 
   const renderCandidatesStep = () => (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">2단계. 후보 비교 및 선택</h3>
@@ -361,12 +342,22 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={handleBackToOptions} disabled={generateMutation.isPending}>
+        <div className="flex items-center justify-end gap-2 overflow-x-auto pb-1">
+          <Button
+            variant="outline"
+            onClick={handleBackToOptions}
+            disabled={generateMutation.isPending}
+            className="shrink-0"
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             옵션 다시 설정
           </Button>
-          <Button variant="outline" onClick={handleRegenerateAll} disabled={generateMutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={handleRegenerateAll}
+            disabled={generateMutation.isPending}
+            className="shrink-0"
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
             전체 재생성
           </Button>
@@ -374,6 +365,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
             variant="outline"
             onClick={handleRegenerate}
             disabled={generateMutation.isPending || !selectedCandidate}
+            className="shrink-0"
           >
             <RefreshCw className="mr-2 h-4 w-4" />
             선택 제외 나머지 재생성
@@ -382,6 +374,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
             variant="secondary"
             onClick={handleApply}
             disabled={!selectedCandidate || generateMutation.isPending}
+            className="shrink-0"
           >
             선택 후보 반영
           </Button>
@@ -444,7 +437,10 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
 
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">{candidate.description}</p>
-                  <div className={previewSurfaceClass}>
+                  <div
+                    className={previewSurfaceClass}
+                    data-testid="training-ai-candidate-preview-surface"
+                  >
                     <TemplatePreviewFrame html={candidate.content} />
                   </div>
                 </div>
@@ -467,7 +463,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className={step === "options" ? "max-w-3xl" : candidateDialogContentClass}
+          className={step === "options" ? optionsDialogContentClass : candidateDialogContentClass}
           data-testid={
             step === "options"
               ? "training-page-ai-options-dialog"
@@ -491,7 +487,7 @@ export function TrainingPageAiGenerateDialog({ open, onOpenChange }: Props) {
         open={Boolean(focusedCandidate)}
         onOpenChange={(nextOpen) => !nextOpen && setFocusedCandidate(null)}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className={focusedDialogContentClass}>
           <DialogHeader>
             <DialogTitle>{focusedCandidate?.name ?? "후보 미리보기"}</DialogTitle>
             <DialogDescription>{focusedCandidate?.summary ?? ""}</DialogDescription>

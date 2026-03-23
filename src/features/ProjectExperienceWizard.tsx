@@ -19,7 +19,6 @@ import {
 import {
   type TrainingPageAiCandidate,
   type TrainingPageAiGenerateResponse,
-  trainingPageAiTopicOptionsForUi,
 } from "@shared/trainingPageAi";
 import { buildMailHtml } from "@shared/templateMail";
 import type { SmtpConfigSummary } from "@/types/smtp";
@@ -152,9 +151,8 @@ export default function ProjectExperienceWizard() {
   const [selectedTemplateCandidateId, setSelectedTemplateCandidateId] = useState<string | null>(null);
   const [savedTemplate, setSavedTemplate] = useState<Template | null>(null);
 
-  const [trainingTopic, setTrainingTopic] =
-    useState<(typeof trainingPageAiTopicOptionsForUi)[number]>("shipping");
-  const [trainingCustomTopic, setTrainingCustomTopic] = useState("");
+  const [trainingTone, setTrainingTone] =
+    useState<(typeof templateAiToneOptions)[number]>("informational");
   const [trainingPrompt, setTrainingPrompt] = useState("");
   const [trainingCandidates, setTrainingCandidates] = useState<TrainingPageAiCandidate[]>([]);
   const [selectedTrainingCandidateId, setSelectedTrainingCandidateId] = useState<string | null>(null);
@@ -259,8 +257,7 @@ export default function ProjectExperienceWizard() {
   const trainingGenerateMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        topic: trainingTopic,
-        customTopic: trainingCustomTopic,
+        tone: trainingTone,
         prompt: trainingPrompt,
         generateCount: 4,
         preservedCandidates: [],
@@ -403,7 +400,6 @@ export default function ProjectExperienceWizard() {
   });
 
   const canGenerateTemplate = templateTopic !== "other" || templateCustomTopic.trim().length > 0;
-  const canGenerateTraining = trainingTopic !== "other" || trainingCustomTopic.trim().length > 0;
   const smtpReady = Boolean(activeSmtpConfig);
   const smtpRefreshInProgress = smtpQuery.isFetching && !smtpQuery.isLoading;
 
@@ -660,36 +656,24 @@ export default function ProjectExperienceWizard() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>주제</Label>
-            <Select value={trainingTopic} onValueChange={(value) => setTrainingTopic(value as typeof trainingTopic)}>
+            <Label>문체</Label>
+            <Select value={trainingTone} onValueChange={(value) => setTrainingTone(value as typeof trainingTone)}>
               <SelectTrigger>
-                <SelectValue placeholder="주제를 선택하세요" />
+                <SelectValue placeholder="문체를 선택하세요" />
               </SelectTrigger>
               <SelectContent>
-                {trainingPageAiTopicOptionsForUi.map((option) => (
+                {templateAiToneOptions.map((option) => (
                   <SelectItem key={option} value={option}>
-                    {templateAiTopicLabels[option]}
+                    {templateAiToneLabels[option]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {trainingTopic === "other" ? (
-            <div className="space-y-2">
-              <Label htmlFor="training-custom-topic">주제 직접 입력</Label>
-              <Input
-                id="training-custom-topic"
-                value={trainingCustomTopic}
-                onChange={(event) => setTrainingCustomTopic(event.target.value)}
-                placeholder="예: 링크 검증, 로그인 페이지 식별 요령"
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="training-resource-name">연결 대상 메일</Label>
-              <Input id="training-resource-name" value={savedTemplate?.subject ?? ""} disabled />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="training-resource-name">연결 대상 메일</Label>
+            <Input id="training-resource-name" value={savedTemplate?.subject ?? ""} disabled />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -705,7 +689,7 @@ export default function ProjectExperienceWizard() {
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => trainingGenerateMutation.mutate()}
-            disabled={!savedTemplate || !canGenerateTraining || trainingGenerateMutation.isPending}
+            disabled={!savedTemplate || trainingGenerateMutation.isPending}
           >
             {trainingGenerateMutation.isPending ? "생성 중..." : "훈련 안내 페이지 생성"}
           </Button>

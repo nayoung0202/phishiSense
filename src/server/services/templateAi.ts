@@ -18,6 +18,24 @@ type GeminiUsageMetadata = {
   totalTokenCount?: number;
 };
 
+type OpenAiChatCompletionPayload = {
+  choices?: Array<{
+    message?: {
+      content?:
+        | string
+        | Array<{
+            type?: string;
+            text?: string;
+          }>;
+    };
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+};
+
 type GenerateTemplateAiResult = {
   candidates: TemplateAiCandidate[];
   usage: {
@@ -77,63 +95,27 @@ const responseSchema = {
   },
   required: ["candidates"],
 };
+const OPENAI_TEMPLATE_AI_MODEL = "gpt-4.1-mini";
 
-const referenceMailBodyHtml = `
-<div style="max-width:640px;margin:0 auto;padding:32px 24px;font-family:Arial,sans-serif;color:#111827;line-height:1.6">
-  <p style="margin:0 0 12px"><strong>[Address Confirmation Required]</strong></p>
-  <p style="margin:0 0 12px">The shipment needs to be reassigned due to a delivery failure.</p>
-  <p style="margin:0 0 12px">The parcel is currently on <strong>temporary hold</strong> because the address could not be verified.</p>
-  <ul style="margin:0 0 16px 18px;padding:0">
-    <li>Reason: incomplete unit number or unreachable phone number</li>
-    <li>Deadline: <strong>today by 5:00 PM</strong></li>
-    <li>If not confirmed, the parcel may be returned automatically.</li>
-  </ul>
-  <hr style="margin:20px 0;border:none;border-top:1px solid #e5e7eb" />
-  <p style="margin:0 0 8px"><strong>Confirm delivery details</strong></p>
-  <p style="margin:0 0 16px">Use the button below to review and resubmit the delivery information.</p>
-  <div style="text-align:center">
-    <a href="{{LANDING_URL}}" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:999px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700">
-      Confirm address and request reassignment
-    </a>
+const defaultMailBodyReferenceHtml = `
+<div style="max-width:600px;margin:0 auto;padding:32px;border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#111827;">
+  <p style="margin:0 0 16px;font-size:14px;line-height:1.7;">안녕하세요. 사내 시스템 운영팀입니다.</p>
+  <p style="margin:0 0 20px;font-size:14px;line-height:1.7;">업무 확인이 필요한 항목이 접수되어 안내드립니다. 아래 버튼에서 상세 내용을 확인해 주세요.</p>
+  <div style="margin:24px 0;text-align:center;">
+    <a href="{{LANDING_URL}}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;">상세 내용 확인</a>
   </div>
 </div>
 `.trim();
 
-const referenceMaliciousPageHtml = `
-<div style="display:flex;justify-content:center;padding:48px 24px;background:#f3f4f6">
-  <div style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden">
-    <div style="padding:20px 22px 14px;border-bottom:1px solid #e5e7eb">
-      <p style="margin:0 0 6px;font-size:18px;font-weight:800;color:#111827">Delivery details confirmation</p>
-      <p style="margin:0;color:#374151">Enter the details below and submit the form to continue the reassignment process.</p>
-    </div>
-    <div style="padding:18px 22px 10px">
-      <form method="POST" action="{{TRAINING_URL}}">
-        <div style="display:grid;gap:10px">
-          <div>
-            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Recipient name</label>
-            <input type="text" name="receiver_name" placeholder="Hong Gil-dong" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
-          </div>
-          <div>
-            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Phone number</label>
-            <input type="tel" name="phone" placeholder="010-0000-0000" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
-          </div>
-          <div>
-            <label style="display:block;margin:0 0 6px;font-size:13px;color:#374151">Primary address</label>
-            <input type="text" name="address1" placeholder="123 Teheran-ro, Gangnam-gu, Seoul" required style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;outline:none" />
-          </div>
-        </div>
-        <div style="display:flex;justify-content:center;margin:18px 0 6px">
-          <button type="submit" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 18px;border:none;border-radius:999px;background:#2563eb;color:#ffffff;font-weight:700;cursor:pointer">
-            Confirm address and request reassignment
-          </button>
-        </div>
-      </form>
-      <p style="margin:10px 0 0;font-size:12px;color:#6b7280;text-align:center">
-        This is an automated notice for shipment reassignment.<br />
-        Support desk: 1588-0000
-      </p>
-    </div>
-  </div>
+const defaultMaliciousPageReferenceHtml = `
+<div style="max-width:420px;margin:48px auto;padding:32px;border:1px solid #e5e7eb;border-radius:20px;background:#ffffff;font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;">
+  <h1 style="margin:0 0 12px;font-size:24px;color:#111827;">계정 확인</h1>
+  <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#4b5563;">안전한 이용을 위해 정보를 다시 입력해 주세요.</p>
+  <form action="{{TRAINING_URL}}" method="get" style="display:grid;gap:12px;">
+    <input name="email" placeholder="이메일" style="padding:12px 14px;border:1px solid #d1d5db;border-radius:10px;" />
+    <input name="password" type="password" placeholder="비밀번호" style="padding:12px 14px;border:1px solid #d1d5db;border-radius:10px;" />
+    <button type="submit" style="padding:12px 14px;border:none;border-radius:10px;background:#2563eb;color:#ffffff;font-weight:700;">확인</button>
+  </form>
 </div>
 `.trim();
 
@@ -228,6 +210,23 @@ const createGeminiInvalidResponseError = () =>
     message: "AI 템플릿 생성 응답이 올바르지 않습니다. 잠시 후 다시 시도하세요.",
   });
 
+const buildInvalidAiPayloadDebugSnippet = (payload: unknown) => {
+  try {
+    const serialized = JSON.stringify(payload);
+    return serialized.length > 1200 ? `${serialized.slice(0, 1200)}...` : serialized;
+  } catch {
+    return String(payload);
+  }
+};
+
+const createProviderApiKeyMissingError = () =>
+  createTemplateAiServiceError({
+    status: 503,
+    code: "ai_api_key_missing",
+    message:
+      "서버에 AI API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY 또는 OPENAI_API_KEY를 추가한 뒤 서버를 다시 시작하세요.",
+  });
+
 const extractJsonText = (payload: unknown) => {
   if (!payload || typeof payload !== "object") {
     throw new Error("invalid_ai_response");
@@ -246,18 +245,171 @@ const extractJsonText = (payload: unknown) => {
     throw new Error("empty_ai_response");
   }
 
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]?.trim()) {
+    return fencedMatch[1].trim();
+  }
+
+  const jsonStart = text.indexOf("{");
+  const jsonEnd = text.lastIndexOf("}");
+
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    return text.slice(jsonStart, jsonEnd + 1).trim();
+  }
+
+  return text;
+};
+
+const extractOpenAiJsonText = (payload: unknown) => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("invalid_ai_response");
+  }
+
+  const content = (payload as OpenAiChatCompletionPayload).choices?.[0]?.message?.content;
+  const text = Array.isArray(content)
+    ? content
+        .map((part) => (part.type === "text" ? part.text ?? "" : ""))
+        .join("")
+        .trim()
+    : String(content ?? "").trim();
+
+  if (!text) {
+    throw new Error("empty_ai_response");
+  }
+
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]?.trim()) {
+    return fencedMatch[1].trim();
+  }
+
+  const jsonStart = text.indexOf("{");
+  const jsonEnd = text.lastIndexOf("}");
+
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    return text.slice(jsonStart, jsonEnd + 1).trim();
+  }
+
   return text;
 };
 
 const trainingSubmitTargetPattern =
   /<form\b[^>]*\baction=["']?\s*\{\{\s*TRAINING_URL\s*\}\}\s*["']?[^>]*>|<(?:button|input)\b[^>]*\bformaction=["']?\s*\{\{\s*TRAINING_URL\s*\}\}\s*["']?[^>]*>/i;
+const landingTokenPattern = /\{\{\s*LANDING_URL\s*\}\}/i;
+const anchorHrefMatcher = /<a\b([^>]*?)\bhref=(["'])(.*?)\2([^>]*)>/i;
+const formOpenTagMatcher = /<form\b([^>]*)>/i;
+const formActionMatcher = /\baction\s*=\s*(["'])(.*?)\1/i;
+const formCloseTagMatcher = /<\/form>/i;
+const submitButtonPattern =
+  /<button[\s\S]*?type=["']?submit["']?[\s\S]*?>|<input[\s\S]*?type=["']?submit["']?[\s\S]*?>/i;
+
+const buildFallbackTrainingSubmitForm = () =>
+  '<form action="{{TRAINING_URL}}" method="get" style="margin:16px 0;"><button type="submit" style="padding:10px 16px; border-radius:999px; background:#2563eb; color:#ffffff; border:none; font-weight:600;">확인</button></form>';
+const imageTagPattern = /<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>/i;
+
+const stripUnsafeTemplateHtml = (html: string) =>
+  html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[\s\S]*?>[\s\S]*?<\/object>/gi, "")
+    .replace(/<embed\b[^>]*\/?>/gi, "")
+    .replace(/<link\b[^>]*>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, "")
+    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
+    .replace(
+      /\s(src|href)\s*=\s*(["'])\s*(?:https?:)?\/\/[\s\S]*?\2/gi,
+      (_match, attrName) => {
+        if (String(attrName).toLowerCase() === "href") {
+          return ' href="#"';
+        }
+
+        return "";
+      },
+    )
+    .replace(/\s(src|href)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, "");
+
+const buildEmbeddedReferenceImage = (attachment: TemplateAiReferenceAttachment) =>
+  `<div style="text-align:center; margin:0 0 24px;"><img src="data:${attachment.mimeType};base64,${attachment.base64Data}" alt="${attachment.name}" style="max-width:100%; height:auto; display:inline-block;" /></div>`;
+
+const ensureEmbeddedReferenceImage = (
+  html: string,
+  attachment?: TemplateAiReferenceAttachment,
+) => {
+  if (!attachment || attachment.kind !== "image" || !attachment.base64Data) {
+    return html;
+  }
+
+  const embeddedImage = buildEmbeddedReferenceImage(attachment);
+
+  if (imageTagPattern.test(html)) {
+    return html.replace(
+      imageTagPattern,
+      `<img src="data:${attachment.mimeType};base64,${attachment.base64Data}" alt="${attachment.name}" style="max-width:100%; height:auto; display:block; margin:0 auto;" />`,
+    );
+  }
+
+  return `${embeddedImage}${html.trim().length > 0 ? "\n" : ""}${html}`;
+};
+
+const ensureLandingTokenInBody = (html: string) => {
+  const safeHtml = stripUnsafeTemplateHtml(html);
+
+  if (landingTokenPattern.test(safeHtml)) {
+    return safeHtml;
+  }
+
+  if (anchorHrefMatcher.test(safeHtml)) {
+    return safeHtml.replace(
+      anchorHrefMatcher,
+      (_match, leading, quote, _href, trailing) =>
+        `<a${leading}href=${quote}{{LANDING_URL}}${quote}${trailing}>`,
+    );
+  }
+
+  return `${safeHtml}${safeHtml.trim().length > 0 ? "\n\n" : ""}<p><a href="{{LANDING_URL}}">문서 확인</a></p>`;
+};
+
+const ensureTrainingSubmitPath = (html: string) => {
+  const normalizedHtml = stripUnsafeTemplateHtml(normalizeTrainingUrlPlaceholders(html));
+
+  if (trainingSubmitTargetPattern.test(normalizedHtml)) {
+    if (submitButtonPattern.test(normalizedHtml) && formOpenTagMatcher.test(normalizedHtml)) {
+      return normalizedHtml;
+    }
+  }
+
+  if (formOpenTagMatcher.test(normalizedHtml)) {
+    const withAction = normalizedHtml.replace(formOpenTagMatcher, (match, attrs) => {
+      const rawAttrs = (attrs ?? "").trim();
+      if (formActionMatcher.test(rawAttrs)) {
+        return match.replace(formActionMatcher, 'action="{{TRAINING_URL}}"');
+      }
+      const normalizedAttrs = rawAttrs.length > 0 ? ` ${rawAttrs}` : "";
+      return `<form${normalizedAttrs} action="{{TRAINING_URL}}">`;
+    });
+
+    if (submitButtonPattern.test(withAction)) {
+      return withAction;
+    }
+
+    if (formCloseTagMatcher.test(withAction)) {
+      return withAction.replace(
+        formCloseTagMatcher,
+        '<button type="submit">확인</button></form>',
+      );
+    }
+
+    return `${withAction}<button type="submit">확인</button></form>`;
+  }
+
+  return `${normalizedHtml}${normalizedHtml.trim().length > 0 ? "\n\n" : ""}${buildFallbackTrainingSubmitForm()}`;
+};
 
 const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   const normalizedCandidate = {
     ...candidate,
     subject: candidate.subject.trim(),
-    body: candidate.body.trim(),
-    maliciousPageContent: normalizeTrainingUrlPlaceholders(
+    body: ensureLandingTokenInBody(candidate.body.trim()),
+    maliciousPageContent: ensureTrainingSubmitPath(
       neutralizePreviewModalHtml(candidate.maliciousPageContent).trim(),
     ),
     summary: candidate.summary.trim(),
@@ -301,18 +453,100 @@ const sanitizeCandidate = (candidate: Omit<TemplateAiCandidate, "id">) => {
   };
 };
 
+const applyReferenceImageFallback = (
+  candidate: TemplateAiCandidate,
+  request: TemplateAiRequest,
+) => ({
+  ...candidate,
+  body: ensureEmbeddedReferenceImage(candidate.body, request.mailBodyReferenceAttachment),
+  maliciousPageContent: ensureEmbeddedReferenceImage(
+    candidate.maliciousPageContent,
+    request.maliciousPageReferenceAttachment,
+  ),
+});
+
+const applyReferenceHtmlOverride = (
+  candidate: Omit<TemplateAiCandidate, "id">,
+  request: TemplateAiRequest,
+) => ({
+  ...candidate,
+  body:
+    request.mailBodyReferenceAttachment?.kind === "html"
+      ? (request.mailBodyReferenceAttachment.textContent ?? "")
+      : candidate.body,
+  maliciousPageContent:
+    request.maliciousPageReferenceAttachment?.kind === "html"
+      ? (request.maliciousPageReferenceAttachment.textContent ?? "")
+      : candidate.maliciousPageContent,
+});
+
+const normalizeRawTemplateAiCandidate = (
+  candidate: Partial<Omit<TemplateAiCandidate, "id">>,
+): Omit<TemplateAiCandidate, "id"> => ({
+  subject: candidate.subject ?? "",
+  body: candidate.body ?? "",
+  maliciousPageContent: candidate.maliciousPageContent ?? "",
+  summary: candidate.summary ?? "",
+});
+
+const buildFallbackTemplateCandidate = (
+  request: TemplateAiRequest,
+): Omit<TemplateAiCandidate, "id"> => {
+  const topicText = resolveTemplateAiTopicText(request) || "보안 확인";
+  const toneText = templateAiToneLabels[request.tone];
+  const difficultyText = templateAiDifficultyLabels[request.difficulty];
+
+  return {
+    subject: `${topicText} 확인 안내`,
+    body:
+      request.mailBodyReferenceAttachment?.kind === "html"
+        ? request.mailBodyReferenceAttachment.textContent ?? ""
+        : defaultMailBodyReferenceHtml,
+    maliciousPageContent:
+      request.maliciousPageReferenceAttachment?.kind === "html"
+        ? request.maliciousPageReferenceAttachment.textContent ?? ""
+        : defaultMaliciousPageReferenceHtml,
+    summary: `${toneText} / ${difficultyText} 기본 후보`,
+  };
+};
+
+const applyTemplateTextFallbacks = (
+  candidate: Omit<TemplateAiCandidate, "id">,
+  request: TemplateAiRequest,
+): Omit<TemplateAiCandidate, "id"> => {
+  const fallbackCandidate = buildFallbackTemplateCandidate(request);
+
+  return {
+    subject: candidate.subject.trim() || fallbackCandidate.subject,
+    body: candidate.body,
+    maliciousPageContent: candidate.maliciousPageContent,
+    summary: candidate.summary.trim() || fallbackCandidate.summary,
+  };
+};
+
 const buildReferenceAttachmentPrompt = (
   label: string,
   attachment?: TemplateAiReferenceAttachment,
 ) => {
   if (!attachment) {
-    return `- ${label} reference attachment: none`;
+    const referenceHtml =
+      label === "mail body" ? defaultMailBodyReferenceHtml : defaultMaliciousPageReferenceHtml;
+
+    return `- ${label} reference attachment: none
+- ${label} generation mode: internal reference-guided generation
+- When no uploaded attachment exists for this section, use the following internal reference as the primary structural baseline and adapt its copy, scenario details, and emphasis to the user's requested topic, tone, difficulty, and extra requirements.
+Reference ${label === "mail body" ? "mail-body" : "malicious-page"} HTML shape:
+${referenceHtml}`;
   }
 
   if (attachment.kind === "html") {
     return `
 - ${label} reference attachment: ${attachment.name} (${attachment.mimeType})
-Treat the following HTML reference as the primary basis for ${label}. The generated ${label} must clearly follow its information architecture, block order, field composition, and visual hierarchy while still adapting wording and scenario details. Do not copy it verbatim.
+- ${label} generation mode: attachment-locked reproduction
+- Recreate this ${label} as closely as possible to the uploaded file's wording, structure, block order, hierarchy, spacing intent, and visible content.
+- Keep differences to the minimum required for product constraints such as {{LANDING_URL}}, {{TRAINING_URL}}, token replacement, and safety restrictions.
+- If the user's prompt conflicts with the uploaded file, prioritize the uploaded file for this section.
+- Do not paraphrase or redesign unless necessary to satisfy hard constraints.
 
 ${attachment.textContent}
     `.trim();
@@ -320,7 +554,12 @@ ${attachment.textContent}
 
   return `
 - ${label} reference attachment: ${attachment.name} (${attachment.mimeType})
-A reference image for ${label} will be attached after this prompt. Treat that image as the primary basis for ${label}. The generated ${label} must clearly reflect its layout, spacing, emphasis, and component hierarchy while adapting wording and scenario details. Do not copy it verbatim.
+- ${label} generation mode: attachment-locked reproduction
+- A reference image for ${label} will be attached after this prompt.
+- Recreate the uploaded file as closely as possible for layout, spacing, hierarchy, component placement, emphasis, and overall appearance.
+- Keep differences to the minimum required for product constraints such as {{LANDING_URL}}, {{TRAINING_URL}}, token replacement, and safety restrictions.
+- If the user's prompt conflicts with the uploaded file, prioritize the uploaded file for this section.
+- Do not redesign unless necessary to satisfy hard constraints.
   `.trim();
 };
 
@@ -383,6 +622,41 @@ const buildGeminiRequestParts = (request: TemplateAiRequest) => {
   return parts;
 };
 
+const buildOpenAiUserContent = (request: TemplateAiRequest) => {
+  const content: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail: "auto" } }
+  > = [{ type: "text", text: buildTemplateAiPrompt(request) }];
+
+  if (
+    request.mailBodyReferenceAttachment?.kind === "image" &&
+    request.mailBodyReferenceAttachment.base64Data
+  ) {
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${request.mailBodyReferenceAttachment.mimeType};base64,${request.mailBodyReferenceAttachment.base64Data}`,
+        detail: "auto",
+      },
+    });
+  }
+
+  if (
+    request.maliciousPageReferenceAttachment?.kind === "image" &&
+    request.maliciousPageReferenceAttachment.base64Data
+  ) {
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${request.maliciousPageReferenceAttachment.mimeType};base64,${request.maliciousPageReferenceAttachment.base64Data}`,
+        detail: "auto",
+      },
+    });
+  }
+
+  return content;
+};
+
 const requestGeminiCandidates = async (request: TemplateAiRequest, apiKey: string) => {
   let lastError: TemplateAiServiceError | null = null;
 
@@ -439,11 +713,67 @@ const requestGeminiCandidates = async (request: TemplateAiRequest, apiKey: strin
   throw lastError ?? createGeminiNetworkError();
 };
 
+const requestOpenAiCandidates = async (request: TemplateAiRequest, apiKey: string) => {
+  let lastError: TemplateAiServiceError | null = null;
+
+  for (let attempt = 0; attempt <= templateAiRetryDelaysMs.length; attempt += 1) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: process.env.OPENAI_TEMPLATE_AI_MODEL?.trim() || OPENAI_TEMPLATE_AI_MODEL,
+          messages: [
+            {
+              role: "user",
+              content: buildOpenAiUserContent(request),
+            },
+          ],
+          response_format: {
+            type: "json_object",
+          },
+          temperature: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        lastError = createGeminiApiError(response.status, await response.text());
+      } else {
+        try {
+          return await response.json();
+        } catch {
+          throw createGeminiInvalidResponseError();
+        }
+      }
+    } catch (error) {
+      if (error instanceof TemplateAiServiceError) {
+        lastError = error;
+      } else {
+        lastError = createGeminiNetworkError();
+      }
+    }
+
+    if (!lastError.retryable || attempt === templateAiRetryDelaysMs.length) {
+      throw lastError;
+    }
+
+    await sleep(templateAiRetryDelaysMs[attempt]);
+  }
+
+  throw lastError ?? createGeminiNetworkError();
+};
+
 export const buildTemplateAiPrompt = (request: TemplateAiRequest) => {
   const topicText = resolveTemplateAiTopicText(request);
   const toneText = templateAiToneLabels[request.tone];
   const difficultyText = templateAiDifficultyLabels[request.difficulty];
   const currentDateContext = buildCurrentDatePromptContext();
+  const hasAnyReferenceAttachment = Boolean(
+    request.mailBodyReferenceAttachment || request.maliciousPageReferenceAttachment,
+  );
   const attachmentText = [
     buildReferenceAttachmentPrompt("mail body", request.mailBodyReferenceAttachment),
     buildReferenceAttachmentPrompt(
@@ -471,27 +801,29 @@ Rules:
 - The malicious page must redirect or submit to {{TRAINING_URL}} after submission.
 - The main submit CTA in the malicious page must route to {{TRAINING_URL}} via form action or submit formaction.
 - Do not add a separate standalone training guide link unless the user explicitly asks for it.
-- If a section-specific reference attachment is provided, that attachment is the primary basis for that section's output.
-- When section-specific reference attachments are provided, prioritize them over the built-in reference HTML for that section.
-- When reference attachments are provided, adapt useful layout and wording cues without copying them verbatim.
+- If no attachment is provided for a section, build that section from the internal reference baseline while adapting it to the user's requested topic, tone, difficulty, and extra requirements.
+- If an attachment is provided for a section, reproduce that section as closely as possible to the uploaded file and use the user's inputs only as secondary guidance where they do not conflict with the uploaded file.
 - Do not use JavaScript, external CSS, external scripts, or external images/resources.
 - Do not render the malicious page as a fixed-position modal, dialog, or overlay.
 - Inline CSS and style tags are allowed.
 - body must be a complete mail-body HTML string for this product and may include inline CSS or style tags.
 - maliciousPageContent must be a complete malicious-page HTML string for this product and may include inline CSS or style tags.
 - summary should be a one-line differentiator shown under the subject.
-- Use the reference composition below as the baseline visual language for both outputs.
-- Do not copy the reference verbatim; adapt the wording, labels, and scenario details to the requested topic and tone.
-- Keep the same level of inline styling, spacing, and structural clarity shown in the reference.
-- body should feel like an operational notice email: alert headline, short explanation, 2-3 bullet points, a divider, and a single clear CTA.
-- maliciousPageContent should feel like a focused inline card UI shown directly on the page: soft page background, centered white panel, short header, stacked inputs, and one strong primary submit button.
+- Make the result feel plausible and realistic enough to resemble an actual phishing scenario inside a company context.
+- body should feel like a realistic operational notice email with a clear scenario, concise urgency, and one convincing CTA.
+- maliciousPageContent should feel like a realistic destination page for that scenario, with inputs and submit flow that match the requested topic and difficulty.
 - For maliciousPageContent, prefer a form action that points to {{TRAINING_URL}}.
+- When attachment-locked reproduction applies, preserve the uploaded file's design and copy as much as possible.
+- Only change wording, structure, or styling when required by hard constraints or missing token integration.
 
 Generation inputs:
 - topic: ${topicText}
 - tone: ${toneText}
 - difficulty: ${difficultyText}
 - extra requirements: ${request.prompt || "none"}
+
+Global generation mode:
+- ${hasAnyReferenceAttachment ? "attachment-assisted generation with attachment-locked reproduction for uploaded sections" : "internal-reference-guided generation without uploaded section references"}
 
 Reference attachments:
 ${attachmentText}
@@ -500,12 +832,6 @@ Variation instructions:
 ${preservedText}
 
 ${currentDateContext}
-
-Reference mail-body HTML shape:
-${referenceMailBodyHtml}
-
-Reference malicious-page HTML shape:
-${referenceMaliciousPageHtml}
 
 JSON format:
 {
@@ -539,46 +865,86 @@ const estimateCreditsFromUsage = (usage: GeminiUsageMetadata) => {
 export async function generateTemplateAiCandidates(
   request: TemplateAiRequest,
 ): Promise<GenerateTemplateAiResult> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const openAiApiKey = process.env.OPENAI_API_KEY?.trim();
+  const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
 
-  if (!apiKey) {
-    throw createTemplateAiServiceError({
-      status: 503,
-      code: "gemini_api_key_missing",
-      message:
-        "서버에 Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 추가한 뒤 서버를 다시 시작하세요.",
-    });
+  if (!openAiApiKey && !geminiApiKey) {
+    throw createProviderApiKeyMissingError();
   }
 
-  const payload = await requestGeminiCandidates(request, apiKey);
+  const payload = openAiApiKey
+    ? await requestOpenAiCandidates(request, openAiApiKey)
+    : await requestGeminiCandidates(request, geminiApiKey as string);
+  const responseModel = openAiApiKey
+    ? process.env.OPENAI_TEMPLATE_AI_MODEL?.trim() || OPENAI_TEMPLATE_AI_MODEL
+    : DEFAULT_TEMPLATE_AI_MODEL;
 
   try {
-    const text = extractJsonText(payload);
+    const text = openAiApiKey ? extractOpenAiJsonText(payload) : extractJsonText(payload);
     const parsed = JSON.parse(text) as {
-      candidates?: Array<Omit<TemplateAiCandidate, "id">>;
+      candidates?: Array<Partial<Omit<TemplateAiCandidate, "id">>>;
     };
     const rawCandidates = parsed.candidates ?? [];
+    let candidates = rawCandidates.slice(0, request.generateCount).flatMap((candidate) => {
+      try {
+        const candidateWithHtmlOverride = applyReferenceHtmlOverride(
+          normalizeRawTemplateAiCandidate(candidate),
+          request,
+        );
+        const candidateWithTextFallbacks = applyTemplateTextFallbacks(
+          candidateWithHtmlOverride,
+          request,
+        );
+        return [
+          applyReferenceImageFallback(sanitizeCandidate(candidateWithTextFallbacks), request),
+        ];
+      } catch {
+        return [];
+      }
+    });
 
-    if (rawCandidates.length !== request.generateCount) {
-      throw new Error("candidate_count_mismatch");
+    if (candidates.length === 0) {
+      try {
+        candidates = [
+          applyReferenceImageFallback(
+            sanitizeCandidate(buildFallbackTemplateCandidate(request)),
+            request,
+          ),
+        ];
+      } catch {
+        throw new Error("candidate_count_missing");
+      }
     }
 
-    const candidates = rawCandidates.map(sanitizeCandidate);
     const usage = estimateCreditsFromUsage(
-      (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
+      openAiApiKey
+        ? {
+            promptTokenCount: (payload as OpenAiChatCompletionPayload).usage?.prompt_tokens ?? 0,
+            candidatesTokenCount:
+              (payload as OpenAiChatCompletionPayload).usage?.completion_tokens ?? 0,
+            totalTokenCount: (payload as OpenAiChatCompletionPayload).usage?.total_tokens ?? 0,
+          }
+        : (payload as { usageMetadata?: GeminiUsageMetadata }).usageMetadata ?? {},
     );
 
     return {
       candidates,
       usage: {
         ...usage,
-        model: DEFAULT_TEMPLATE_AI_MODEL,
+        model: responseModel,
       },
     };
   } catch (error) {
     if (error instanceof TemplateAiServiceError) {
       throw error;
     }
+
+    console.error("[template-ai] invalid provider response", {
+      provider: openAiApiKey ? "openai" : "gemini",
+      model: responseModel,
+      reason: error instanceof Error ? error.message : "unknown_error",
+      payload: buildInvalidAiPayloadDebugSnippet(payload),
+    });
 
     throw createGeminiInvalidResponseError();
   }

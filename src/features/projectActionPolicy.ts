@@ -1,5 +1,18 @@
 export type ProjectActionKind = "detail" | "edit" | "delete" | "cancel" | "stop" | "report";
 
+export const resolveProjectStopUpdates = (status: string, stoppedAt: Date) => {
+  if (status === "예약") {
+    return {
+      status: "임시",
+    } as const;
+  }
+
+  return {
+    status: "완료",
+    endDate: stoppedAt,
+  } as const;
+};
+
 export const getProjectActionKinds = (status: string): ProjectActionKind[] => {
   switch (status) {
     case "임시":

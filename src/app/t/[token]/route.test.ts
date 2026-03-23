@@ -18,7 +18,7 @@ const tenantStorageMock = vi.hoisted(() => ({
 
 vi.mock("@/server/tenant/tenantStorage", () => tenantStorageMock);
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -84,6 +84,26 @@ describe("GET /t/[trackingToken]", () => {
     expect(tenantStorageMock.updateProjectForTenant).toHaveBeenCalledTimes(1);
     expect(project.openCount).toBe(1);
     expect(project.clickCount).toBe(1);
+    expect(project.submitCount).toBe(1);
+  });
+
+  it("POST 제출도 프로젝트에 연결된 훈련 안내 페이지를 렌더링한다", async () => {
+    const request = new NextRequest("http://localhost/t/track-1", {
+      method: "POST",
+      headers: {
+        cookie: "ps_flow_token=track-1",
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ email: "tester@example.com" }).toString(),
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ token: "track-1" }),
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("<p>훈련</p>");
     expect(project.submitCount).toBe(1);
   });
 });
