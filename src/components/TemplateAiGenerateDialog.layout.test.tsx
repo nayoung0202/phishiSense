@@ -48,7 +48,8 @@ describe("TemplateAiGenerateDialog layout", () => {
 
     expect(screen.getByTestId("template-ai-candidates-dialog")).toHaveClass(
       "max-w-[1120px]",
-      "max-h-[88vh]",
+      "h-[88vh]",
+      "overflow-hidden",
     );
   });
 
@@ -69,5 +70,25 @@ describe("TemplateAiGenerateDialog layout", () => {
     const frames = await screen.findAllByTitle("template-preview-frame");
     expect(frames.length).toBeGreaterThan(0);
     expect(frames[0].shadowRoot?.innerHTML).toContain("pointer-events: none !important;");
+  });
+
+  it("uses a single preview border surface for candidate cards", async () => {
+    server.use(
+      http.post("/api/templates/ai-generate", () =>
+        HttpResponse.json({
+          candidates: buildCandidates("border", 4),
+        }),
+      ),
+    );
+
+    renderWithClient(<TemplateAiGenerateDialog open={true} onOpenChange={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "템플릿 생성" }));
+    await screen.findByText("2단계. 후보 비교 및 선택");
+
+    const surfaces = screen.getAllByTestId("template-ai-candidate-preview-surface");
+    expect(surfaces.length).toBeGreaterThan(0);
+    expect(surfaces[0]).not.toHaveClass("border", "border-slate-200");
+    expect(surfaces[0]).toHaveClass("p-4");
   });
 });

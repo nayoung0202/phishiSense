@@ -41,14 +41,18 @@ describe("TrainingPageAiGenerateDialog", () => {
     renderWithClient(<TrainingPageAiGenerateDialog open={true} onOpenChange={() => {}} />);
 
     expect(screen.getByText("1단계. 생성 조건 설정")).toBeInTheDocument();
+    expect(screen.getByText("문체")).toBeInTheDocument();
     expect(screen.getByLabelText("훈련안내페이지 첨부파일")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI 훈련안내페이지 생성" })).toBeInTheDocument();
     expect(screen.getByLabelText("추가 요청사항")).toBeInTheDocument();
-    expect(screen.queryByText("문체")).not.toBeInTheDocument();
+    expect(screen.queryByText("주제")).not.toBeInTheDocument();
     expect(screen.queryByText("구분 난이도")).not.toBeInTheDocument();
-    expect(
-      screen.getAllByText(/주제에 맞는 필수 안전 안내 문구는 자동으로 포함됩니다\./),
-    ).toHaveLength(1);
+    expect(screen.getAllByText(/피싱 대응 기본 수칙은 자동으로 포함됩니다\./)).toHaveLength(1);
+    expect(screen.getByTestId("training-page-ai-options-dialog")).toHaveClass(
+      "max-w-[840px]",
+      "max-h-[88vh]",
+      "overflow-y-auto",
+    );
   });
 
   it("후보 선택 후 초안을 저장하고 페이지 작성 화면으로 이동한다", async () => {
@@ -72,5 +76,25 @@ describe("TrainingPageAiGenerateDialog", () => {
     expect(savedDraft).not.toBeNull();
     expect(savedDraft).toContain("학습 후보 1");
     expect(pushMock).toHaveBeenCalledWith("/training-pages/new?source=ai");
+  });
+
+  it("후보 미리보기 래퍼에 중복 테두리를 추가하지 않는다", async () => {
+    server.use(
+      http.post("/api/training-pages/ai-generate", () =>
+        HttpResponse.json({
+          candidates: buildCandidates("테두리", 4),
+        }),
+      ),
+    );
+
+    renderWithClient(<TrainingPageAiGenerateDialog open={true} onOpenChange={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 훈련안내페이지 생성" }));
+    await screen.findByText("2단계. 후보 비교 및 선택");
+
+    const surfaces = screen.getAllByTestId("training-ai-candidate-preview-surface");
+    expect(surfaces.length).toBeGreaterThan(0);
+    expect(surfaces[0]).not.toHaveClass("border", "border-slate-200");
+    expect(surfaces[0]).toHaveClass("p-4");
   });
 });

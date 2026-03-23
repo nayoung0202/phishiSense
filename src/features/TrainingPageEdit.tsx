@@ -17,13 +17,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ArrowLeft, Save } from "lucide-react";
 import { type TrainingPage, insertTrainingPageSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -84,7 +77,10 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
   });
 
   const onSubmit = (data: any) => {
-    saveMutation.mutate(data);
+    saveMutation.mutate({
+      ...data,
+      status: "active",
+    });
   };
 
   useEffect(() => {
@@ -177,28 +173,6 @@ export default function TrainingPageEdit({ trainingPageId }: { trainingPageId?: 
                       data-testid="input-description"
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>상태</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || undefined}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-status">
-                        <SelectValue placeholder="상태를 선택하세요" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">활성</SelectItem>
-                      <SelectItem value="inactive">비활성</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

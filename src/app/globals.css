@@ -94,12 +94,12 @@
   pointer-events: none !important;
 }
 
-.dark .template-editor-dark-readable {
+.template-editor-dark-readable {
   color: hsl(var(--foreground));
   caret-color: hsl(var(--foreground));
 }
 
-.dark .template-editor-dark-readable :is(
+.template-editor-dark-readable :is(
   [style*="color:#000"],
   [style*="color: #000"],
   [style*="color:#000000"],
@@ -122,24 +122,189 @@
   color: hsl(var(--foreground)) !important;
 }
 
-.dark .template-editor-malicious-modal {
+.template-editor-dark-readable .text-white,
+.template-editor-dark-readable :is(
+  [style*="color:#fff"],
+  [style*="color: #fff"],
+  [style*="color:#ffffff"],
+  [style*="color: #ffffff"],
+  [style*="color:#f8f9fa"],
+  [style*="color: #f8f9fa"],
+  [style*="color:#f8fafc"],
+  [style*="color: #f8fafc"],
+  [style*="color:rgb(255,255,255)"],
+  [style*="color: rgb(255,255,255)"],
+  [style*="color:rgb(255, 255, 255)"],
+  [style*="color: rgb(255, 255, 255)"],
+  [style*="color:rgba(255,255,255,1)"],
+  [style*="color: rgba(255,255,255,1)"],
+  [style*="color:rgba(255, 255, 255, 1)"],
+  [style*="color: rgba(255, 255, 255, 1)"],
+  [style*="color:white"],
+  [style*="color: white"]
+) {
+  color: #0f172a !important;
+}
+
+.template-editor-dark-readable :is(
+  [style*="background:#fff"],
+  [style*="background: #fff"],
+  [style*="background:#ffffff"],
+  [style*="background: #ffffff"],
+  [style*="background:#f8f9fa"],
+  [style*="background: #f8f9fa"],
+  [style*="background:#f8fafc"],
+  [style*="background: #f8fafc"],
+  [style*="background-color:#fff"],
+  [style*="background-color: #fff"],
+  [style*="background-color:#ffffff"],
+  [style*="background-color: #ffffff"],
+  [style*="background-color:#f8f9fa"],
+  [style*="background-color: #f8f9fa"],
+  [style*="background-color:#f8fafc"],
+  [style*="background-color: #f8fafc"],
+  [style*="background:rgb(255,255,255)"],
+  [style*="background: rgb(255,255,255)"],
+  [style*="background:rgb(255, 255, 255)"],
+  [style*="background: rgb(255, 255, 255)"],
+  [style*="background-color:rgb(255,255,255)"],
+  [style*="background-color: rgb(255,255,255)"],
+  [style*="background-color:rgb(255, 255, 255)"],
+  [style*="background-color: rgb(255, 255, 255)"]
+) {
+  color: #0f172a !important;
+}
+
+.template-editor-dark-readable :is(
+  a,
+  button
+):is(
+  [style*="background:#2563eb"],
+  [style*="background: #2563eb"],
+  [style*="background-color:#2563eb"],
+  [style*="background-color: #2563eb"],
+  [style*="background:#1d4ed8"],
+  [style*="background: #1d4ed8"],
+  [style*="background-color:#1d4ed8"],
+  [style*="background-color: #1d4ed8"],
+  [style*="background:#1e40af"],
+  [style*="background: #1e40af"],
+  [style*="background-color:#1e40af"],
+  [style*="background-color: #1e40af"],
+  [style*="background:rgb(37,99,235)"],
+  [style*="background: rgb(37,99,235)"],
+  [style*="background:rgb(37, 99, 235)"],
+  [style*="background: rgb(37, 99, 235)"],
+  [style*="background-color:rgb(37,99,235)"],
+  [style*="background-color: rgb(37,99,235)"],
+  [style*="background-color:rgb(37, 99, 235)"],
+  [style*="background-color: rgb(37, 99, 235)"]
+) {
+  color: #ffffff !important;
+}
+
+.template-editor-dark-readable :is(
+  a,
+  button
+):is(
+  [style*="background:#2563eb"],
+  [style*="background: #2563eb"],
+  [style*="background-color:#2563eb"],
+  [style*="background-color: #2563eb"],
+  [style*="background:#1d4ed8"],
+  [style*="background: #1d4ed8"],
+  [style*="background-color:#1d4ed8"],
+  [style*="background-color: #1d4ed8"],
+  [style*="background:#1e40af"],
+  [style*="background: #1e40af"],
+  [style*="background-color:#1e40af"],
+  [style*="background-color: #1e40af"],
+  [style*="background:rgb(37,99,235)"],
+  [style*="background: rgb(37,99,235)"],
+  [style*="background:rgb(37, 99, 235)"],
+  [style*="background: rgb(37, 99, 235)"],
+  [style*="background-color:rgb(37,99,235)"],
+  [style*="background-color: rgb(37,99,235)"],
+  [style*="background-color:rgb(37, 99, 235)"],
+  [style*="background-color: rgb(37, 99, 235)"]
+) * {
+  color: #ffffff !important;
+}
+
+.template-editor-malicious-modal {
   color: hsl(var(--foreground));
   caret-color: hsl(var(--foreground));
 }
 
-.dark .template-editor-malicious-modal > [style*="background:#f3f4f6"],
-.dark .template-editor-malicious-modal > [style*="background: #f3f4f6"],
-.dark .template-editor-malicious-modal > [style*="background:#ffffff"],
-.dark .template-editor-malicious-modal > [style*="background: #ffffff"],
-.dark .template-editor-malicious-modal > [style*="background-color:#f3f4f6"],
-.dark .template-editor-malicious-modal > [style*="background-color: #f3f4f6"],
-.dark .template-editor-malicious-modal > [style*="background-color:#ffffff"],
-.dark .template-editor-malicious-modal > [style*="background-color: #ffffff"] {
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background:#f3f4f6"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background: #f3f4f6"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background:#ffffff"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background: #ffffff"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background-color:#f3f4f6"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background-color: #f3f4f6"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background-color:#ffffff"],
+.template-editor-malicious-modal > :is(
+  [style*="position:fixed"],
+  [style*="position: fixed"],
+  [class~="fixed"],
+  [class*=":fixed"],
+  [class~="inset-0"],
+  [class*=":inset-0"]
+)[style*="background-color: #ffffff"] {
   background: transparent !important;
   background-color: transparent !important;
 }
 
-.dark .template-editor-malicious-modal :is(
+.template-editor-malicious-modal :is(
   [style*="background:#fff"],
   [style*="background: #fff"],
   [style*="background:#ffffff"],
@@ -150,6 +315,7 @@
   [style*="background-color: #ffffff"]
 ) {
   color: #0f172a !important;
+  box-shadow: 0 0 0 1px #e2e8f0;
 }
 
 .editor-scrollbar a {

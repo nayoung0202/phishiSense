@@ -54,3 +54,14 @@ export const formatTimeInputValue = (value?: Date) => {
 
 export const isFutureScheduledDateTime = (value?: Date, now = new Date()) =>
   Boolean(value && !Number.isNaN(value.getTime()) && value.getTime() > now.getTime());
+
+export const resolveProjectStartDate = (
+  selectedStartDate: Date | undefined,
+  now = new Date(),
+) => {
+  if (selectedStartDate && !Number.isNaN(selectedStartDate.getTime())) {
+    return selectedStartDate;
+  }
+
+  return getDefaultProjectStartDate(now);
+};

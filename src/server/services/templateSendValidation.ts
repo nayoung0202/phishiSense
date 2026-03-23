@@ -22,7 +22,6 @@ export type SendValidationIssue = {
   code:
     | "template_missing"
     | "training_page_missing"
-    | "training_page_inactive"
     | "mail_missing_landing_token"
     | "mail_unknown_tokens"
     | "malicious_unknown_tokens"
@@ -119,12 +118,6 @@ export const validateTemplateForSend = (
       code: "training_page_missing",
       scope: "project",
       message: "훈련 안내 페이지가 연결되어 있지 않습니다.",
-    });
-  } else if (trainingPage.status === "inactive") {
-    issues.push({
-      code: "training_page_inactive",
-      scope: "project",
-      message: "훈련 안내 페이지가 비활성 상태입니다.",
     });
   }
 

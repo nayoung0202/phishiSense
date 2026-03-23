@@ -73,7 +73,11 @@ import { getProjectDepartmentDisplay } from "@shared/projectDepartment";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ReportGenerateDialog } from "@/components/ReportGenerateDialog";
-import { getProjectActionKinds, type ProjectActionKind } from "./projectActionPolicy";
+import {
+  getProjectActionKinds,
+  resolveProjectStopUpdates,
+  type ProjectActionKind,
+} from "./projectActionPolicy";
 import {
   canCompareSelectedProjects,
   canCopySelectedProjects,
@@ -771,8 +775,7 @@ export default function Projects() {
       const results = await Promise.allSettled(
         projectsToStop.map((project) =>
           apiRequest("PATCH", `/api/projects/${project.id}`, {
-            status: "완료",
-            endDate: stoppedAt,
+            ...resolveProjectStopUpdates(project.status, stoppedAt),
           }),
         ),
       );
@@ -996,10 +999,7 @@ export default function Projects() {
     if (!confirm(`"${project.name}" 프로젝트를 중지하시겠습니까?`)) return;
     updateProjectMutation.mutate({
       id: project.id,
-      updates: {
-        status: "완료",
-        endDate: new Date(),
-      },
+      updates: resolveProjectStopUpdates(project.status, new Date()),
       successMessage: "프로젝트를 중지했습니다.",
     });
   };

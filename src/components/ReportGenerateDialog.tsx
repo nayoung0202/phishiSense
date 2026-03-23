@@ -297,10 +297,11 @@ export function ReportGenerateDialog({
               return (
                 <div key={field.key} className="space-y-1">
                   <Label className="text-xs font-semibold">{field.label}</Label>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="space-y-2">
                     <Input
                       type="file"
                       accept="image/png,image/jpeg"
+                      className="w-full"
                       onChange={handleCaptureFileChange(field.key)}
                       disabled={!currentProject || isCaptureUploading}
                     />

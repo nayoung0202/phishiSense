@@ -31,6 +31,9 @@ export function TemplatePreviewFrame({
   const bodyBackground = theme === "dark" ? "#020617" : "#ffffff";
   const bodyTextColor = theme === "dark" ? "#f8fafc" : "#0f172a";
   const linkColor = theme === "dark" ? "#38bdf8" : "#0284c7";
+  const canvasBackground = "#ffffff";
+  const canvasTextColor = "#0f172a";
+  const canvasBorderColor = theme === "dark" ? "#1e293b" : "#e2e8f0";
 
   const shadowContent = useMemo(
     () =>
@@ -38,7 +41,7 @@ export function TemplatePreviewFrame({
         "<style>",
         `*, *::before, *::after { box-sizing: border-box; }`,
         `:host { display: block; min-height: ${minHeight}px; background: ${bodyBackground}; color: ${bodyTextColor}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }`,
-        `.${TEMPLATE_PREVIEW_SANDBOX_CLASS} { padding: 1rem; }`,
+        `.${TEMPLATE_PREVIEW_SANDBOX_CLASS} { padding: 1rem; background: ${canvasBackground}; color: ${canvasTextColor}; border: 1px solid ${canvasBorderColor}; border-radius: 0.75rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }`,
         `a { color: ${linkColor}; text-decoration: underline; }`,
         "img { max-width: 100%; height: auto; display: block; }",
         "input, select, textarea, button { font: inherit; width: 100%; max-width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5f5; background-color: #ffffff; color: #0f172a; }",
@@ -56,7 +59,17 @@ export function TemplatePreviewFrame({
         safeHtml || "",
         "</div>",
       ].join(""),
-    [bodyBackground, bodyTextColor, interactive, linkColor, minHeight, safeHtml],
+    [
+      bodyBackground,
+      bodyTextColor,
+      canvasBackground,
+      canvasBorderColor,
+      canvasTextColor,
+      interactive,
+      linkColor,
+      minHeight,
+      safeHtml,
+    ],
   );
 
   useEffect(() => {

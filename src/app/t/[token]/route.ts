@@ -23,7 +23,7 @@ const buildMissingTrainingResponse = (message: string) =>
     label: "Training Page",
   });
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
+const handleTrainingRequest = async (request: NextRequest, { params }: RouteContext) => {
   try {
     const { token } = await params;
     const normalized = token?.trim();
@@ -36,15 +36,16 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.redirect(buildPhishingLinkUrl(normalized), 302);
     }
 
+    if (request.method === "POST") {
+      await request.formData().catch(() => undefined);
+    }
+
     const context = await getPublicTrainingContextByTrackingToken(normalized);
     if (!context) {
       return buildMissingTrainingResponse("잘못된 주소이거나 더 이상 유효하지 않은 훈련 안내 링크입니다.");
     }
 
     const { tenantId, projectTarget, project, trainingPage } = context;
-    if (trainingPage.status === "inactive") {
-      return buildMissingTrainingResponse("현재 이 훈련 안내 페이지는 비활성 상태입니다.");
-    }
 
     const now = new Date();
     const openedAt = projectTarget.openedAt ?? now;
@@ -89,4 +90,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   } catch {
     return buildMissingTrainingResponse("요청한 훈련 안내 페이지를 불러오지 못했습니다.");
   }
+};
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  return handleTrainingRequest(request, context);
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  return handleTrainingRequest(request, context);
 }
