@@ -9,7 +9,7 @@ const baseProject = {
   templateId: "template-1",
   trainingPageId: "page-1",
   trainingLinkToken: "token-1",
-  sendingDomain: "security.example.com",
+  smtpAccountId: null,
   fromName: "보안팀",
   fromEmail: "security@example.com",
   timezone: "Asia/Seoul",

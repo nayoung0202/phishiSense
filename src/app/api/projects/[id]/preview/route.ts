@@ -35,14 +35,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const projectId = id?.trim().length ? id.trim() : "new";
     const targetIds = payload.targetIds;
     const templateId = payload.templateId ?? undefined;
-    const sendingDomain = payload.sendingDomain ?? undefined;
     const startDateParam = payload.startDate ?? undefined;
     const endDateParam = payload.endDate ?? undefined;
     const cacheKey = buildPreviewCacheKey({
       projectId,
       targetIds,
       templateId,
-      sendingDomain,
       startDate: startDateParam ?? null,
       endDate: endDateParam ?? null,
     });

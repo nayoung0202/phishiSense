@@ -136,7 +136,7 @@ const projectFormSchema = z
     description: z.string().optional(),
     templateId: z.string().min(1, "템플릿을 선택하세요."),
     trainingPageId: z.string().min(1, "랜딩 페이지를 선택하세요."),
-    sendingDomain: z.string().min(1, "발신 도메인 (SMTP)을 입력하세요."),
+    smtpAccountId: z.string().min(1, "SMTP 계정을 선택하세요."),
     fromName: z.string().min(1, "발신자 이름을 입력하세요."),
     fromEmail: z.string().email("올바른 이메일 주소를 입력하세요."),
     startDate: z.date({
@@ -162,7 +162,7 @@ const DEFAULT_VALUES: ProjectFormValues = {
   description: "",
   templateId: "",
   trainingPageId: "",
-  sendingDomain: "",
+  smtpAccountId: "",
   fromName: "",
   fromEmail: "",
   startDate: getDefaultProjectStartDate(),
@@ -170,13 +170,6 @@ const DEFAULT_VALUES: ProjectFormValues = {
   targetIds: [],
   notificationEmails: [],
   allowDuplicateTargets: false,
-};
-
-const extractDomainFromEmail = (value?: string | null) => {
-  if (!value) return "";
-  const parts = value.split("@");
-  if (parts.length < 2) return "";
-  return parts[1].trim().toLowerCase();
 };
 
 const flattenErrorMessages = (errors: Record<string, unknown>): string[] => {
@@ -237,7 +230,6 @@ type PreviewRequestBody = {
   startDate?: string;
   endDate?: string;
   templateId?: string;
-  sendingDomain?: string;
 };
 
 type PreviewRequest = {
@@ -251,7 +243,6 @@ const buildPreviewRequest = (
   startDate?: Date,
   endDate?: Date,
   templateId?: string,
-  sendingDomain?: string,
 ): PreviewRequest | null => {
   if (targetIds.length === 0) return null;
   const payload: PreviewRequestBody = {
@@ -266,9 +257,6 @@ const buildPreviewRequest = (
   if (templateId) {
     payload.templateId = templateId;
   }
-  if (sendingDomain) {
-    payload.sendingDomain = sendingDomain;
-  }
   return {
     projectId,
     body: payload,
@@ -282,7 +270,7 @@ type CreateProjectRequest = {
   departmentTags: string[];
   templateId: string;
   trainingPageId: string;
-  sendingDomain: string;
+  smtpAccountId: string;
   fromName: string;
   fromEmail: string;
   notificationEmails: string[];
@@ -381,7 +369,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const selectedTargetCount = selectedTargetIds.length;
   const templateId = form.watch("templateId");
   const trainingPageId = form.watch("trainingPageId");
-  const sendingDomain = form.watch("sendingDomain");
+  const smtpAccountId = form.watch("smtpAccountId");
   const fromNameValue = form.watch("fromName");
   const fromEmailValue = form.watch("fromEmail");
   const projectName = form.watch("name");
@@ -407,7 +395,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       description: existingProject.description ?? "",
       templateId: existingProject.templateId ?? "",
       trainingPageId: existingProject.trainingPageId ?? "",
-      sendingDomain: existingProject.sendingDomain ?? "",
+      smtpAccountId: existingProject.smtpAccountId ?? "",
       fromName: existingProject.fromName ?? "",
       fromEmail: existingProject.fromEmail ?? "",
       startDate: Number.isNaN(startDate.getTime()) ? getDefaultProjectStartDate() : startDate,
@@ -451,56 +439,20 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
 
   const allTargetIds = useMemo(() => targets.map((target) => target.id), [targets]);
 
-  const smtpDomainOptions = useMemo(() => {
-    type DomainOption = {
-      value: string;
-      label: string;
-      securityMode: SmtpConfigSummary["securityMode"];
-      isActive: boolean;
-      updatedAt: string;
-    };
-    const domainMap = new Map<string, DomainOption>();
-
-    smtpConfigs.forEach((config) => {
-      const domainSet = new Set<string>();
-      (config.allowedRecipientDomains ?? []).forEach((domain) => {
-        const normalized = domain.trim().toLowerCase();
-        if (normalized) domainSet.add(normalized);
-      });
-      if (domainSet.size === 0) {
-        const usernameDomain = extractDomainFromEmail(config.username);
-        if (usernameDomain) domainSet.add(usernameDomain);
-      }
-
-      domainSet.forEach((domain) => {
-        const existing = domainMap.get(domain);
-        const candidate: DomainOption = {
-          value: domain,
-          label: domain,
-          securityMode: config.securityMode,
-          isActive: config.isActive,
-          updatedAt: config.updatedAt ?? "",
-        };
-        if (!existing) {
-          domainMap.set(domain, candidate);
-          return;
-        }
-        const isBetter =
-          (candidate.isActive && !existing.isActive) ||
-          (candidate.isActive === existing.isActive &&
-            candidate.updatedAt.localeCompare(existing.updatedAt) > 0);
-        if (isBetter) {
-          domainMap.set(domain, candidate);
-        }
-      });
-    });
-
-    return Array.from(domainMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  const smtpAccountOptions = useMemo(() => {
+    return (smtpConfigs ?? [])
+      .filter((config) => config.isActive)
+      .map((config) => ({
+        value: config.id,
+        label: config.name ?? config.host,
+        securityMode: config.securityMode,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [smtpConfigs]);
-  const hasSmtpDomains = smtpDomainOptions.length > 0;
-  const selectedDomainOption = useMemo(
-    () => smtpDomainOptions.find((option) => option.value === sendingDomain) ?? null,
-    [smtpDomainOptions, sendingDomain],
+  const hasSmtpAccounts = smtpAccountOptions.length > 0;
+  const selectedSmtpOption = useMemo(
+    () => smtpAccountOptions.find((option) => option.value === smtpAccountId) ?? null,
+    [smtpAccountOptions, smtpAccountId],
   );
 
   const targetLookup = useMemo(() => {
@@ -785,9 +737,8 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         startDateValue ?? undefined,
         endDateValue ?? undefined,
         templateId,
-        sendingDomain,
       ),
-    [stableTargetIds, startDateKey, endDateKey, templateId, sendingDomain],
+    [stableTargetIds, startDateKey, endDateKey, templateId],
   );
 
   const previewQuery = useQuery<PreviewResponse>({
@@ -878,7 +829,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
   const testSendDisabled =
     !templateId ||
     !trainingPageId ||
-    !sendingDomain ||
+    !smtpAccountId ||
     !fromEmailValue ||
     !fromNameValue ||
     !projectName;
@@ -903,7 +854,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         departmentTags,
         templateId: values.templateId,
         trainingPageId: values.trainingPageId,
-        sendingDomain: values.sendingDomain,
+        smtpAccountId: values.smtpAccountId,
         fromName: values.fromName,
         fromEmail: values.fromEmail,
         notificationEmails: values.notificationEmails ?? [],
@@ -1060,7 +1011,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
         body: JSON.stringify({
           projectId,
           templateId: values.templateId,
-          sendingDomain: values.sendingDomain,
+          smtpAccountId: values.smtpAccountId,
           fromEmail: values.fromEmail,
           fromName: values.fromName,
           recipient,
@@ -1193,7 +1144,7 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
       "name",
       "templateId",
       "trainingPageId",
-      "sendingDomain",
+      "smtpAccountId",
       "fromName",
       "fromEmail",
       "startDate",
@@ -1651,11 +1602,11 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                   />
                   <FormField
                     control={form.control}
-                    name="sendingDomain"
+                    name="smtpAccountId"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          발신 도메인 (SMTP)<span className="ml-1 text-destructive">*</span>
+                          SMTP 계정<span className="ml-1 text-destructive">*</span>
                         </FormLabel>
                         <FormControl>
                           <Popover
@@ -1671,33 +1622,33 @@ export default function ProjectCreate({ mode = "create", projectId }: ProjectCre
                               >
                                 {field.value ? (
                                   <span className="flex items-center gap-2">
-                                    <span>{field.value}</span>
-                                    {selectedDomainOption ? (
+                                    <span>{selectedSmtpOption?.label ?? field.value}</span>
+                                    {selectedSmtpOption ? (
                                       <Badge variant="outline" className="text-xs">
-                                        {selectedDomainOption.securityMode}
+                                        {selectedSmtpOption.securityMode}
                                       </Badge>
                                     ) : null}
                                   </span>
                                 ) : (
-                                  "발신 도메인 (SMTP)을 선택하세요"
+                                  "SMTP 계정을 선택하세요"
                                 )}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[320px] p-0">
                               <Command>
-                                <CommandInput placeholder="발신 도메인 (SMTP) 검색" />
+                                <CommandInput placeholder="SMTP 계정 검색" />
                                 <CommandEmpty>
-                                  {hasSmtpDomains
+                                  {hasSmtpAccounts
                                     ? "검색 결과가 없습니다."
-                                    : "등록된 발신 도메인 (SMTP)이 없습니다."}
+                                    : "등록된 SMTP 계정이 없습니다."}
                                 </CommandEmpty>
                                 <CommandList>
                                   <CommandGroup>
-                                    {smtpDomainOptions.map((option) => (
+                                    {smtpAccountOptions.map((option) => (
                                       <CommandItem
                                         key={option.value}
-                                        value={option.value}
+                                        value={option.label}
                                         onSelect={() => {
                                           field.onChange(option.value);
                                           setDomainPopoverOpen(false);

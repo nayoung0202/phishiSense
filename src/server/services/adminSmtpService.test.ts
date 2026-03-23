@@ -3,11 +3,9 @@ import { TENANT_A_ID } from "@/test/tenantFixtures";
 
 const smtpDaoMock = vi.hoisted(() => ({
   createSmtpConfig: vi.fn(),
-  deactivateOtherSmtpConfigsForTenant: vi.fn(),
   deleteSmtpConfigForTenant: vi.fn(),
   getSmtpConfig: vi.fn(),
   getSmtpConfigByIdForTenant: vi.fn(),
-  listSmtpConfigs: vi.fn(),
   listSmtpConfigsForTenant: vi.fn(),
   updateLastTestResult: vi.fn(),
   updateSmtpConfigForTenant: vi.fn(),
@@ -57,11 +55,9 @@ const buildConfig = (overrides: Record<string, unknown> = {}) => ({
 describe("adminSmtpService", () => {
   beforeEach(() => {
     smtpDaoMock.createSmtpConfig.mockReset();
-    smtpDaoMock.deactivateOtherSmtpConfigsForTenant.mockReset();
     smtpDaoMock.deleteSmtpConfigForTenant.mockReset();
     smtpDaoMock.getSmtpConfig.mockReset();
     smtpDaoMock.getSmtpConfigByIdForTenant.mockReset();
-    smtpDaoMock.listSmtpConfigs.mockReset();
     smtpDaoMock.listSmtpConfigsForTenant.mockReset();
     smtpDaoMock.updateLastTestResult.mockReset();
     smtpDaoMock.updateSmtpConfigForTenant.mockReset();
@@ -70,7 +66,6 @@ describe("adminSmtpService", () => {
     ssrfGuardMock.validateTestRecipientEmail.mockClear();
     smtpLibMock.sendTestEmail.mockReset();
 
-    smtpDaoMock.listSmtpConfigs.mockResolvedValue([]);
     smtpDaoMock.listSmtpConfigsForTenant.mockResolvedValue([]);
   });
 
@@ -95,10 +90,6 @@ describe("adminSmtpService", () => {
         username: "alerts@tenant-a.example",
         isActive: true,
       }),
-    );
-    expect(smtpDaoMock.deactivateOtherSmtpConfigsForTenant).toHaveBeenCalledWith(
-      TENANT_A_ID,
-      "smtp-new",
     );
     expect(result.item.id).toBe("smtp-new");
   });

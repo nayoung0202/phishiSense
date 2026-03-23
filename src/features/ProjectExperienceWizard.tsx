@@ -55,22 +55,10 @@ const previewLandingUrl = "/example-domain?type=landing";
 const previewOpenPixelUrl = "https://example.com/o/preview";
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-const extractDomainFromEmail = (value: string | null | undefined) => {
-  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
-  const [, domain = ""] = normalized.split("@");
-  return domain;
-};
-
 const resolveExperienceSmtp = (smtpConfigs: SmtpConfigSummary[]) =>
   smtpConfigs
     .filter((config) => config.isActive && config.hasPassword)
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0] ?? null;
-
-const deriveSendingDomain = (smtpConfig: SmtpConfigSummary) => {
-  const domain = smtpConfig.allowedRecipientDomains?.[0]?.trim().toLowerCase();
-  if (domain) return domain;
-  return extractDomainFromEmail(smtpConfig.username);
-};
 
 const buildExperienceProjectName = (subject: string) => {
   const trimmed = subject.trim();
@@ -352,10 +340,7 @@ export default function ProjectExperienceWizard() {
         });
       }
 
-      const sendingDomain = deriveSendingDomain(activeSmtpConfig) || extractDomainFromEmail(trimmedSender);
-      if (!sendingDomain) {
-        throw new Error("SMTP 설정에서 발신 도메인을 확인할 수 없습니다.");
-      }
+
 
       const now = new Date();
       const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -368,7 +353,7 @@ export default function ProjectExperienceWizard() {
           departmentTags: [],
           templateId: savedTemplate.id,
           trainingPageId: savedTrainingPage.id,
-          sendingDomain,
+          smtpAccountId: activeSmtpConfig.id,
           fromName: sessionName || "PhishSense",
           fromEmail: trimmedSender,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

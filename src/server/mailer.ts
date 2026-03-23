@@ -71,7 +71,6 @@ type SendTestEmailOptions = {
   htmlBody: string;
   fromName: string;
   fromEmail: string;
-  sendingDomain: string;
 };
 
 const stripHtml = (value: string) =>
@@ -100,7 +99,6 @@ export const sendTestEmail = async ({
   htmlBody,
   fromName,
   fromEmail,
-  sendingDomain,
 }: SendTestEmailOptions): Promise<SendTestEmailResult> => {
   const transporter = await getTransporter();
   const normalizedHtmlBody = enforceBlackTextForSend(htmlBody);
@@ -112,7 +110,6 @@ export const sendTestEmail = async ({
     <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
       <header style="margin-bottom: 16px;">
         <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 검수를 위한 테스트 발송입니다.</p>
-        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
       </header>
       <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
         ${normalizedHtmlBody}
@@ -136,7 +133,6 @@ export const sendTestEmail = async ({
     text: plainText || undefined,
     headers: {
       "X-PhishSense-Preview": "true",
-      "X-PhishSense-Sending-Domain": sendingDomain,
     },
   });
 

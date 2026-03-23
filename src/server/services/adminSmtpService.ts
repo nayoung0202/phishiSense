@@ -1,11 +1,9 @@
 import { z } from "zod";
 import {
   createSmtpConfig,
-  deactivateOtherSmtpConfigsForTenant,
   deleteSmtpConfigForTenant,
   getSmtpConfig,
   getSmtpConfigByIdForTenant,
-  listSmtpConfigs,
   listSmtpConfigsForTenant,
   updateLastTestResult,
   updateSmtpConfigForTenant,
@@ -192,26 +190,6 @@ export async function fetchTenantSmtpConfigSummaries(tenantId: string) {
   return configs.map(toSummaryPayload);
 }
 
-const ensureCrossTenantDomainUniqueness = async (
-  tenantId: string,
-  allowedDomains: string[],
-) => {
-  const candidateDomains = new Set<string>(allowedDomains);
-  if (candidateDomains.size === 0) return;
-
-  const configs = await listSmtpConfigs();
-  for (const config of configs) {
-    if (config.tenantId === tenantId) continue;
-    const existingDomains = new Set<string>(normalizeDomains(config.allowedRecipientDomains));
-    const duplicateDomain = Array.from(candidateDomains).find((domain) => existingDomains.has(domain));
-    if (duplicateDomain) {
-      throw new AdminSmtpError(409, {
-        message: `이미 등록된 도메인입니다. (${duplicateDomain})`,
-      });
-    }
-  }
-};
-
 const validateDuplicateWithinTenant = (
   tenantConfigs: PersistedSmtpConfig[],
   candidateConfig: {
@@ -281,10 +259,6 @@ const saveTenantSmtpConfigInternal = async (
     }
 
     const normalizedAllowedDomains = normalizeDomains(parsed.allowedRecipientDomains);
-    await ensureCrossTenantDomainUniqueness(
-      normalizedTenantId,
-      normalizedAllowedDomains,
-    );
 
     const shouldActivateByDefault = tenantConfigs.length === 0;
     const nextIsActive =
@@ -326,10 +300,6 @@ const saveTenantSmtpConfigInternal = async (
           tenantId: normalizedTenantId,
           ...payload,
         });
-
-    if (savedConfig.isActive) {
-      await deactivateOtherSmtpConfigsForTenant(normalizedTenantId, savedConfig.id);
-    }
 
     const refreshedConfig = await getSmtpConfigByIdForTenant(normalizedTenantId, savedConfig.id);
     if (!refreshedConfig) {

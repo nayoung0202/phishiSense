@@ -33,7 +33,7 @@ const baseProject = {
   templateId: null,
   trainingPageId: null,
   trainingLinkToken: "token-1",
-  sendingDomain: null,
+  smtpAccountId: null,
   fromName: null,
   fromEmail: null,
   timezone: "Asia/Seoul",

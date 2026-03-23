@@ -35,7 +35,7 @@ export const projects = pgTable(
     templateId: varchar("template_id"),
     trainingPageId: varchar("training_page_id"),
     trainingLinkToken: text("training_link_token").unique(),
-    sendingDomain: text("sending_domain"),
+    smtpAccountId: text("smtp_account_id"),
     fromName: text("from_name"),
     fromEmail: text("from_email"),
     timezone: text("timezone"),

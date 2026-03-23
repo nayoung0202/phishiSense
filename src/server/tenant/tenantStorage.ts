@@ -85,7 +85,7 @@ import {
   setDefaultReportSettingForTenant,
   updateReportSettingForTenant,
 } from "@/server/dao/reportSettingDao";
-import { getSmtpConfig as getTenantSmtpConfig } from "@/server/dao/smtpDao";
+import { getSmtpConfigByIdForTenant } from "@/server/dao/smtpDao";
 import {
   createReportInstance as createReportInstanceRecord,
   getReportInstanceByIdForTenant,
@@ -167,7 +167,7 @@ const calculateTemporalFields = (startDate: Date, endDate: Date) => {
   };
 };
 
-const buildValidationStorage = (tenantId: string) => ({
+const buildValidationStorage = (tenantId: string, smtpAccountId?: string | null) => ({
   getTemplate(id: string) {
     return getTemplateByIdForTenant(tenantId, id);
   },
@@ -175,7 +175,9 @@ const buildValidationStorage = (tenantId: string) => ({
     return getTrainingPageByIdForTenant(tenantId, id);
   },
   getSmtpConfig() {
-    return getTenantSmtpConfig(tenantId);
+    return smtpAccountId
+      ? getSmtpConfigByIdForTenant(tenantId, smtpAccountId)
+      : Promise.resolve(null);
   },
 });
 
@@ -210,7 +212,7 @@ export async function validateProjectForSendForTenant(
   tenantId: string,
   project: Project,
 ): Promise<SendValidationResult> {
-  return validateProjectForSend(buildValidationStorage(tenantId), project);
+  return validateProjectForSend(buildValidationStorage(tenantId, project.smtpAccountId), project);
 }
 
 export async function enqueueSendJobForProjectForTenant(
@@ -311,7 +313,7 @@ export async function createProjectForTenant(
     templateId: project.templateId ?? null,
     trainingPageId: project.trainingPageId ?? null,
     trainingLinkToken,
-    sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
+    smtpAccountId: project.smtpAccountId ?? null,
     fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
     fromEmail: project.fromEmail ?? null,
     timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
@@ -388,10 +390,10 @@ export async function updateProjectForTenant(
           .map((tag) => normalizePlainText(tag, 120))
           .filter((tag) => tag.length > 0)
       : existing.departmentTags ?? [],
-    sendingDomain:
-      typeof project.sendingDomain === "string"
-        ? normalizePlainText(project.sendingDomain, 200)
-        : existing.sendingDomain ?? null,
+    smtpAccountId:
+      typeof project.smtpAccountId === "string"
+        ? project.smtpAccountId
+        : existing.smtpAccountId ?? null,
     fromName:
       typeof project.fromName === "string"
         ? normalizePlainText(project.fromName, 200)
@@ -448,7 +450,7 @@ export async function updateProjectForTenant(
       templateId: nextProject.templateId ?? null,
       trainingPageId: nextProject.trainingPageId ?? null,
       trainingLinkToken: nextProject.trainingLinkToken ?? null,
-      sendingDomain: nextProject.sendingDomain ?? null,
+      smtpAccountId: nextProject.smtpAccountId ?? null,
       fromName: nextProject.fromName ?? null,
       fromEmail: nextProject.fromEmail ?? null,
       timezone: nextProject.timezone ?? null,
@@ -522,7 +524,7 @@ export async function copyProjectsForTenant(
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
       trainingLinkToken,
-      sendingDomain: project.sendingDomain ?? null,
+      smtpAccountId: project.smtpAccountId ?? null,
       fromName: project.fromName ?? null,
       fromEmail: project.fromEmail ?? null,
       timezone: project.timezone ?? "Asia/Seoul",

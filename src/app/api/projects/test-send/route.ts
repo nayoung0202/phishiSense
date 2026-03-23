@@ -29,7 +29,6 @@ const payloadSchema = z
   .object({
     projectId: z.string().trim().min(1).nullish(),
     templateId: z.string().trim().min(1, "템플릿을 선택하세요.").nullish(),
-    sendingDomain: z.string().min(1, "발신 도메인을 선택하세요."),
     fromEmail: z.string().email("올바른 발신 이메일 주소를 입력하세요."),
     fromName: z.string().min(1, "발신자 이름을 입력하세요."),
     recipient: z.string().email("유효한 수신 이메일을 입력하세요."),
@@ -96,20 +95,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sendingDomain =
-      (typeof project?.sendingDomain === "string" && project.sendingDomain.trim()) ||
-      payload.sendingDomain;
     const fromEmail =
       (typeof project?.fromEmail === "string" && project.fromEmail.trim()) || payload.fromEmail;
     const fromName =
       (typeof project?.fromName === "string" && project.fromName.trim()) || payload.fromName;
-
-    if (sendingDomain.includes("inactive")) {
-      return NextResponse.json(
-        { error: "domain_inactive", reason: "선택한 도메인이 비활성 상태입니다." },
-        { status: 409, headers },
-      );
-    }
 
     const smtpPort = Number(process.env.SMTP_PORT ?? 587);
     const smtpSecure = String(process.env.SMTP_SECURE ?? "").toLowerCase() === "true";
@@ -174,7 +163,7 @@ export async function POST(request: NextRequest) {
     htmlBody = enforceBlackTextForSend(htmlBody);
     const subject = template.subject ?? "테스트 메일";
     const prefixedSubject = `[테스트] ${subject}`;
-    const composedHtml = buildTestEmailHtml(htmlBody, sendingDomain, payload.recipient);
+    const composedHtml = buildTestEmailHtml(htmlBody, payload.recipient);
     const plainText = stripHtml(htmlBody);
     const mailPayload = {
       envelope: { from: fromEmail, to: [payload.recipient] },
@@ -185,7 +174,6 @@ export async function POST(request: NextRequest) {
       text: plainText || undefined,
       headers: {
         "X-PhishSense-Preview": "true",
-        "X-PhishSense-Sending-Domain": sendingDomain,
       },
     };
 

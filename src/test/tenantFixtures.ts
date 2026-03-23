@@ -41,7 +41,7 @@ export function buildProjectFixture(
     templateId: overrides.templateId ?? "template-1",
     trainingPageId: overrides.trainingPageId ?? "page-1",
     trainingLinkToken: overrides.trainingLinkToken ?? "token-1",
-    sendingDomain: overrides.sendingDomain ?? null,
+    smtpAccountId: overrides.smtpAccountId ?? null,
     fromName: overrides.fromName ?? null,
     fromEmail: overrides.fromEmail ?? null,
     timezone: overrides.timezone ?? "Asia/Seoul",

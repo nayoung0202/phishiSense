@@ -192,7 +192,6 @@ export const toSafeDate = (value: unknown): Date | null => {
 export const previewRequestSchema = z.object({
   targetIds: z.array(z.string().trim().min(1)).default([]),
   templateId: z.string().trim().min(1).nullish(),
-  sendingDomain: z.string().trim().min(1).nullish(),
   startDate: z.string().trim().min(1).nullish(),
   endDate: z.string().trim().min(1).nullish(),
 });
@@ -218,7 +217,7 @@ export const stripHtml = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-export const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, recipient: string) => `
+export const buildTestEmailHtml = (htmlBody: string, recipient: string) => `
     <article style="font-family: 'Inter', 'Spoqa Han Sans Neo', sans-serif; line-height: 1.6; color: #0f172a; background: #f8fafc; padding: 24px;">
       <style>
         *, *::before, *::after { box-sizing: border-box; }
@@ -230,7 +229,6 @@ export const buildTestEmailHtml = (htmlBody: string, sendingDomain: string, reci
       </style>
       <header style="margin-bottom: 16px;">
         <p style="margin: 0; font-size: 14px; color: #64748b;">이 메일은 사전 점검을 위한 테스트 발송입니다.</p>
-        <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">발신 도메인: ${sendingDomain}</p>
       </header>
       <section style="background: #ffffff; border-radius: 12px; padding: 24px; box-shadow: rgba(15, 23, 42, 0.04) 0 10px 30px;">
         ${htmlBody}
@@ -246,7 +244,6 @@ export const buildPreviewCacheKey = (options: {
   projectId?: string | null;
   targetIds: string[];
   templateId?: string | null;
-  sendingDomain?: string | null;
   startDate?: string | null;
   endDate?: string | null;
 }) => {
@@ -254,7 +251,6 @@ export const buildPreviewCacheKey = (options: {
     projectId: options.projectId ?? null,
     targetIds: [...options.targetIds].sort(),
     templateId: options.templateId ?? null,
-    sendingDomain: options.sendingDomain ?? null,
     startDate: options.startDate ?? null,
     endDate: options.endDate ?? null,
   };
@@ -334,12 +330,12 @@ export const validateProjectPayload = (
     });
   }
 
-  const sendingDomain = normalizeOptionalString(payload.sendingDomain);
-  if (!isTemporaryDraft && !sendingDomain) {
+  const smtpAccountId = normalizeOptionalString(payload.smtpAccountId);
+  if (!isTemporaryDraft && !smtpAccountId) {
     issues.push({
-      field: "sendingDomain",
+      field: "smtpAccountId",
       code: "required",
-      message: "발신 도메인을 선택하세요.",
+      message: "SMTP 계정을 선택하세요.",
     });
   }
 

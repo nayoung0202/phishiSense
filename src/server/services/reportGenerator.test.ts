@@ -61,7 +61,7 @@ describe("reportGenerator report setting validation", () => {
       templateId: "template-1",
       trainingPageId: null,
       trainingLinkToken: "training-token-1",
-      sendingDomain: null,
+      smtpAccountId: null,
       fromName: null,
       fromEmail: null,
       timezone: "Asia/Seoul",

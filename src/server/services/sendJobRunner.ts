@@ -3,7 +3,7 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import nodemailer, { type SendMailOptions, type Transporter } from "nodemailer";
-import { getSmtpConfig as getTenantSmtpConfig } from "../dao/smtpDao";
+import { getSmtpConfigByIdForTenant } from "../dao/smtpDao";
 import { buildLandingUrl, buildOpenPixelUrl } from "../lib/trainingLink";
 import { stripHtml } from "./projectsShared";
 import { enforceBlackTextForSend } from "./enforceBlackTextForSend";
@@ -253,7 +253,9 @@ const processJob = async (claimedJob: ClaimedJob) => {
       project.trainingPageId
         ? getTrainingPageForTenant(tenantId, project.trainingPageId)
         : Promise.resolve(null),
-      getTenantSmtpConfig(tenantId),
+      project.smtpAccountId
+        ? getSmtpConfigByIdForTenant(tenantId, project.smtpAccountId)
+        : Promise.resolve(null),
     ]);
     if (!template) {
       throw new Error("템플릿을 찾을 수 없습니다.");
@@ -365,9 +367,6 @@ const processJob = async (claimedJob: ClaimedJob) => {
       const plainText = stripHtml(htmlBody);
 
       try {
-        const headers = project.sendingDomain
-          ? { "X-PhishSense-Sending-Domain": project.sendingDomain }
-          : undefined;
         await sendMailWithFallback(transportSession, {
           envelope: {
             from: runtimeConfig.sender.fromEmail,
@@ -379,7 +378,6 @@ const processJob = async (claimedJob: ClaimedJob) => {
           subject: template.subject ?? "(제목 없음)",
           html: htmlBody,
           text: plainText || undefined,
-          headers,
         });
 
         successCount += 1;

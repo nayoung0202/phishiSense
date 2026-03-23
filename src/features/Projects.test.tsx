@@ -25,7 +25,7 @@ const buildProject = (
     templateId: null,
     trainingPageId: null,
     trainingLinkToken: null,
-    sendingDomain: null,
+    smtpAccountId: null,
     fromName: null,
     fromEmail: null,
     timezone: "Asia/Seoul",

@@ -1066,7 +1066,7 @@ exports[`ProjectDetail > 정상 상태를 표시한다 1`] = `
             <p
               class="text-sm text-muted-foreground"
             >
-              2025-01-01 09:05
+              2025-01-01 18:05
             </p>
           </div>
         </div>
@@ -1111,7 +1111,7 @@ exports[`ProjectDetail > 정상 상태를 표시한다 1`] = `
             <p
               class="text-sm text-muted-foreground"
             >
-              2025-01-01 09:00
+              2025-01-01 18:00
             </p>
           </div>
         </div>

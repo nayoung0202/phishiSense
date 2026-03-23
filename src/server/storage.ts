@@ -562,7 +562,7 @@ export class MemStorage implements IStorage {
           templateId,
           trainingPageId: null,
           trainingLinkToken: this.createTrainingLinkToken(),
-          sendingDomain: "security.phishsense.dev",
+          smtpAccountId: null,
           fromName: "정보보안팀",
           fromEmail: "security@company.com",
           timezone: "Asia/Seoul",
@@ -837,7 +837,7 @@ export class MemStorage implements IStorage {
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
       trainingLinkToken,
-      sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
+      smtpAccountId: project.smtpAccountId ?? null,
       fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
       timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
@@ -902,10 +902,10 @@ export class MemStorage implements IStorage {
               .map((tag) => normalizePlainText(tag, 120))
               .filter((tag) => tag.length > 0)
           : existing.departmentTags ?? [],
-        sendingDomain:
-          typeof project.sendingDomain === "string"
-            ? normalizePlainText(project.sendingDomain, 200)
-            : existing.sendingDomain ?? null,
+        smtpAccountId:
+          typeof project.smtpAccountId === "string"
+            ? project.smtpAccountId
+            : existing.smtpAccountId ?? null,
         fromName:
           typeof project.fromName === "string"
             ? normalizePlainText(project.fromName, 200)
@@ -1704,7 +1704,7 @@ export class DbStorage implements IStorage {
               templateId: project.templateId ?? null,
               trainingPageId: project.trainingPageId ?? null,
               trainingLinkToken: project.trainingLinkToken ?? null,
-              sendingDomain: project.sendingDomain ?? null,
+              smtpAccountId: project.smtpAccountId ?? null,
               fromName: project.fromName ?? null,
               fromEmail: project.fromEmail ?? null,
               timezone: project.timezone ?? null,
@@ -1830,7 +1830,7 @@ export class DbStorage implements IStorage {
       templateId: project.templateId ?? null,
       trainingPageId: project.trainingPageId ?? null,
       trainingLinkToken,
-      sendingDomain: project.sendingDomain ? normalizePlainText(project.sendingDomain, 200) : null,
+      smtpAccountId: project.smtpAccountId ?? null,
       fromName: project.fromName ? normalizePlainText(project.fromName, 200) : null,
       fromEmail: project.fromEmail ?? null,
       timezone: project.timezone ? normalizePlainText(project.timezone, 64) : "Asia/Seoul",
@@ -1906,10 +1906,10 @@ export class DbStorage implements IStorage {
             .map((tag) => normalizePlainText(tag, 120))
             .filter((tag) => tag.length > 0)
         : existing.departmentTags ?? [],
-      sendingDomain:
-        typeof project.sendingDomain === "string"
-          ? normalizePlainText(project.sendingDomain, 200)
-          : existing.sendingDomain ?? null,
+      smtpAccountId:
+        typeof project.smtpAccountId === "string"
+          ? project.smtpAccountId
+          : existing.smtpAccountId ?? null,
       fromName:
         typeof project.fromName === "string"
           ? normalizePlainText(project.fromName, 200)
@@ -1965,7 +1965,7 @@ export class DbStorage implements IStorage {
       templateId: nextProject.templateId ?? null,
       trainingPageId: nextProject.trainingPageId ?? null,
       trainingLinkToken: nextProject.trainingLinkToken ?? null,
-      sendingDomain: nextProject.sendingDomain ?? null,
+      smtpAccountId: nextProject.smtpAccountId ?? null,
       fromName: nextProject.fromName ?? null,
       fromEmail: nextProject.fromEmail ?? null,
       timezone: nextProject.timezone ?? null,
@@ -2034,7 +2034,7 @@ export class DbStorage implements IStorage {
         templateId: project.templateId ?? null,
         trainingPageId: project.trainingPageId ?? null,
         trainingLinkToken,
-        sendingDomain: project.sendingDomain ?? null,
+        smtpAccountId: project.smtpAccountId ?? null,
         fromName: project.fromName ?? null,
         fromEmail: project.fromEmail ?? null,
         timezone: project.timezone ?? "Asia/Seoul",
